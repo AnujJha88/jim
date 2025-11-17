@@ -134,7 +134,7 @@ jim /path/to/project
 
 ### Compile
 ```bash
-git clone https://github.com/yourusername/jim.git
+git clone https://github.com/AnujJha88/jim.git
 cd jim
 make
 ```
