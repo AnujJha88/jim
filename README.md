@@ -2,6 +2,10 @@
 
 A lightweight, modern text editor built with C++ and Qt6. Designed for developers who want a fast, distraction-free editing experience with powerful features.
 
+**Note:** This project was vibecoded - built through natural conversation and iteration with AI assistance.
+
+**Coming Soon:** Tim - a complete rewrite written entirely from scratch, bringing even more features and performance improvements.
+
 ## Features
 
 ### Core Editing
