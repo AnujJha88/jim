@@ -1,0 +1,20 @@
+# Build files
+*.o
+moc_*.cpp
+jim
+jim.exe
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Qt files
+*.pro.user
+*.autosave
