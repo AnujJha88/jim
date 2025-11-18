@@ -21,20 +21,34 @@
 #include <QHeaderView>
 #include <QDir>
 #include <QColorDialog>
+#include <QPropertyAnimation>
+#include <QScrollBar>
+#include <QWheelEvent>
+#include <QTimer>
 
 // CodeEditor Implementation
-CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent) {
+CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent), smoothScrollEnabled(true), targetScrollValue(0) {
     lineNumberArea = new LineNumberArea(this);
     miniMap = new MiniMap(this);
     miniMap->hide(); // Hidden by default
+    
+    // Setup smooth scrolling animation
+    scrollAnimation = new QPropertyAnimation(verticalScrollBar(), "value", this);
+    scrollAnimation->setDuration(40);
+    scrollAnimation->setEasingCurve(QEasingCurve::OutQuad);
     
     connect(this, &CodeEditor::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
     connect(this, &CodeEditor::updateRequest, this, &CodeEditor::updateLineNumberArea);
     connect(this, &CodeEditor::cursorPositionChanged, this, &CodeEditor::highlightCurrentLine);
     
-    // Update minimap on scroll and text changes
-    connect(this, &CodeEditor::updateRequest, this, [this]() { if (miniMap->isVisible()) miniMap->update(); });
-    connect(this->document(), &QTextDocument::contentsChanged, this, [this]() { if (miniMap->isVisible()) miniMap->update(); });
+    // Update minimap on scroll and text changes (debounced)
+    QTimer *minimapUpdateTimer = new QTimer(this);
+    minimapUpdateTimer->setSingleShot(true);
+    minimapUpdateTimer->setInterval(50);
+    connect(minimapUpdateTimer, &QTimer::timeout, this, [this]() { 
+        if (miniMap->isVisible()) miniMap->update(); 
+    });
+    connect(this, &CodeEditor::updateRequest, this, [minimapUpdateTimer]() { minimapUpdateTimer->start(); });
     
     updateLineNumberAreaWidth(0);
     highlightCurrentLine();
@@ -115,21 +129,32 @@ void CodeEditor::highlightCurrentLine() {
 
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event) {
     QPainter painter(lineNumberArea);
+    painter.setRenderHint(QPainter::TextAntialiasing, false); // Faster rendering
+    
     QColor bgColor = currentTheme.lineNumberBg.isValid() ? currentTheme.lineNumberBg : QColor(240, 240, 240);
     QColor fgColor = currentTheme.lineNumberFg.isValid() ? currentTheme.lineNumberFg : Qt::gray;
     painter.fillRect(event->rect(), bgColor);
+    painter.setPen(fgColor);
     
     QTextBlock block = firstVisibleBlock();
     int blockNumber = block.blockNumber();
     int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
     int bottom = top + qRound(blockBoundingRect(block).height());
+    int lineHeight = fontMetrics().height();
+    int width = lineNumberArea->width() - 5;
+    int currentLine = textCursor().blockNumber();
     
     while (block.isValid() && top <= event->rect().bottom()) {
         if (block.isVisible() && bottom >= event->rect().top()) {
+            // Highlight current line number
+            if (blockNumber == currentLine) {
+                painter.setPen(QColor(255, 255, 255));
+            } else {
+                painter.setPen(fgColor);
+            }
+            
             QString number = QString::number(blockNumber + 1);
-            painter.setPen(fgColor);
-            painter.drawText(0, top, lineNumberArea->width() - 5, fontMetrics().height(),
-                           Qt::AlignRight, number);
+            painter.drawText(0, top, width, lineHeight, Qt::AlignRight, number);
         }
         
         block = block.next();
@@ -223,6 +248,9 @@ void CodeEditor::matchBrackets() {
 }
 
 // SyntaxHighlighter Implementation
+QRegularExpression SyntaxHighlighter::multiLineCommentStart = QRegularExpression("/\\*");
+QRegularExpression SyntaxHighlighter::multiLineCommentEnd = QRegularExpression("\\*/");
+
 SyntaxHighlighter::SyntaxHighlighter(QTextDocument *parent) : QSyntaxHighlighter(parent) {
     setupRules();
 }
@@ -293,11 +321,11 @@ void SyntaxHighlighter::highlightBlock(const QString &text) {
     int startIndex = 0;
     
     if (previousBlockState() != 1) {
-        startIndex = text.indexOf("/*");
+        startIndex = text.indexOf(multiLineCommentStart);
     }
     
     while (startIndex >= 0) {
-        int endIndex = text.indexOf("*/", startIndex);
+        int endIndex = text.indexOf(multiLineCommentEnd, startIndex);
         int commentLength;
         
         if (endIndex == -1) {
@@ -308,12 +336,29 @@ void SyntaxHighlighter::highlightBlock(const QString &text) {
         }
         
         setFormat(startIndex, commentLength, commentFormat);
-        startIndex = text.indexOf("/*", startIndex + commentLength);
+        startIndex = text.indexOf(multiLineCommentStart, startIndex + commentLength);
     }
     
     // Apply single-line patterns (skip if inside multi-line comment)
     if (previousBlockState() != 1) {
+        // Optimize by only applying relevant patterns based on content
+        bool hasLetters = false;
+        bool hasDigits = false;
+        bool hasQuotes = false;
+        
+        for (const QChar &ch : text) {
+            if (ch.isLetter()) hasLetters = true;
+            if (ch.isDigit()) hasDigits = true;
+            if (ch == '"' || ch == '\'') hasQuotes = true;
+            if (hasLetters && hasDigits && hasQuotes) break;
+        }
+        
         for (const HighlightingRule &rule : highlightingRules) {
+            // Skip patterns that won't match
+            if (!hasLetters && (rule.format == keywordFormat || rule.format == functionFormat || rule.format == classFormat)) continue;
+            if (!hasDigits && rule.format == numberFormat) continue;
+            if (!hasQuotes && rule.format == stringFormat) continue;
+            
             QRegularExpressionMatchIterator matchIterator = rule.pattern.globalMatch(text);
             while (matchIterator.hasNext()) {
                 QRegularExpressionMatch match = matchIterator.next();
@@ -1369,4 +1414,40 @@ void TextEditor::toggleMiniMap() {
             }
         }
     }
+}
+
+void CodeEditor::wheelEvent(QWheelEvent *event) {
+    if (!smoothScrollEnabled) {
+        QPlainTextEdit::wheelEvent(event);
+        return;
+    }
+    
+    // Smooth scrolling
+    int numDegrees = event->angleDelta().y() / 8;
+    int numSteps = numDegrees / 8;
+    
+    if (numSteps == 0) {
+        event->accept();
+        return;
+    }
+    
+    QScrollBar *scrollBar = verticalScrollBar();
+    int currentValue = scrollBar->value();
+    targetScrollValue = currentValue - (numSteps * 5); // 5 lines per step for faster scrolling
+    
+    targetScrollValue = qMax(scrollBar->minimum(), qMin(targetScrollValue, scrollBar->maximum()));
+    
+    if (scrollAnimation->state() == QAbstractAnimation::Running) {
+        scrollAnimation->stop();
+    }
+    
+    scrollAnimation->setStartValue(currentValue);
+    scrollAnimation->setEndValue(targetScrollValue);
+    scrollAnimation->start();
+    
+    event->accept();
+}
+
+void CodeEditor::enableSmoothScrolling(bool enable) {
+    smoothScrollEnabled = enable;
 }

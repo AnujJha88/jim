@@ -17,6 +17,7 @@
 
 class LineNumberArea;
 class MiniMap;
+class QPropertyAnimation;
 
 struct ColorTheme {
     QString name;
@@ -38,6 +39,7 @@ class CodeEditor : public QPlainTextEdit {
 
 public:
     CodeEditor(QWidget *parent = nullptr);
+    void enableSmoothScrolling(bool enable);
     
     void lineNumberAreaPaintEvent(QPaintEvent *event);
     int lineNumberAreaWidth();
@@ -52,6 +54,7 @@ public:
 protected:
     void resizeEvent(QResizeEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
 
 private slots:
     void updateLineNumberAreaWidth(int newBlockCount);
@@ -63,6 +66,9 @@ private:
     MiniMap *miniMap;
     QString fileName;
     ColorTheme currentTheme;
+    bool smoothScrollEnabled;
+    QPropertyAnimation *scrollAnimation;
+    int targetScrollValue;
     void autoIndent();
     void matchBrackets();
 };
@@ -90,6 +96,10 @@ private:
     QTextCharFormat stringFormat;
     QTextCharFormat functionFormat;
     QTextCharFormat numberFormat;
+    
+    // Cached patterns for performance
+    static QRegularExpression multiLineCommentStart;
+    static QRegularExpression multiLineCommentEnd;
     
     void setupRules();
 };
