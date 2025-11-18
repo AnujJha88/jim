@@ -9,29 +9,33 @@ A lightweight, modern text editor built with C++ and Qt6. Designed for developer
 ## Features
 
 ### Core Editing
-- **Syntax Highlighting** - Support for C++, Python, and more
+- **Syntax Highlighting** - Support for C++, Python, and more with multi-line comment support (/* */)
 - **Line Numbers** - Always visible with auto-sizing
 - **Auto-Indentation** - Context-aware smart indenting
-- **Multiple Tabs** - Work on several files simultaneously
+- **Auto-Pairing** - Automatic bracket (), [], {} and quote "", '' pairing with smart closing
+- **Multiple Tabs** - Work on several files simultaneously with improved close buttons
 - **Split View** - View two files side by side
 - **Word Wrap** - Toggle line wrapping on demand
+- **Mini Map** - Code overview for quick navigation (Ctrl+M)
 
 ### Navigation
-- **File Tree** - Browse and open files from a sidebar
-- **Go to Line** - Jump to any line instantly
+- **File Tree** - Browse and open files from a sidebar (Ctrl+B)
+- **Go to Line** - Jump to any line instantly (Ctrl+G)
 - **Find & Replace** - Quick text search with wraparound
 - **Recent Files** - Access recently opened files
+- **Mini Map Navigation** - Click to jump to any part of your code
 
 ### Customization
-- **Theme Switching** - Toggle between light and dark themes
-- **Custom Colors** - Personalize background and text colors
-- **Font Size Control** - Zoom in/out for comfortable reading
+- **Theme Switching** - Toggle between light and dark themes with proper syntax colors (Ctrl+T)
+- **Custom Colors** - Personalize background and text colors with auto-adjusting text
+- **Font Size Control** - Zoom in/out for comfortable reading (Ctrl+/-)
 - **Status Bar** - Real-time line and column position
 
 ### Productivity
 - **Command Line Support** - Open files and folders from terminal
 - **Keyboard Shortcuts** - Vim-inspired workflow
-- **Modern UI** - Clean, distraction-free interface
+- **Modern UI** - Clean, distraction-free interface with sleek dark theme
+- **Performance Optimized** - Fast syntax highlighting and responsive editing
 
 ## Installation
 
@@ -120,6 +124,7 @@ jim /path/to/project
 
 ### View
 - `Ctrl+B` - Toggle file tree
+- `Ctrl+M` - Toggle minimap
 - `Ctrl+\` - Toggle split view
 - `Ctrl+T` - Toggle theme
 - `Ctrl++` - Increase font size
@@ -155,6 +160,18 @@ Settings are automatically saved and include:
 - Window geometry
 
 Configuration is stored in `~/.config/TextEditor/Settings.conf`
+
+## Recent Updates
+
+### Latest Session
+- Added multi-line comment support (/* */)
+- Implemented auto-pairing for brackets and quotes
+- Added minimap for code overview
+- Improved tab close button visibility (red on hover)
+- Fixed theme switching to properly update syntax highlighting colors
+- Performance optimizations for faster editing
+- Reduced input latency
+- Optimized syntax highlighting and minimap rendering
 
 ## Contributing
 

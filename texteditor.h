@@ -16,6 +16,7 @@
 #include <QDockWidget>
 
 class LineNumberArea;
+class MiniMap;
 
 struct ColorTheme {
     QString name;
@@ -44,6 +45,9 @@ public:
     QString getFileName() const { return fileName; }
     bool isModified() const { return document()->isModified(); }
     void applyTheme(const ColorTheme &theme);
+    void miniMapPaintEvent(QPaintEvent *event);
+    int miniMapWidth() const { return 120; }
+    MiniMap* getMiniMap() const { return miniMap; }
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -56,6 +60,7 @@ private slots:
 
 private:
     LineNumberArea *lineNumberArea;
+    MiniMap *miniMap;
     QString fileName;
     ColorTheme currentTheme;
     void autoIndent();
@@ -122,6 +127,7 @@ private slots:
     void toggleWordWrap();
     void toggleSplitView();
     void toggleFileTree();
+    void toggleMiniMap();
     void changeTheme();
     void customizeColors();
     void showAbout();
@@ -194,6 +200,7 @@ private:
     QAction *wordWrapAct;
     QAction *splitViewAct;
     QAction *fileTreeAct;
+    QAction *miniMapAct;
     QAction *themeAct;
     QAction *customizeColorsAct;
     QAction *aboutAct;

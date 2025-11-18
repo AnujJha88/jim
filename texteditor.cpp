@@ -25,10 +25,16 @@
 // CodeEditor Implementation
 CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent) {
     lineNumberArea = new LineNumberArea(this);
+    miniMap = new MiniMap(this);
+    miniMap->hide(); // Hidden by default
     
     connect(this, &CodeEditor::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
     connect(this, &CodeEditor::updateRequest, this, &CodeEditor::updateLineNumberArea);
     connect(this, &CodeEditor::cursorPositionChanged, this, &CodeEditor::highlightCurrentLine);
+    
+    // Update minimap on scroll and text changes
+    connect(this, &CodeEditor::updateRequest, this, [this]() { if (miniMap->isVisible()) miniMap->update(); });
+    connect(this->document(), &QTextDocument::contentsChanged, this, [this]() { if (miniMap->isVisible()) miniMap->update(); });
     
     updateLineNumberAreaWidth(0);
     highlightCurrentLine();
@@ -82,6 +88,13 @@ void CodeEditor::resizeEvent(QResizeEvent *e) {
     QPlainTextEdit::resizeEvent(e);
     QRect cr = contentsRect();
     lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), lineNumberAreaWidth(), cr.height()));
+    
+    if (miniMap->isVisible()) {
+        miniMap->setGeometry(QRect(cr.right() - miniMapWidth(), cr.top(), miniMapWidth(), cr.height()));
+        setViewportMargins(lineNumberAreaWidth(), 0, miniMapWidth(), 0);
+    } else {
+        setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
+    }
 }
 
 void CodeEditor::highlightCurrentLine() {
@@ -131,6 +144,58 @@ void CodeEditor::keyPressEvent(QKeyEvent *event) {
         autoIndent();
         return;
     }
+    
+    QString text = event->text();
+    if (text.isEmpty()) {
+        QPlainTextEdit::keyPressEvent(event);
+        return;
+    }
+    
+    QTextCursor cursor = textCursor();
+    QChar ch = text[0];
+    
+    // Auto-pairing for brackets
+    if (ch == '(' || ch == '[' || ch == '{') {
+        QChar closing = ch == '(' ? ')' : ch == '[' ? ']' : '}';
+        cursor.beginEditBlock();
+        cursor.insertText(QString(ch) + QString(closing));
+        cursor.movePosition(QTextCursor::Left);
+        cursor.endEditBlock();
+        setTextCursor(cursor);
+        return;
+    }
+    
+    // Auto-pairing for quotes
+    if (ch == '"' || ch == '\'') {
+        QChar nextChar = cursor.atEnd() ? QChar() : document()->characterAt(cursor.position());
+        
+        if (nextChar == ch) {
+            // Skip closing quote
+            cursor.movePosition(QTextCursor::Right);
+            setTextCursor(cursor);
+            return;
+        } else {
+            // Insert pair
+            cursor.beginEditBlock();
+            cursor.insertText(QString(ch) + QString(ch));
+            cursor.movePosition(QTextCursor::Left);
+            cursor.endEditBlock();
+            setTextCursor(cursor);
+            return;
+        }
+    }
+    
+    // Auto-skip closing brackets
+    if (ch == ')' || ch == ']' || ch == '}') {
+        QChar nextChar = cursor.atEnd() ? QChar() : document()->characterAt(cursor.position());
+        
+        if (nextChar == ch) {
+            cursor.movePosition(QTextCursor::Right);
+            setTextCursor(cursor);
+            return;
+        }
+    }
+    
     QPlainTextEdit::keyPressEvent(event);
 }
 
@@ -167,7 +232,6 @@ void SyntaxHighlighter::setupRules() {
     HighlightingRule rule;
     
     // Keywords
-    keywordFormat.setForeground(Qt::blue);
     keywordFormat.setFontWeight(QFont::Bold);
     QStringList keywordPatterns = {
         "\\bclass\\b", "\\bconst\\b", "\\benum\\b", "\\bexplicit\\b",
@@ -191,43 +255,70 @@ void SyntaxHighlighter::setupRules() {
 
     // Class names
     classFormat.setFontWeight(QFont::Bold);
-    classFormat.setForeground(Qt::darkMagenta);
     rule.pattern = QRegularExpression("\\bQ[A-Za-z]+\\b");
     rule.format = classFormat;
     highlightingRules.append(rule);
     
     // Strings
-    stringFormat.setForeground(Qt::darkGreen);
     rule.pattern = QRegularExpression("\".*\"|'.*'");
     rule.format = stringFormat;
     highlightingRules.append(rule);
     
     // Numbers
-    numberFormat.setForeground(Qt::darkCyan);
     rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
     rule.format = numberFormat;
     highlightingRules.append(rule);
     
     // Functions
     functionFormat.setFontItalic(true);
-    functionFormat.setForeground(Qt::darkBlue);
     rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
     rule.format = functionFormat;
     highlightingRules.append(rule);
     
     // Single line comments
-    commentFormat.setForeground(Qt::gray);
     rule.pattern = QRegularExpression("//[^\n]*");
     rule.format = commentFormat;
     highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::highlightBlock(const QString &text) {
-    for (const HighlightingRule &rule : highlightingRules) {
-        QRegularExpressionMatchIterator matchIterator = rule.pattern.globalMatch(text);
-        while (matchIterator.hasNext()) {
-            QRegularExpressionMatch match = matchIterator.next();
-            setFormat(match.capturedStart(), match.capturedLength(), rule.format);
+    // Skip empty lines for performance
+    if (text.isEmpty()) {
+        setCurrentBlockState(0);
+        return;
+    }
+    
+    // Handle multi-line comments first
+    setCurrentBlockState(0);
+    int startIndex = 0;
+    
+    if (previousBlockState() != 1) {
+        startIndex = text.indexOf("/*");
+    }
+    
+    while (startIndex >= 0) {
+        int endIndex = text.indexOf("*/", startIndex);
+        int commentLength;
+        
+        if (endIndex == -1) {
+            setCurrentBlockState(1);
+            commentLength = text.length() - startIndex;
+        } else {
+            commentLength = endIndex - startIndex + 2;
+        }
+        
+        setFormat(startIndex, commentLength, commentFormat);
+        startIndex = text.indexOf("/*", startIndex + commentLength);
+    }
+    
+    // Apply single-line patterns (skip if inside multi-line comment)
+    if (previousBlockState() != 1) {
+        for (const HighlightingRule &rule : highlightingRules) {
+            QRegularExpressionMatchIterator matchIterator = rule.pattern.globalMatch(text);
+            while (matchIterator.hasNext()) {
+                QRegularExpressionMatch match = matchIterator.next();
+                setFormat(match.capturedStart(), match.capturedLength(), rule.format);
+            }
         }
     }
 }
@@ -347,6 +438,12 @@ void TextEditor::createActions() {
     fileTreeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_B));
     connect(fileTreeAct, &QAction::triggered, this, &TextEditor::toggleFileTree);
     
+    miniMapAct = new QAction("Mini Map", this);
+    miniMapAct->setCheckable(true);
+    miniMapAct->setChecked(false);
+    miniMapAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_M));
+    connect(miniMapAct, &QAction::triggered, this, &TextEditor::toggleMiniMap);
+    
     themeAct = new QAction("Toggle Theme", this);
     themeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
     connect(themeAct, &QAction::triggered, this, &TextEditor::changeTheme);
@@ -389,6 +486,7 @@ void TextEditor::createMenus() {
     
     viewMenu = menuBar()->addMenu("&View");
     viewMenu->addAction(fileTreeAct);
+    viewMenu->addAction(miniMapAct);
     viewMenu->addAction(splitViewAct);
     viewMenu->addSeparator();
     viewMenu->addAction(increaseFontAct);
@@ -998,23 +1096,17 @@ void TextEditor::applyModernStyle() {
         QTabBar::close-button {
             subcontrol-position: right;
             margin: 4px;
-            padding: 2px;
-            border-radius: 3px;
+            padding: 4px;
+            border-radius: 2px;
+            background-color: transparent;
+            width: 16px;
+            height: 16px;
         }
         QTabBar::close-button:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-        QTabBar QToolButton {
             background-color: #e81123;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            padding: 2px;
-            font-weight: bold;
-            font-size: 10px;
         }
-        QTabBar QToolButton::menu-indicator {
-            image: none;
+        QTabBar::close-button:pressed {
+            background-color: #c50f1f;
         }
         QStatusBar {
             background-color: #007acc;
@@ -1215,5 +1307,66 @@ void TextEditor::openFolderPath(const QString &folderPath) {
         fileTree->setRootIndex(fileSystemModel->index(folderPath));
         fileTreeDock->show();
         statusBar()->showMessage("Opened folder: " + folderPath, 2000);
+    }
+}
+
+void CodeEditor::miniMapPaintEvent(QPaintEvent *event) {
+    QPainter painter(miniMap);
+    painter.fillRect(event->rect(), QColor(40, 40, 40));
+    
+    int totalLines = document()->blockCount();
+    if (totalLines == 0) return;
+    
+    int visibleLines = height() / fontMetrics().height();
+    
+    // Only draw visible portion for performance
+    int startLine = (event->rect().top() * totalLines) / miniMap->height();
+    int endLine = (event->rect().bottom() * totalLines) / miniMap->height() + 1;
+    
+    QTextBlock block = document()->findBlockByLineNumber(qMax(0, startLine));
+    int blockNumber = block.blockNumber();
+    
+    // Draw code lines
+    painter.setPen(QColor(180, 180, 180));
+    while (block.isValid() && blockNumber <= endLine) {
+        int y = (blockNumber * miniMap->height()) / totalLines;
+        
+        QString text = block.text().trimmed();
+        if (!text.isEmpty()) {
+            // Draw a simple line
+            int lineWidth = qMin(text.length() * 2, miniMap->width() - 10);
+            painter.drawLine(5, y, 5 + lineWidth, y);
+        }
+        
+        block = block.next();
+        blockNumber++;
+    }
+    
+    // Draw viewport indicator
+    int firstVisible = firstVisibleBlock().blockNumber();
+    int viewportY = (firstVisible * miniMap->height()) / totalLines;
+    int viewportHeight = qMax(10, (visibleLines * miniMap->height()) / totalLines);
+    
+    painter.fillRect(0, viewportY, miniMap->width(), viewportHeight, QColor(100, 100, 100, 100));
+    painter.setPen(QColor(0, 120, 215));
+    painter.drawRect(0, viewportY, miniMap->width() - 1, viewportHeight);
+}
+
+void TextEditor::toggleMiniMap() {
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+        if (editor) {
+            MiniMap *miniMap = editor->getMiniMap();
+            if (miniMap) {
+                if (miniMapAct->isChecked()) {
+                    miniMap->show();
+                } else {
+                    miniMap->hide();
+                }
+                // Trigger resize to update margins
+                QResizeEvent event(editor->size(), editor->size());
+                QApplication::sendEvent(editor, &event);
+            }
+        }
     }
 }

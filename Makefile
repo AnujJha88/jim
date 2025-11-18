@@ -1,7 +1,7 @@
 # Makefile for Jim Text Editor
 
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -fPIC
+CXXFLAGS = -std=c++17 -Wall -Wextra -O3 -march=native -fPIC
 MOC = /usr/lib/qt6/libexec/moc
 TARGET = jim
 
@@ -14,7 +14,7 @@ LIBS = -L$(QT_LIB) -lQt6Core -lQt6Gui -lQt6Widgets
 
 SOURCES = main.cpp texteditor.cpp linenumberarea.cpp
 HEADERS = texteditor.h linenumberarea.h
-MOC_SOURCES = moc_texteditor.cpp
+MOC_SOURCES = moc_texteditor.cpp moc_linenumberarea.cpp
 OBJECTS = $(SOURCES:.cpp=.o) $(MOC_SOURCES:.cpp=.o)
 
 all: $(TARGET)
@@ -23,6 +23,9 @@ $(TARGET): $(OBJECTS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBS)
 
 moc_texteditor.cpp: texteditor.h
+	$(MOC) $(INCLUDES) $< -o $@
+
+moc_linenumberarea.cpp: linenumberarea.h
 	$(MOC) $(INCLUDES) $< -o $@
 
 %.o: %.cpp
@@ -36,6 +39,6 @@ uninstall:
 	rm -f /usr/local/bin/$(TARGET)
 
 clean:
-	rm -f $(OBJECTS) $(MOC_SOURCES) $(TARGET)
+	rm -f $(OBJECTS) moc_texteditor.cpp moc_linenumberarea.cpp $(TARGET)
 
 .PHONY: all clean install uninstall
