@@ -30,6 +30,9 @@
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QWheelEvent>
+#include <QSaveFile>
+#include <QGuiApplication>
+#include <QStackedWidget>
 
 // ============================================================
 // Language Auto-Detection
@@ -325,6 +328,15 @@ void CodeEditor::keyPressEvent(QKeyEvent *event) {
     autoIndent();
     return;
   }
+  
+  if (event->key() == Qt::Key_Home) {
+    if (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier) {
+      smartHome();
+      // To handle Shift+Home selection, we could enhance smartHome to take a KeepAnchor flag,
+      // but simple smartHome on Home press is a good start.
+      return;
+    }
+  }
 
   QString text = event->text();
   if (text.isEmpty()) {
@@ -460,7 +472,276 @@ void CodeEditor::enableSmoothScrolling(bool enable) {
   smoothScrollEnabled = enable;
 }
 
+void CodeEditor::duplicateLine() {
+    QTextCursor cursor = textCursor();
+    cursor.beginEditBlock();
+    cursor.movePosition(QTextCursor::StartOfBlock);
+    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    QString textText = cursor.selectedText();
+    cursor.movePosition(QTextCursor::EndOfBlock);
+    cursor.insertText("\n" + textText);
+    cursor.endEditBlock();
+}
+
+void CodeEditor::moveLineUp() {
+    QTextCursor cursor = textCursor();
+    cursor.beginEditBlock();
+    if (cursor.blockNumber() == 0) { cursor.endEditBlock(); return; }
+    
+    QTextBlock currentBlock = cursor.block();
+    QTextBlock prevBlock = currentBlock.previous();
+    
+    // Select current block + trailing newline
+    cursor.movePosition(QTextCursor::StartOfBlock);
+    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    if (!cursor.atEnd()) cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+    QString text = cursor.selectedText();
+    cursor.removeSelectedText();
+    
+    cursor.setPosition(prevBlock.position());
+    cursor.insertText(text);
+    cursor.endEditBlock();
+}
+
+void CodeEditor::moveLineDown() {
+    QTextCursor cursor = textCursor();
+    cursor.beginEditBlock();
+    if (cursor.blockNumber() == document()->blockCount() - 1) { cursor.endEditBlock(); return; }
+    
+    QTextBlock currentBlock = cursor.block();
+    QTextBlock nextBlock = currentBlock.next();
+    
+    // Select current block + trailing newline
+    cursor.movePosition(QTextCursor::StartOfBlock);
+    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    if (!cursor.atEnd()) cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+    QString text = cursor.selectedText();
+    cursor.removeSelectedText();
+    
+    cursor.setPosition(nextBlock.position());
+    cursor.movePosition(QTextCursor::EndOfBlock);
+    if (cursor.atEnd()) cursor.insertText("\n" + text.trimmed());
+    else { cursor.movePosition(QTextCursor::NextCharacter); cursor.insertText(text); }
+    
+    cursor.endEditBlock();
+}
+
+void CodeEditor::deleteLine() {
+    QTextCursor cursor = textCursor();
+    cursor.beginEditBlock();
+    cursor.movePosition(QTextCursor::StartOfBlock);
+    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    if (!cursor.atEnd()) cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+    cursor.removeSelectedText();
+    cursor.endEditBlock();
+}
+
+void CodeEditor::toggleComment() {
+    QTextCursor cursor = textCursor();
+    cursor.beginEditBlock();
+    
+    QString prefix = "//";
+    if (currentLanguage == Language::Python || currentLanguage == Language::YAML) prefix = "#";
+    else if (currentLanguage == Language::HTML) prefix = "<!--";
+    
+    int startBlock = cursor.selectionStart();
+    int endBlock = cursor.selectionEnd();
+    QTextCursor iterCursor(document());
+    iterCursor.setPosition(startBlock);
+    int firstBlockNum = iterCursor.blockNumber();
+    iterCursor.setPosition(endBlock);
+    int lastBlockNum = iterCursor.blockNumber();
+    
+    // Check if commenting or uncommenting
+    bool allCommented = true;
+    for (int i = firstBlockNum; i <= lastBlockNum; ++i) {
+        QTextBlock block = document()->findBlockByLineNumber(i);
+        QString text = block.text().trimmed();
+        if (!text.isEmpty() && !text.startsWith(prefix)) {
+            allCommented = false;
+            break;
+        }
+    }
+    
+    for (int i = firstBlockNum; i <= lastBlockNum; ++i) {
+        QTextBlock block = document()->findBlockByLineNumber(i);
+        QString text = block.text();
+        if (text.trimmed().isEmpty()) continue;
+        
+        iterCursor.setPosition(block.position());
+        if (allCommented) {
+            int idx = text.indexOf(prefix);
+            if (idx != -1) {
+                iterCursor.setPosition(block.position() + idx);
+                iterCursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, prefix.length());
+                if (prefix == "<!--") {
+                    // special HTML uncommenting
+                    QString full = text;
+                    int endIdx = full.indexOf("-->", idx);
+                    if (endIdx != -1) {
+                        QTextCursor endCur(document());
+                        endCur.setPosition(block.position() + endIdx);
+                        endCur.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, 3);
+                        endCur.removeSelectedText();
+                    }
+                }
+                iterCursor.removeSelectedText();
+                // Remove trailing space if exists
+                if (iterCursor.block().text().length() > iterCursor.positionInBlock() && 
+                    iterCursor.block().text().at(iterCursor.positionInBlock()) == ' ') {
+                    iterCursor.deleteChar();
+                }
+            }
+        } else {
+            // Find first non-whitespace
+            int idx = 0;
+            while (idx < text.length() && text.at(idx).isSpace()) idx++;
+            iterCursor.setPosition(block.position() + idx);
+            if (prefix == "<!--") {
+                iterCursor.insertText(prefix + " ");
+                iterCursor.movePosition(QTextCursor::EndOfBlock);
+                iterCursor.insertText(" -->");
+            } else {
+                iterCursor.insertText(prefix + " ");
+            }
+        }
+    }
+    cursor.endEditBlock();
+}
+
+void CodeEditor::smartHome() {
+    QTextCursor cursor = textCursor();
+    QTextBlock block = cursor.block();
+    QString text = block.text();
+    
+    int firstNonSpace = 0;
+    while (firstNonSpace < text.length() && text.at(firstNonSpace).isSpace()) {
+        firstNonSpace++;
+    }
+    
+    int currentPos = cursor.positionInBlock();
+    if (currentPos == firstNonSpace) {
+        cursor.movePosition(QTextCursor::StartOfBlock, QTextCursor::MoveAnchor);
+    } else {
+        cursor.setPosition(block.position() + firstNonSpace, QTextCursor::MoveAnchor);
+    }
+    setTextCursor(cursor);
+}
+
 // ============================================================
+
+// ============================================================
+// TitleBar Implementation
+// ============================================================
+TitleBar::TitleBar(QWidget *parent) : QWidget(parent) {
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(10, 0, 0, 0);
+    layout->setSpacing(0);
+    
+    // Logo / Title
+    QLabel *icon = new QLabel("J");
+    icon->setStyleSheet("color: #569cd6; font-weight: bold; font-family: Consolas; font-size: 14px;");
+    layout->addWidget(icon);
+    
+    layout->addSpacing(10);
+    
+    titleLabel = new QLabel("Jim");
+    titleLabel->setStyleSheet("color: #cccccc; font-size: 12px; font-family: 'Segoe UI', sans-serif;");
+    titleLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(titleLabel, 1); // stretch
+    
+    // Window controls
+    QString btnStyle = 
+        "QPushButton {"
+        "    background-color: transparent;"
+        "    color: #cccccc;"
+        "    border: none;"
+        "    width: 45px;"
+        "    height: 30px;"
+        "    font-family: 'Segoe MDL2 Assets', 'Segoe UI Symbol', sans-serif;"
+        "    font-size: 10px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #3e3e42;"
+        "}";
+    
+    QString closeBtnStyle = 
+        "QPushButton {"
+        "    background-color: transparent;"
+        "    color: #cccccc;"
+        "    border: none;"
+        "    width: 45px;"
+        "    height: 30px;"
+        "    font-family: 'Segoe MDL2 Assets', 'Segoe UI Symbol', sans-serif;"
+        "    font-size: 10px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #e81123;"
+        "    color: white;"
+        "}";
+    
+    QPushButton *minBtn = new QPushButton(QString::fromUtf8("\xE2\x80\x94")); // Em dash
+    minBtn->setStyleSheet(btnStyle);
+    connect(minBtn, &QPushButton::clicked, this, [this]() {
+        if (window()) window()->showMinimized();
+    });
+    layout->addWidget(minBtn);
+    
+    QPushButton *maxBtn = new QPushButton(QString::fromUtf8("\xE2\x96\xA1")); // White square
+    maxBtn->setStyleSheet(btnStyle);
+    connect(maxBtn, &QPushButton::clicked, this, &TitleBar::toggleMaximized);
+    layout->addWidget(maxBtn);
+    
+    QPushButton *closeBtn = new QPushButton(QString::fromUtf8("\xE2\x95\xB3")); // Cross
+    closeBtn->setStyleSheet(closeBtnStyle);
+    connect(closeBtn, &QPushButton::clicked, this, [this]() {
+        if (window()) window()->close();
+    });
+    layout->addWidget(closeBtn);
+    
+    setFixedHeight(30);
+    setStyleSheet("background-color: #323233;");
+}
+
+void TitleBar::setTitle(const QString &title) {
+    titleLabel->setText(title);
+}
+
+void TitleBar::toggleMaximized() {
+    if (!window()) return;
+    if (window()->isMaximized()) {
+        window()->showNormal();
+        qobject_cast<QPushButton*>(sender())->setText(QString::fromUtf8("\xE2\x96\xA1"));
+    } else {
+        window()->showMaximized();
+        qobject_cast<QPushButton*>(sender())->setText(QString::fromUtf8("\xE2\x9D\x90")); // Maximize icon
+    }
+}
+
+void TitleBar::mousePressEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        dragStartPos = event->globalPosition().toPoint() - window()->frameGeometry().topLeft();
+        event->accept();
+    }
+}
+
+void TitleBar::mouseMoveEvent(QMouseEvent *event) {
+    if (event->buttons() & Qt::LeftButton) {
+        if (window()->isMaximized()) {
+            window()->showNormal();
+            dragStartPos = QPoint(window()->width() / 2, height() / 2);
+        }
+        window()->move(event->globalPosition().toPoint() - dragStartPos);
+        event->accept();
+    }
+}
+
+void TitleBar::mouseDoubleClickEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        toggleMaximized();
+        event->accept();
+    }
+}
 // SyntaxHighlighter Implementation
 // ============================================================
 QRegularExpression SyntaxHighlighter::multiLineCommentStart = QRegularExpression("/\\*");
@@ -811,8 +1092,15 @@ void TerminalWidget::setupUI() {
     inputBar->setStyleSheet("background-color: #252526; border-top: 1px solid #3e3e42;");
     layout->addWidget(inputBar);
     
-    currentDir = QDir::currentPath();
+    currentDir = QDir::homePath(); // Default to home directory
     setStyleSheet("background-color: #1e1e1e;");
+}
+
+void TerminalWidget::setWorkingDirectory(const QString &dir) {
+    QDir d(dir);
+    if (d.exists()) {
+        currentDir = d.absolutePath();
+    }
 }
 
 void TerminalWidget::startShell() { }
@@ -876,6 +1164,9 @@ TextEditor::TextEditor(QWidget *parent) : QMainWindow(parent), wordWrapEnabled(f
     fileWatcher = new QFileSystemWatcher(this);
     connect(fileWatcher, &QFileSystemWatcher::fileChanged, this, &TextEditor::onFileChangedExternally);
     
+    // Frameless window with custom title bar
+    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowSystemMenuHint | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint);
+    
     setupUI();
     initializeThemes();
     createActions();
@@ -891,8 +1182,22 @@ TextEditor::TextEditor(QWidget *parent) : QMainWindow(parent), wordWrapEnabled(f
 TextEditor::~TextEditor() { writeSettings(); }
 
 void TextEditor::setupUI() {
+    // Main layout container (since QMainWindow needs a central widget)
+    QWidget *mainContainer = new QWidget(this);
+    QVBoxLayout *mainLayout = new QVBoxLayout(mainContainer);
+    mainLayout->setContentsMargins(1, 1, 1, 1); // 1px border for frameless
+    mainLayout->setSpacing(0);
+    
+    titleBar = new TitleBar(this);
+    mainLayout->addWidget(titleBar);
+    
+    // Explicitly place a custom menu bar inside our custom layout so it renders below the title bar
+    customMenuBar = new QMenuBar(mainContainer);
+    customMenuBar->setStyleSheet("QMenuBar { background-color: transparent; color: #cccccc; } QMenuBar::item:selected { background-color: #3e3e42; }");
+    mainLayout->addWidget(customMenuBar);
+    
     // Vertical splitter: top = editor area, bottom = terminal
-    verticalSplitter = new QSplitter(Qt::Vertical, this);
+    verticalSplitter = new QSplitter(Qt::Vertical, mainContainer);
     
     // Container for breadcrumb + editor
     QWidget *editorContainer = new QWidget();
@@ -932,17 +1237,35 @@ void TextEditor::setupUI() {
     verticalSplitter->setStretchFactor(0, 3);
     verticalSplitter->setStretchFactor(1, 1);
     
-    setCentralWidget(verticalSplitter);
+    mainLayout->addWidget(verticalSplitter, 1); // stretch to fill
+    setCentralWidget(mainContainer);
     
     // File tree dock
     fileTreeDock = new QDockWidget("Explorer", this);
     fileTreeDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
+    
+    fileTreeContainer = new QStackedWidget();
+    
+    // 0: Empty state
+    emptyTreeWidget = new QWidget();
+    QVBoxLayout *emptyLayout = new QVBoxLayout(emptyTreeWidget);
+    emptyLayout->setAlignment(Qt::AlignCenter);
+    QLabel *emptyDesc = new QLabel("You have not yet opened a folder.");
+    emptyDesc->setStyleSheet("color: #cccccc; font-size: 13px;");
+    emptyDesc->setWordWrap(true);
+    emptyDesc->setAlignment(Qt::AlignCenter);
+    QPushButton *openFolderBtn = new QPushButton("Open Folder");
+    openFolderBtn->setStyleSheet("QPushButton { background-color: #0e639c; color: white; border: none; padding: 6px 12px; border-radius: 2px; } QPushButton:hover { background-color: #1177bb; }");
+    connect(openFolderBtn, &QPushButton::clicked, this, &TextEditor::openFolder);
+    emptyLayout->addWidget(emptyDesc);
+    emptyLayout->addWidget(openFolderBtn);
+    fileTreeContainer->addWidget(emptyTreeWidget);
+    
+    // 1: File tree state
     fileTree = new QTreeView();
     fileSystemModel = new QFileSystemModel();
-    fileSystemModel->setRootPath(QDir::homePath());
     fileSystemModel->setFilter(QDir::AllDirs | QDir::Files | QDir::NoDotAndDotDot);
     fileTree->setModel(fileSystemModel);
-    fileTree->setRootIndex(fileSystemModel->index(QDir::homePath()));
     fileTree->setColumnWidth(0, 250);
     fileTree->setHeaderHidden(false);
     fileTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
@@ -951,7 +1274,12 @@ void TextEditor::setupUI() {
     fileTree->setSortingEnabled(true);
     for (int i = 1; i < fileSystemModel->columnCount(); ++i) fileTree->hideColumn(i);
     connect(fileTree, &QTreeView::doubleClicked, this, &TextEditor::onFileTreeDoubleClicked);
-    fileTreeDock->setWidget(fileTree);
+    fileTreeContainer->addWidget(fileTree);
+    
+    // Set default state to Empty (0)
+    fileTreeContainer->setCurrentIndex(0);
+    
+    fileTreeDock->setWidget(fileTreeContainer);
     addDockWidget(Qt::LeftDockWidgetArea, fileTreeDock);
 }
 
@@ -1101,6 +1429,32 @@ void TextEditor::createActions() {
     goToLineAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
     connect(goToLineAct, &QAction::triggered, this, &TextEditor::goToLine);
     
+    // Line editing actions
+    duplicateLineAct = new QAction("Duplicate Line", this);
+    duplicateLineAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
+    connect(duplicateLineAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->duplicateLine(); });
+    
+    moveLineUpAct = new QAction("Move Line Up", this);
+    moveLineUpAct->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Up));
+    connect(moveLineUpAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->moveLineUp(); });
+    
+    moveLineDownAct = new QAction("Move Line Down", this);
+    moveLineDownAct->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Down));
+    connect(moveLineDownAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->moveLineDown(); });
+    
+    deleteLineAct = new QAction("Delete Line", this);
+    deleteLineAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K));
+    connect(deleteLineAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->deleteLine(); });
+    
+    toggleCommentAct = new QAction("Toggle Line Comment", this);
+    toggleCommentAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Slash));
+    connect(toggleCommentAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->toggleComment(); });
+    
+    smartHomeAct = new QAction("Smart Home", this);
+    // Home key handling is done in keyPressEvent directly so it auto-overrides
+    // but we add it to the menu just in case.
+    connect(smartHomeAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->smartHome(); });
+    
     increaseFontAct = new QAction("Increase Font Size", this);
     increaseFontAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Plus));
     connect(increaseFontAct, &QAction::triggered, this, &TextEditor::increaseFontSize);
@@ -1150,7 +1504,7 @@ void TextEditor::createActions() {
 }
 
 void TextEditor::createMenus() {
-    fileMenu = menuBar()->addMenu("&File");
+    fileMenu = customMenuBar->addMenu("&File");
     fileMenu->addAction(newAct);
     fileMenu->addAction(openAct);
     fileMenu->addAction(openFolderAct);
@@ -1162,7 +1516,7 @@ void TextEditor::createMenus() {
     fileMenu->addSeparator();
     fileMenu->addAction(exitAct);
     
-    editMenu = menuBar()->addMenu("&Edit");
+    editMenu = customMenuBar->addMenu("&Edit");
     editMenu->addAction(undoAct);
     editMenu->addAction(redoAct);
     editMenu->addSeparator();
@@ -1172,13 +1526,13 @@ void TextEditor::createMenus() {
     editMenu->addSeparator();
     editMenu->addAction(selectAllAct);
     
-    searchMenu = menuBar()->addMenu("&Search");
+    searchMenu = customMenuBar->addMenu("&Search");
     searchMenu->addAction(findAct);
     searchMenu->addAction(findNextAct);
     searchMenu->addAction(replaceAct);
     searchMenu->addAction(goToLineAct);
     
-    viewMenu = menuBar()->addMenu("&View");
+    viewMenu = customMenuBar->addMenu("&View");
     viewMenu->addAction(fileTreeAct);
     viewMenu->addAction(miniMapAct);
     viewMenu->addAction(terminalAct);
@@ -1192,7 +1546,7 @@ void TextEditor::createMenus() {
     viewMenu->addAction(themeAct);
     viewMenu->addAction(customizeColorsAct);
     
-    helpMenu = menuBar()->addMenu("&Help");
+    helpMenu = customMenuBar->addMenu("&Help");
     helpMenu->addAction(aboutAct);
     
     updateRecentFilesMenu();
@@ -1473,16 +1827,34 @@ void TextEditor::loadFile(const QString &fileName) {
 }
 
 bool TextEditor::saveFileToPath(const QString &fileName) {
-    CodeEditor *editor = currentEditor();
-    if (!editor) return false;
-    QFile file(fileName);
-    if (!file.open(QFile::WriteOnly | QFile::Text)) {
+    QGuiApplication::setOverrideCursor(Qt::WaitCursor);
+    QSaveFile file(fileName);
+    if (file.open(QFile::WriteOnly | QFile::Text)) {
+        CodeEditor *editor = currentEditor();
+        if (editor) {
+            // Trim trailing whitespace
+            QString text = editor->toPlainText();
+            QStringList lines = text.split('\n');
+            for (int i = 0; i < lines.size(); ++i) {
+                while (lines[i].endsWith(' ') || lines[i].endsWith('\t')) {
+                    lines[i].chop(1);
+                }
+            }
+            text = lines.join('\n');
+            
+            QTextStream out(&file);
+            out << text;
+            if (!file.commit()) {
+                QGuiApplication::restoreOverrideCursor();
+                QMessageBox::warning(this, "Jim", QString("Cannot write file %1:\n%2.").arg(fileName).arg(file.errorString()));
+                return false;
+            }
+        }
+    } else {
+        QGuiApplication::restoreOverrideCursor();
         QMessageBox::warning(this, "Jim", QString("Cannot write file %1:\n%2.").arg(fileName).arg(file.errorString()));
         return false;
     }
-    QTextStream out(&file);
-    QApplication::setOverrideCursor(Qt::WaitCursor);
-    out << editor->toPlainText();
     QApplication::restoreOverrideCursor();
     setCurrentFile(fileName);
     updateRecentFiles(fileName);
@@ -1628,7 +2000,15 @@ void TextEditor::openFolder() {
     QString folder = QFileDialog::getExistingDirectory(this, "Open Folder", QDir::homePath());
     if (!folder.isEmpty()) {
         currentFolder = folder;
+        fileSystemModel->setRootPath(folder);
         fileTree->setRootIndex(fileSystemModel->index(folder));
+        
+        // Show file tree, hide empty state wrapper
+        if (fileTreeContainer) fileTreeContainer->setCurrentIndex(1);
+        
+        // Update terminal working directory
+        if (terminalWidget) terminalWidget->setWorkingDirectory(folder);
+        
         statusBar()->showMessage("Opened folder: " + folder, 2000);
     }
 }

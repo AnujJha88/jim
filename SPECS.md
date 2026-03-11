@@ -77,7 +77,7 @@
 ### View Options
 - File tree sidebar (toggle Ctrl+B)
 - Split view (horizontal, Ctrl+\\)
-- Integrated terminal (Ctrl+`)
+- Integrated terminal (Ctrl+`) with dynamic working directory matching open folder
 - Mini map (Ctrl+M)
 - Word wrap toggle
 - Font size adjustment

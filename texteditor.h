@@ -8,6 +8,7 @@
 #include <QSyntaxHighlighter>
 #include <QRegularExpression>
 #include <QTabWidget>
+#include <QStackedWidget>
 #include <QMap>
 #include <QSplitter>
 #include <QColor>
@@ -20,6 +21,7 @@
 #include <QPushButton>
 #include <QToolBar>
 #include <QVBoxLayout>
+#include <QMouseEvent>
 
 class LineNumberArea;
 class FoldingArea;
@@ -28,6 +30,7 @@ class QPropertyAnimation;
 class WelcomeWidget;
 class BreadcrumbBar;
 class TerminalWidget;
+class TitleBar;
 
 // Language enum for syntax highlighting
 enum class Language {
@@ -59,6 +62,25 @@ struct ColorTheme {
     QColor function;
 };
 
+class TitleBar : public QWidget {
+    Q_OBJECT
+public:
+    explicit TitleBar(QWidget *parent = nullptr);
+    void setTitle(const QString &title);
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
+
+private slots:
+    void toggleMaximized();
+
+private:
+    QLabel *titleLabel;
+    QPoint dragStartPos;
+};
+
 class CodeEditor : public QPlainTextEdit {
     Q_OBJECT
 
@@ -84,9 +106,16 @@ public:
     bool isFolded(const QTextBlock &block) const;
     int findMatchingBrace(const QTextBlock &block) const;
     
-    // Language
     void setLanguage(Language lang);
     Language getLanguage() const { return currentLanguage; }
+
+public slots:
+    void duplicateLine();
+    void moveLineUp();
+    void moveLineDown();
+    void deleteLine();
+    void toggleComment();
+    void smartHome();
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -197,6 +226,7 @@ class TerminalWidget : public QWidget {
 public:
     TerminalWidget(QWidget *parent = nullptr);
     ~TerminalWidget();
+    void setWorkingDirectory(const QString &dir);
 
 private slots:
     void executeCommand();
@@ -287,6 +317,8 @@ private:
     QTabWidget *tabWidget;
     QTabWidget *tabWidget2;
     QDockWidget *fileTreeDock;
+    QStackedWidget *fileTreeContainer;
+    QWidget *emptyTreeWidget;
     QTreeView *fileTree;
     QFileSystemModel *fileSystemModel;
     QString currentFolder;
@@ -314,26 +346,43 @@ private:
     QMenu *helpMenu;
     QMenu *recentFilesMenu;
     
+    TitleBar *titleBar;
+    QMenuBar *customMenuBar;
+    
     QAction *newAct;
     QAction *openAct;
     QAction *openFolderAct;
     QAction *saveAct;
     QAction *saveAsAct;
+    QAction *closeAllAct;
+    QAction *closeOthersAct;
     QAction *closeTabAct;
     QAction *exitAct;
+
+    // Edit actions
+    QAction *undoAct;
+    QAction *redoAct;
     QAction *cutAct;
     QAction *copyAct;
     QAction *pasteAct;
-    QAction *undoAct;
-    QAction *redoAct;
     QAction *selectAllAct;
     QAction *findAct;
     QAction *findNextAct;
     QAction *replaceAct;
     QAction *goToLineAct;
+    
+    // Line editing actions
+    QAction *duplicateLineAct;
+    QAction *moveLineUpAct;
+    QAction *moveLineDownAct;
+    QAction *deleteLineAct;
+    QAction *toggleCommentAct;
+    QAction *smartHomeAct; // Added smartHomeAct
+
+    // View actions
+    QAction *wordWrapAct;
     QAction *increaseFontAct;
     QAction *decreaseFontAct;
-    QAction *wordWrapAct;
     QAction *splitViewAct;
     QAction *fileTreeAct;
     QAction *miniMapAct;

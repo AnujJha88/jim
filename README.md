@@ -33,9 +33,11 @@ A lightweight, modern code editor built with C++ and Qt6. Designed for developer
 
 ### Customization
 - **3 Themes** — Light, Dark, and Monokai with proper syntax colors (Ctrl+T)
+- **Multiple Color Themes:** Built-in Light, Dark, and Monokai themes. easily switchable.
 - **Custom Colors** — Personalize background and text colors with auto-adjusting text
 - **Font Size Control** — Zoom in/out for comfortable reading (Ctrl+/-)
 - **Status Bar** — Real-time line/column position and language indicator
+- **Custom Modern Title Bar:** A sleek, frameless window title bar with custom minimize, maximize/restore, and close buttons on Windows/Linux environments.
 
 ### Productivity
 - **Command Line Support** — Open files and folders from terminal
@@ -178,6 +180,14 @@ Configuration is stored in `~/.config/TextEditor/Settings.conf`
 
 
 ## Recent Updates
+
+### v1.2
+- Added **Line Editing Power**: Duplicate (`Ctrl+D`), Move Up/Down (`Alt+Up/Down`), Delete (`Ctrl+Shift+K`), and Toggle Comments (`Ctrl+/`).
+- Configured a Smart Home Key to navigate to the first non-whitespace block.
+- Added automatic Trailing Whitespace removal upon saving files.
+- Replaced standard OS window decorations with a custom Frameless Title Bar (minimize, maximize, close).
+- Added a VS Code-style "Open Folder" Empty State to the File Explorer when initialized without arguments.
+- Fixed layout to allow `QMenuBar` rendering below the custom Title Bar.
 
 ### v1.1
 - Added Welcome Screen with recent files and quick-action buttons

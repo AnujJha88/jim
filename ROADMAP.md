@@ -30,36 +30,29 @@
 
 ---
 
-## v1.2 — Line Editing Power
+## v1.2 — Line Editing Power (COMPLETED)
+Focuses on making the editor more productive for keyboard-centric developers.
+- [x] **Line Manipulation:** Duplicate, move up/down, delete lines using standard shortcuts (`Ctrl+D`, `Alt+Up/Down`, `Ctrl+Shift+K`).
+- [x] **Smart Navigation:** Smart Home key (jumps to first non-whitespace character, then start of line).
+- [x] **Code Modification:** Toggle comment for single or multiple lines (`Ctrl+/`).
+- [x] **Formatting:** Automatic trimming of trailing whitespace on save.
+- [x] **UI Polish:** Custom Frameless Window Title Bar with matching dark aesthetics and draggable mechanics.
 
-- [ ] Duplicate line (`Ctrl+D`)
-- [ ] Move line up/down (`Alt+↑/↓`)
-- [ ] Delete line (`Ctrl+Shift+K`)
-- [ ] Comment/uncomment toggle (`Ctrl+/`)
-- [ ] Join lines (`Ctrl+J`)
-- [ ] Sort lines (ascending/descending)
-- [ ] Trim trailing whitespace on save
-- [ ] Smart home key (jump to first non-whitespace)
-- [ ] Tab context menu (Close Others, Close All, Close to the Right, Copy Path)
-- [ ] Drag-and-drop file opening
-
----
+## v1.3 — Search, Replace & Navigation (Planned)
+Focuses on enhancing the ability to find and move through code quickly.
+- [ ] **Advanced Search:** Regex support, match case, match whole word in Find/Replace.
+- [ ] **Find in Files:** Workspace-wide search (`Ctrl+Shift+F`) with an interactive results panel.
+- [ ] **Go to Symbol:** Quick navigation to classes/functions within the current file (`Ctrl+Shift+O`).
+- [ ] **Command Palette:** Centralized palette to execute any editor action (`Ctrl+Shift+P`).
 
 ## v1.5 — Multi-Cursor & Intelligence
-
-### Multi-Cursor Editing
-- [ ] Add cursor at mouse click (`Alt+Click`)
-- [ ] Select next occurrence (`Ctrl+D`)
-- [ ] Select all occurrences (`Ctrl+Shift+L`)
-- [ ] Column/box selection mode (`Shift+Alt+drag`)
-- [ ] Add cursor above/below (`Ctrl+Alt+↑/↓`)
-
-### Auto-Completion
-- [ ] Buffer word completion (words from current file)
-- [ ] Path completion in strings
 - [ ] Snippet support (user-defined templates)
 - [ ] Bracket completion for multi-line blocks
 - [ ] Emmet abbreviation expansion (HTML/CSS)
+- [ ] Multi-cursor selection (`Alt+Click`)
+- [ ] Select next occurrence (`Ctrl+D` mapping update)
+- [ ] Column selection mode (`Shift+Alt+Drag`)
+- [ ] Smart auto-closing tags (HTML/XML)
 
 ### Bookmarks
 - [ ] Toggle bookmark (`Ctrl+F2`)
@@ -159,6 +152,46 @@
 - [ ] Import VS Code themes (JSON)
 - [ ] Per-language color overrides
 - [ ] Icon themes for file tree
+
+---
+
+## v3.5 — AI & Assistance (Brainstormed)
+
+### Generative AI Integration
+- [ ] Inline code completions (Ghost text)
+- [ ] Chat panel for project-aware questions
+- [ ] Explain code block feature
+- [ ] Generate unit tests from selection
+- [ ] Automatic commit message generation
+
+### Advanced Refactoring
+- [ ] Extract method/function logic
+- [ ] Extract variable/constant
+- [ ] Inline variable
+- [ ] Smart symbol rename across project boundaries
+
+---
+
+## v4.0 — Collaborative Editing (Brainstormed)
+
+### Real-Time Sync
+- [ ] Host/Join collaborative coding sessions
+- [ ] Remote cursors and selections with user nameplates
+- [ ] Follow user feature (jump to their cursor)
+- [ ] Live chat overlay for participants
+- [ ] WebRTC peer-to-peer connection for low latency
+
+---
+
+## v4.5 — Advanced Debugging (Brainstormed)
+
+### Integrated Debugger Protocol (DAP)
+- [ ] Breakpoint toggling in gutter
+- [ ] Conditional breakpoints and logpoints
+- [ ] Call stack panel
+- [ ] Variable and Watch inspector
+- [ ] Step over, Step into, Step out controls
+- [ ] Hover over variables to inspect state during active debug sessions
 - [ ] Font ligature support
 
 ### Keybinding Customization
