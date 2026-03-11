@@ -18,6 +18,21 @@ private:
     CodeEditor *codeEditor;
 };
 
+class FoldingArea : public QWidget {
+    Q_OBJECT
+public:
+    FoldingArea(CodeEditor *editor);
+
+    QSize sizeHint() const override;
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+
+private:
+    CodeEditor *codeEditor;
+};
+
 class MiniMap : public QWidget {
     Q_OBJECT
     

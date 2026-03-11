@@ -1,41 +1,47 @@
 # Jim
 
-A lightweight, modern text editor built with C++ and Qt6. Designed for developers who want a fast, distraction-free editing experience with powerful features.
+A lightweight, modern code editor built with C++ and Qt6. Designed for developers who want a fast, distraction-free editing experience with powerful features.
 
-**Note:** This project was vibecoded - built through natural conversation and iteration with AI assistance.
-
-**Coming Soon:** Tim - a complete rewrite written entirely from scratch, bringing even more features and performance improvements.
+**Note:** This project was vibecoded — built through natural conversation and iteration with AI assistance.
 
 ## Features
 
 ### Core Editing
-- **Syntax Highlighting** - Support for C++, Python, and more with multi-line comment support (/* */)
-- **Line Numbers** - Always visible with auto-sizing
-- **Auto-Indentation** - Context-aware smart indenting
-- **Auto-Pairing** - Automatic bracket (), [], {} and quote "", '' pairing with smart closing
-- **Multiple Tabs** - Work on several files simultaneously with improved close buttons
-- **Split View** - View two files side by side
-- **Word Wrap** - Toggle line wrapping on demand
-- **Mini Map** - Code overview for quick navigation (Ctrl+M)
+- **Syntax Highlighting** — 11 languages: C/C++, Python, JavaScript/TypeScript, HTML, CSS, Rust, Go, JSON, YAML, Markdown
+- **Language Auto-Detection** — Automatically applies correct highlighting based on file extension
+- **Code Folding** — Collapse/expand functions, classes, and blocks with gutter indicators
+- **Line Numbers** — Always visible with auto-sizing and current-line highlight
+- **Auto-Indentation** — Context-aware smart indenting
+- **Auto-Pairing** — Automatic bracket (), [], {} and quote "", '' pairing with smart closing
+- **Multiple Tabs** — Work on several files simultaneously
+- **Split View** — View two files side by side
+- **Word Wrap** — Toggle line wrapping on demand
+- **Mini Map** — Code overview for quick navigation (Ctrl+M)
 
 ### Navigation
-- **File Tree** - Browse and open files from a sidebar (Ctrl+B)
-- **Go to Line** - Jump to any line instantly (Ctrl+G)
-- **Find & Replace** - Quick text search with wraparound
-- **Recent Files** - Access recently opened files
-- **Mini Map Navigation** - Click to jump to any part of your code
+- **File Tree** — Browse and open files from a sidebar (Ctrl+B)
+- **Breadcrumb Navigation** — Shows `folder > file > function` context below the tab bar
+- **Go to Line** — Jump to any line instantly (Ctrl+G)
+- **Find & Replace** — Quick text search with wraparound
+- **Recent Files** — Access recently opened files
+- **Mini Map Navigation** — Click to jump to any part of your code
+
+### Developer Tools
+- **Integrated Terminal** — Embedded shell panel with command execution (Ctrl+`)
+- **File Watcher** — Detects external file changes and prompts to reload
+- **Welcome Screen** — Quick access to recent files and actions on launch
 
 ### Customization
-- **Theme Switching** - Toggle between light and dark themes with proper syntax colors (Ctrl+T)
-- **Custom Colors** - Personalize background and text colors with auto-adjusting text
-- **Font Size Control** - Zoom in/out for comfortable reading (Ctrl+/-)
-- **Status Bar** - Real-time line and column position
+- **3 Themes** — Light, Dark, and Monokai with proper syntax colors (Ctrl+T)
+- **Custom Colors** — Personalize background and text colors with auto-adjusting text
+- **Font Size Control** — Zoom in/out for comfortable reading (Ctrl+/-)
+- **Status Bar** — Real-time line/column position and language indicator
 
 ### Productivity
-- **Command Line Support** - Open files and folders from terminal
-- **Keyboard Shortcuts** - Vim-inspired workflow
-- **Modern UI** - Clean, distraction-free interface with sleek dark theme
-- **Performance Optimized** - Fast syntax highlighting and responsive editing
+- **Command Line Support** — Open files and folders from terminal
+- **Keyboard Shortcuts** — Comprehensive shortcut system
+- **Modern UI** — VS Code-inspired dark interface with transparent scrollbars
+- **Performance Optimized** — Fast syntax highlighting and responsive editing
 
 ## Installation
 
@@ -100,35 +106,44 @@ jim /path/to/project
 ## Keyboard Shortcuts
 
 ### File Operations
-- `Ctrl+N` - New file
-- `Ctrl+O` - Open file
-- `Ctrl+Shift+O` - Open folder
-- `Ctrl+S` - Save file
-- `Ctrl+Shift+S` - Save as
-- `Ctrl+W` - Close tab
-- `Ctrl+Q` - Quit
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+N` | New file |
+| `Ctrl+O` | Open file |
+| `Ctrl+Shift+O` | Open folder |
+| `Ctrl+S` | Save file |
+| `Ctrl+Shift+S` | Save as |
+| `Ctrl+W` | Close tab |
+| `Ctrl+Q` | Quit |
 
 ### Editing
-- `Ctrl+Z` - Undo
-- `Ctrl+Y` - Redo
-- `Ctrl+X` - Cut
-- `Ctrl+C` - Copy
-- `Ctrl+V` - Paste
-- `Ctrl+A` - Select all
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Z` | Undo |
+| `Ctrl+Y` | Redo |
+| `Ctrl+X` | Cut |
+| `Ctrl+C` | Copy |
+| `Ctrl+V` | Paste |
+| `Ctrl+A` | Select all |
 
 ### Search
-- `Ctrl+F` - Find
-- `F3` - Find next
-- `Ctrl+H` - Replace
-- `Ctrl+G` - Go to line
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+F` | Find |
+| `F3` | Find next |
+| `Ctrl+H` | Replace |
+| `Ctrl+G` | Go to line |
 
 ### View
-- `Ctrl+B` - Toggle file tree
-- `Ctrl+M` - Toggle minimap
-- `Ctrl+\` - Toggle split view
-- `Ctrl+T` - Toggle theme
-- `Ctrl++` - Increase font size
-- `Ctrl+-` - Decrease font size
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+B` | Toggle file tree |
+| `Ctrl+M` | Toggle minimap |
+| `` Ctrl+` `` | Toggle terminal |
+| `Ctrl+\` | Toggle split view |
+| `Ctrl+T` | Cycle themes |
+| `Ctrl++` | Increase font size |
+| `Ctrl+-` | Decrease font size |
 
 ## Building from Source
 
@@ -161,9 +176,22 @@ Settings are automatically saved and include:
 
 Configuration is stored in `~/.config/TextEditor/Settings.conf`
 
+
 ## Recent Updates
 
-### Latest Session
+### v1.1
+- Added Welcome Screen with recent files and quick-action buttons
+- Added Breadcrumb Navigation (folder > file > function)
+- Added Integrated Terminal panel (Ctrl+`)
+- Added Code Folding with clickable gutter indicators
+- Added syntax highlighting for 9 new languages: JavaScript/TypeScript, HTML, CSS, Rust, Go, JSON, YAML, Markdown
+- Added Language Auto-Detection from file extension
+- Added File Watcher — detects external changes and prompts to reload
+- Added Monokai theme (3 themes total)
+- Modernized UI — VS Code-inspired styling, transparent scrollbars, rounded menus
+- Language indicator in status bar
+
+### v1.0
 - Added multi-line comment support (/* */)
 - Implemented auto-pairing for brackets and quotes
 - Added minimap for code overview
@@ -175,28 +203,8 @@ Configuration is stored in `~/.config/TextEditor/Settings.conf`
 
 ## Contributing
 
-Contributions are welcome. Please ensure code follows the existing style and test thoroughly before submitting pull requests.
+Contributions are welcome. See the [ROADMAP](ROADMAP.md) for planned features. Please ensure code follows the existing style and test thoroughly before submitting pull requests.
 
 ## License
 
-MIT License
-
-Copyright (c) 2025
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+MIT License — see [LICENSE](LICENSE) for details.

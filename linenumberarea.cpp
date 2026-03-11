@@ -16,6 +16,40 @@ void LineNumberArea::paintEvent(QPaintEvent *event) {
     codeEditor->lineNumberAreaPaintEvent(event);
 }
 
+// FoldingArea Implementation
+FoldingArea::FoldingArea(CodeEditor *editor) : QWidget(editor), codeEditor(editor) {
+    setCursor(Qt::PointingHandCursor);
+}
+
+QSize FoldingArea::sizeHint() const {
+    return QSize(codeEditor->foldingAreaWidth(), 0);
+}
+
+void FoldingArea::paintEvent(QPaintEvent *event) {
+    codeEditor->foldingAreaPaintEvent(event);
+}
+
+void FoldingArea::mousePressEvent(QMouseEvent *event) {
+    // Determine which block was clicked
+    QTextBlock block = codeEditor->firstVisibleBlock();
+    int top = qRound(codeEditor->blockBoundingGeometry(block).translated(codeEditor->contentOffset()).top());
+    int bottom = top + qRound(codeEditor->blockBoundingRect(block).height());
+    
+    while (block.isValid() && top <= event->pos().y()) {
+        if (block.isVisible() && bottom >= event->pos().y()) {
+            if (codeEditor->isFoldable(block)) {
+                codeEditor->toggleFoldAt(block.blockNumber());
+                codeEditor->viewport()->update();
+                update();
+            }
+            break;
+        }
+        block = block.next();
+        top = bottom;
+        bottom = top + qRound(codeEditor->blockBoundingRect(block).height());
+    }
+}
+
 // MiniMap Implementation
 MiniMap::MiniMap(CodeEditor *editor) : QWidget(editor), codeEditor(editor) {
     setMouseTracking(true);

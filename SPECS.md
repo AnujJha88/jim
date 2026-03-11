@@ -1,4 +1,4 @@
-# Jim - Technical Specifications
+# Jim — Technical Specifications
 
 ## Architecture
 
@@ -10,241 +10,129 @@
 
 ### Class Structure
 
-#### TextEditor (Main Window)
-- Manages application lifecycle
-- Handles menu bar and actions
-- Coordinates multiple editor instances
-- Manages file operations and recent files
-- Controls theme switching and UI customization
+| Class | Base | Role |
+|-------|------|------|
+| `TextEditor` | `QMainWindow` | Main window, menus, actions, file management, theme coordination |
+| `CodeEditor` | `QPlainTextEdit` | Editor widget with line numbers, folding, auto-indent, bracket pairing |
+| `SyntaxHighlighter` | `QSyntaxHighlighter` | Multi-language pattern-based highlighting (11 languages) |
+| `LineNumberArea` | `QWidget` | Line number gutter, synchronized with editor scroll |
+| `FoldingArea` | `QWidget` | Code folding indicators (▶/▼), click to toggle |
+| `MiniMap` | `QWidget` | Code overview with viewport indicator |
+| `WelcomeWidget` | `QWidget` | Start screen with recent files and action buttons |
+| `BreadcrumbBar` | `QWidget` | Path + symbol navigation bar below tabs |
+| `TerminalWidget` | `QWidget` | Embedded shell with QProcess, output display, command input |
 
-#### CodeEditor (Text Widget)
-- Extends QPlainTextEdit
-- Implements line number area
-- Handles auto-indentation
-- Manages cursor and selection
-- Applies syntax highlighting themes
+### Enums
+- `Language` — `PlainText`, `CPP`, `Python`, `JavaScript`, `HTML`, `CSS`, `Rust`, `Go`, `JSON`, `YAML`, `Markdown`
 
-#### SyntaxHighlighter
-- Extends QSyntaxHighlighter
-- Pattern-based token recognition
-- Real-time syntax coloring
-- Theme-aware color schemes
-
-#### LineNumberArea
-- Custom widget for line numbers
-- Auto-sizing based on line count
-- Synchronized scrolling with editor
-
-## Features Breakdown
+## Features
 
 ### File Management
-- Open/Save/Save As operations
+- Open/Save/Save As with unsaved changes detection
 - Multiple file tabs with close buttons
-- Recent files menu (last 10 files)
-- Folder browsing via file tree
+- Recent files menu (last 10)
+- Folder browsing via file tree sidebar
 - Command-line file/folder opening
-- Unsaved changes detection
+- File watcher with external change detection and reload prompt
 
-### Editor Features
-- Line numbers with dynamic width
+### Editor
+- Line numbers with current-line highlight
+- Code folding (brace-based block detection)
 - Current line highlighting
 - Auto-indentation (context-aware)
-- Tab to spaces conversion (4 spaces)
-- Undo/Redo support
-- Cut/Copy/Paste operations
-- Select all functionality
+- Tab to spaces (4 spaces)
+- Bracket and quote auto-pairing with skip-closing
+- Undo/Redo/Cut/Copy/Paste/Select All
 
 ### Syntax Highlighting
-Supported patterns:
-- Keywords (language-specific)
-- Strings (single and double quoted)
-- Comments (single-line)
-- Numbers (integers and decimals)
-- Function names
-- Class names
 
-Languages with highlighting:
-- C/C++
-- Python (partial)
-- Generic programming constructs
+| Language | Keywords | Strings | Comments | Numbers | Special |
+|----------|----------|---------|----------|---------|---------|
+| C/C++ | ✓ | ✓ | `//`, `/* */` | ✓ | Qt classes, preprocessor |
+| Python | ✓ | ✓ | `#` | ✓ | Decorators |
+| JavaScript/TS | ✓ | `` ` `` templates | `//`, `/* */` | ✓ | Arrow functions |
+| HTML | Tags | ✓ | `<!-- -->` | Entities | Attributes |
+| CSS | Selectors | ✓ | `/* */` | Units | At-rules |
+| Rust | ✓ | ✓ | `//` | Type suffixes | Type names |
+| Go | ✓ | `` ` `` raw | `//` | ✓ | Built-in funcs |
+| JSON | Keys | Values | — | ✓ | true/false/null |
+| YAML | Keys | ✓ | `#` | ✓ | List markers |
+| Markdown | — | Inline code | Blockquote | — | Headings, bold, links |
 
 ### Search & Navigation
-- Find text with wraparound
-- Find next occurrence
-- Replace all instances
-- Go to line number
-- Status bar with line/column position
+- Find with wraparound
+- Find next (F3)
+- Replace all
+- Go to line
+- Breadcrumb navigation (folder > file > function)
 
 ### UI & Theming
-- Dark theme (default)
-- Light theme
-- Custom background colors
-- Auto text color adjustment
-- Modern flat design
-- Smooth scrollbars
-- Tab document mode
+- 3 themes: Light, Dark, Monokai
+- Custom background colors with auto text adjustment
+- Modern VS Code-inspired styling
+- Transparent scrollbars with rounded handles
+- Welcome screen with recent files
+- Language indicator in status bar
 
 ### View Options
-- File tree sidebar (toggle)
-- Split view (horizontal)
+- File tree sidebar (toggle Ctrl+B)
+- Split view (horizontal, Ctrl+\\)
+- Integrated terminal (Ctrl+`)
+- Mini map (Ctrl+M)
 - Word wrap toggle
-- Font size adjustment (+/-)
-- Multiple tab support
+- Font size adjustment
 
-## Performance Characteristics
+## Performance
 
-### Memory Usage
-- Base application: ~15-20 MB
-- Per open file: ~1-2 MB (depends on file size)
-- Syntax highlighting: Minimal overhead (real-time)
-
-### Startup Time
-- Cold start: <500ms
-- With file argument: <700ms
-- With folder argument: <800ms
-
-### File Handling
-- Small files (<1MB): Instant loading
-- Medium files (1-10MB): <1 second
-- Large files (>10MB): May experience lag in syntax highlighting
+| Metric | Value |
+|--------|-------|
+| Base memory | ~15-20 MB |
+| Per file | ~1-2 MB |
+| Cold start | <500ms |
+| File argument | <700ms |
+| Small files (<1MB) | Instant |
+| Medium files (1-10MB) | <1 second |
 
 ## Platform Support
 
-### Linux
-- Tested on: Debian, Ubuntu, Kali, Arch
-- Dependencies: qt6-base-dev, build-essential
-- Installation path: /usr/local/bin
-
-### macOS
-- Requires: Homebrew Qt6
-- Native look and feel
-- Retina display support
-
-### Windows
-- Requires: Qt6 MinGW or MSVC build
-- Native Windows styling
-- Portable executable
-
-## Configuration
-
-### Settings Storage
-- Location: ~/.config/TextEditor/Settings.conf
-- Format: Qt QSettings (INI-style)
-
-### Saved Preferences
-- Recent files list
-- Font size
-- Word wrap state
-- Window geometry
-- Last opened folder
+| Platform | Status | Dependencies |
+|----------|--------|-------------|
+| Linux (Debian/Ubuntu/Kali/Arch) | Tested | qt6-base-dev, build-essential |
+| macOS | Supported | Homebrew Qt6 |
+| Windows | Supported | Qt6 MinGW or MSVC |
 
 ## Build Configuration
 
-### Compiler Flags
-- `-std=c++17` - C++17 standard
-- `-Wall -Wextra` - All warnings
-- `-O2` - Optimization level 2
-- `-fPIC` - Position independent code
-
-### Qt Modules Required
-- QtCore - Core functionality
-- QtGui - GUI components
-- QtWidgets - Widget toolkit
-
-### Build Artifacts
-- Object files: *.o
-- MOC files: moc_*.cpp
-- Executable: jim (or jim.exe)
-
-## Code Metrics
-
-### Lines of Code
-- Header files: ~200 lines
-- Implementation: ~1200 lines
-- Total: ~1400 lines
+- **Compiler flags:** `-std=c++17 -Wall -Wextra -O3 -march=native -fPIC`
+- **Qt modules:** QtCore, QtGui, QtWidgets
+- **Build artifacts:** `*.o`, `moc_*.cpp`, `jim` executable
 
 ### File Structure
 ```
 jim/
-├── main.cpp              # Entry point
-├── texteditor.h          # Main window header
-├── texteditor.cpp        # Main window implementation
-├── linenumberarea.h      # Line numbers header
-├── linenumberarea.cpp    # Line numbers implementation
+├── main.cpp              # Entry point + CLI argument handling
+├── texteditor.h          # All class declarations
+├── texteditor.cpp        # All implementations (~1920 lines)
+├── linenumberarea.h      # LineNumberArea + FoldingArea + MiniMap headers
+├── linenumberarea.cpp    # Widget implementations
 ├── Makefile              # Build configuration
-├── README.md             # Documentation
+├── README.md             # User documentation
 ├── SPECS.md              # This file
+├── ROADMAP.md            # Development roadmap
 └── .gitignore            # Git ignore rules
 ```
 
-## Dependencies
+## Configuration
 
-### Runtime Dependencies
-- Qt6Core
-- Qt6Gui
-- Qt6Widgets
-- System C++ runtime
+| Setting | Location | Format |
+|---------|----------|--------|
+| Config file | `~/.config/TextEditor/Settings.conf` | Qt QSettings (INI) |
+| Recent files | Max 10 | Persisted |
+| Font size | Default 11pt | Persisted |
+| Word wrap | Default off | Persisted |
 
-### Build Dependencies
-- g++ or clang (C++17 support)
-- Qt6 development files
-- moc (Meta-Object Compiler)
-- make
-
-## Known Limitations
-
-### Current Constraints
-- Single-line comment support only (no multi-line)
-- Limited language support for syntax highlighting
-- No plugin system
-- No regex search
-- No code folding
-- No minimap
-- No bracket auto-completion
-- No multiple cursors
-- No Git integration
-
-### Performance Limitations
-- Large files (>50MB) may cause UI lag
-- Syntax highlighting not optimized for huge files
-- No virtual scrolling for massive documents
-
-## Security Considerations
-
-### File Operations
-- No automatic file execution
+## Security
+- No network operations, telemetry, or cloud sync
+- No automatic file execution or external process spawning (except terminal)
 - Read/write permissions respected
-- No network operations
-- No external process spawning
-
-### User Data
 - Settings stored locally only
-- No telemetry or analytics
-- No cloud synchronization
-- No automatic updates
-
-## Accessibility
-
-### Current Support
-- Keyboard navigation
-- Standard shortcuts
-- High contrast themes available
-- Resizable fonts
-
-### Not Yet Implemented
-- Screen reader support
-- Voice control
-- Accessibility API integration
-
-## Future Compatibility
-
-### Planned Qt6 Features
-- Qt6 LTS support
-- Modern OpenGL rendering
-- Wayland support (Linux)
-- High DPI scaling improvements
-
-### Backward Compatibility
-- Settings migration from older versions
-- File format compatibility maintained
-- No breaking changes in minor versions

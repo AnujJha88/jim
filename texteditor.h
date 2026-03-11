@@ -14,10 +14,35 @@
 #include <QTreeView>
 #include <QFileSystemModel>
 #include <QDockWidget>
+#include <QFileSystemWatcher>
+#include <QProcess>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QToolBar>
+#include <QVBoxLayout>
 
 class LineNumberArea;
+class FoldingArea;
 class MiniMap;
 class QPropertyAnimation;
+class WelcomeWidget;
+class BreadcrumbBar;
+class TerminalWidget;
+
+// Language enum for syntax highlighting
+enum class Language {
+    PlainText,
+    CPP,
+    Python,
+    JavaScript,
+    HTML,
+    CSS,
+    Rust,
+    Go,
+    JSON,
+    YAML,
+    Markdown
+};
 
 struct ColorTheme {
     QString name;
@@ -50,6 +75,18 @@ public:
     void miniMapPaintEvent(QPaintEvent *event);
     int miniMapWidth() const { return 120; }
     MiniMap* getMiniMap() const { return miniMap; }
+    
+    // Code folding
+    void foldingAreaPaintEvent(QPaintEvent *event);
+    int foldingAreaWidth() const { return 16; }
+    void toggleFoldAt(int blockNumber);
+    bool isFoldable(const QTextBlock &block) const;
+    bool isFolded(const QTextBlock &block) const;
+    int findMatchingBrace(const QTextBlock &block) const;
+    
+    // Language
+    void setLanguage(Language lang);
+    Language getLanguage() const { return currentLanguage; }
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -61,14 +98,18 @@ private slots:
     void highlightCurrentLine();
     void updateLineNumberArea(const QRect &rect, int dy);
 
+    friend class FoldingArea;
+
 private:
     LineNumberArea *lineNumberArea;
+    FoldingArea *foldingArea;
     MiniMap *miniMap;
     QString fileName;
     ColorTheme currentTheme;
     bool smoothScrollEnabled;
     QPropertyAnimation *scrollAnimation;
     int targetScrollValue;
+    Language currentLanguage;
     void autoIndent();
     void matchBrackets();
 };
@@ -79,6 +120,7 @@ class SyntaxHighlighter : public QSyntaxHighlighter {
 public:
     SyntaxHighlighter(QTextDocument *parent = nullptr);
     void applyTheme(const ColorTheme &theme);
+    void setLanguage(Language lang);
 
 protected:
     void highlightBlock(const QString &text) override;
@@ -96,12 +138,79 @@ private:
     QTextCharFormat stringFormat;
     QTextCharFormat functionFormat;
     QTextCharFormat numberFormat;
+    QTextCharFormat tagFormat;
+    QTextCharFormat attributeFormat;
+    QTextCharFormat headingFormat;
+    QTextCharFormat boldFormat;
+    QTextCharFormat linkFormat;
+    
+    Language currentLanguage;
     
     // Cached patterns for performance
     static QRegularExpression multiLineCommentStart;
     static QRegularExpression multiLineCommentEnd;
     
     void setupRules();
+    void setupCppRules();
+    void setupPythonRules();
+    void setupJavaScriptRules();
+    void setupHtmlRules();
+    void setupCssRules();
+    void setupRustRules();
+    void setupGoRules();
+    void setupJsonRules();
+    void setupYamlRules();
+    void setupMarkdownRules();
+};
+
+// Welcome Screen Widget
+class WelcomeWidget : public QWidget {
+    Q_OBJECT
+public:
+    WelcomeWidget(QWidget *parent = nullptr);
+    void setRecentFiles(const QStringList &files);
+
+signals:
+    void openFileRequested();
+    void openFolderRequested();
+    void recentFileClicked(const QString &filePath);
+
+private:
+    QVBoxLayout *recentFilesLayout;
+    void setupUI();
+};
+
+// Breadcrumb Navigation Bar
+class BreadcrumbBar : public QWidget {
+    Q_OBJECT
+public:
+    BreadcrumbBar(QWidget *parent = nullptr);
+    void updatePath(const QString &filePath, const QString &symbol);
+
+private:
+    QLabel *pathLabel;
+};
+
+// Integrated Terminal Widget
+class TerminalWidget : public QWidget {
+    Q_OBJECT
+public:
+    TerminalWidget(QWidget *parent = nullptr);
+    ~TerminalWidget();
+
+private slots:
+    void executeCommand();
+    void onReadyRead();
+    void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
+
+private:
+    QPlainTextEdit *output;
+    QLineEdit *input;
+    QProcess *process;
+    QString currentDir;
+    void setupUI();
+    void startShell();
+    void appendOutput(const QString &text);
 };
 
 class TextEditor : public QMainWindow {
@@ -138,10 +247,13 @@ private slots:
     void toggleSplitView();
     void toggleFileTree();
     void toggleMiniMap();
+    void toggleTerminal();
     void changeTheme();
     void customizeColors();
     void showAbout();
     void onFileTreeDoubleClicked(const QModelIndex &index);
+    void onFileChangedExternally(const QString &path);
+    void updateBreadcrumb();
 
 private:
     void createActions();
@@ -163,8 +275,15 @@ private:
     void applyThemeToAllEditors();
     void setupUI();
     void applyModernStyle();
+    void showWelcomeScreen();
+    void hideWelcomeScreen();
+    void watchFile(const QString &filePath);
+    void unwatchFile(const QString &filePath);
+    static Language detectLanguage(const QString &fileName);
+    QString detectCurrentSymbol(CodeEditor *editor);
 
     QSplitter *mainSplitter;
+    QSplitter *verticalSplitter;
     QTabWidget *tabWidget;
     QTabWidget *tabWidget2;
     QDockWidget *fileTreeDock;
@@ -173,6 +292,7 @@ private:
     QString currentFolder;
     QMap<CodeEditor*, SyntaxHighlighter*> highlighters;
     QLabel *statusLabel;
+    QLabel *languageLabel;
     QStringList recentFiles;
     QString lastSearchText;
     bool wordWrapEnabled;
@@ -180,6 +300,12 @@ private:
     int fontSize;
     int currentThemeIndex;
     QVector<ColorTheme> themes;
+    
+    // New feature members
+    WelcomeWidget *welcomeWidget;
+    BreadcrumbBar *breadcrumbBar;
+    TerminalWidget *terminalWidget;
+    QFileSystemWatcher *fileWatcher;
     
     QMenu *fileMenu;
     QMenu *editMenu;
@@ -211,6 +337,7 @@ private:
     QAction *splitViewAct;
     QAction *fileTreeAct;
     QAction *miniMapAct;
+    QAction *terminalAct;
     QAction *themeAct;
     QAction *customizeColorsAct;
     QAction *aboutAct;

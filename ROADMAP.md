@@ -1,240 +1,237 @@
-# Jim - Roadmap & Potential Improvements
+# Jim — Development Roadmap
 
-## Short-term Improvements (v1.1)
+> A lightweight, fast code editor built with C++ and Qt6.
 
-### Editor Enhancements
-- [ ] Multi-line comment support (/* */ style)
-- [ ] Bracket auto-pairing and auto-closing
-- [ ] Smart quote pairing
-- [ ] Duplicate line (Ctrl+D)
-- [ ] Move line up/down (Alt+Up/Down)
-- [ ] Delete line (Ctrl+Shift+K)
-- [ ] Comment/uncomment toggle (Ctrl+/)
+## v1.0 — Released
 
-### Search & Replace
-- [ ] Regex search support
-- [ ] Case-sensitive toggle
-- [ ] Whole word matching
+**Core**: Syntax highlighting (C++, Python), line numbers, auto-indentation, bracket/quote auto-pairing, tabs, split view, minimap, word wrap, find & replace, go-to-line, recent files, file tree, themes (Light/Dark), CLI support.
+
+---
+
+## v1.1 — Current Release
+
+### Implemented
+- [x] Welcome Screen with recent files and quick actions
+- [x] Breadcrumb Navigation (`folder > file > function`)
+- [x] Integrated Terminal (Ctrl+`)
+- [x] Code Folding with gutter indicators
+- [x] 11-Language Syntax Highlighting (C/C++, Python, JS/TS, HTML, CSS, Rust, Go, JSON, YAML, Markdown)
+- [x] Language Auto-Detection from file extension
+- [x] File Watcher with external change reload prompt
+- [x] Monokai theme
+- [x] Modernized VS Code-inspired UI
+
+### Remaining for v1.1
+- [ ] Regex search with toggle
+- [ ] Case-sensitive / whole-word search toggles
+- [ ] Highlight all search matches
+- [ ] Replace with confirmation (one-by-one)
 - [ ] Search in selection
-- [ ] Replace with confirmation
-- [ ] Search history
-- [ ] Highlight all matches
 
-### UI Improvements
-- [ ] Minimap/code overview
-- [ ] Breadcrumb navigation
-- [ ] Tab context menu (close others, close all)
-- [ ] Drag and drop file opening
-- [ ] Better close button visibility on tabs
-- [ ] Customizable toolbar
-- [ ] Welcome screen with recent files
+---
 
-## Medium-term Features (v1.5)
+## v1.2 — Line Editing Power
 
-### Advanced Editing
-- [ ] Multiple cursors
-- [ ] Column selection mode
-- [ ] Code folding
-- [ ] Smart indentation per language
-- [ ] Auto-completion (basic)
-- [ ] Snippet support
-- [ ] Bookmarks
+- [ ] Duplicate line (`Ctrl+D`)
+- [ ] Move line up/down (`Alt+↑/↓`)
+- [ ] Delete line (`Ctrl+Shift+K`)
+- [ ] Comment/uncomment toggle (`Ctrl+/`)
+- [ ] Join lines (`Ctrl+J`)
+- [ ] Sort lines (ascending/descending)
+- [ ] Trim trailing whitespace on save
+- [ ] Smart home key (jump to first non-whitespace)
+- [ ] Tab context menu (Close Others, Close All, Close to the Right, Copy Path)
+- [ ] Drag-and-drop file opening
 
-### Language Support
-- [ ] JavaScript/TypeScript syntax
-- [ ] HTML/CSS syntax
-- [ ] JSON/XML syntax
-- [ ] Markdown preview
-- [ ] YAML syntax
-- [ ] Rust syntax
-- [ ] Go syntax
-- [ ] Language auto-detection
+---
+
+## v1.5 — Multi-Cursor & Intelligence
+
+### Multi-Cursor Editing
+- [ ] Add cursor at mouse click (`Alt+Click`)
+- [ ] Select next occurrence (`Ctrl+D`)
+- [ ] Select all occurrences (`Ctrl+Shift+L`)
+- [ ] Column/box selection mode (`Shift+Alt+drag`)
+- [ ] Add cursor above/below (`Ctrl+Alt+↑/↓`)
+
+### Auto-Completion
+- [ ] Buffer word completion (words from current file)
+- [ ] Path completion in strings
+- [ ] Snippet support (user-defined templates)
+- [ ] Bracket completion for multi-line blocks
+- [ ] Emmet abbreviation expansion (HTML/CSS)
+
+### Bookmarks
+- [ ] Toggle bookmark (`Ctrl+F2`)
+- [ ] Jump to next/previous bookmark
+- [ ] Bookmark panel (list all bookmarks)
+- [ ] Named bookmarks
+
+### Indent Guides
+- [ ] Vertical indent guide lines
+- [ ] Active indent guide highlighting
+- [ ] Rainbow indent colors (optional)
+
+---
+
+## v2.0 — Developer Ecosystem
+
+### LSP Integration
+- [ ] Language Server Protocol client
+- [ ] Go-to-definition (`F12`)
+- [ ] Find all references (`Shift+F12`)
+- [ ] Hover documentation
+- [ ] Inline diagnostics (errors, warnings, hints)
+- [ ] Code actions (quick fixes)
+- [ ] Rename symbol (`F2`)
+- [ ] Signature help in function calls
+- [ ] Workspace symbol search
+
+### Git Integration
+- [ ] Gutter indicators (added/modified/deleted lines)
+- [ ] File status in file tree (modified, untracked, staged)
+- [ ] Inline blame annotations
+- [ ] Diff view (side-by-side and inline)
+- [ ] Stage/unstage/commit from editor
+- [ ] Branch indicator in status bar
+- [ ] Git log viewer
+
+### Code Formatting
+- [ ] Format on save (configurable)
+- [ ] Format selection
+- [ ] Integration with clang-format, prettier, rustfmt, gofmt, black
+- [ ] `.editorconfig` support
+- [ ] Custom format rules per language
+
+### Advanced Terminal
+- [ ] Multiple terminal instances (tabs)
+- [ ] Split terminal panes
+- [ ] Terminal profiles (bash, zsh, PowerShell)
+- [ ] Clickable file paths in output
+- [ ] Terminal themes matching editor theme
+
+---
+
+## v2.5 — Project Intelligence
+
+### Fuzzy Finder
+- [ ] Quick file open (`Ctrl+P`)
+- [ ] Command palette (`Ctrl+Shift+P`)
+- [ ] Go to symbol (`Ctrl+Shift+O`)
+- [ ] Fuzzy matching with scoring
+- [ ] Recent files priority
+
+### Project Management
+- [ ] Workspace/project files (`.jim-workspace`)
+- [ ] Multi-root workspaces
+- [ ] Project-specific settings
+- [ ] Task runner integration (npm scripts, Makefile targets, cargo)
+- [ ] Build output panel with error navigation
+
+### Search & Replace (Advanced)
+- [ ] Search across files (`Ctrl+Shift+F`)
+- [ ] Replace across files
+- [ ] Search with include/exclude glob patterns
+- [ ] Search results panel with preview
+- [ ] Search history with quick recall
 
 ### File Management
-- [ ] File watcher (auto-reload on external changes)
-- [ ] Compare files (diff view)
-- [ ] File encoding detection and conversion
-- [ ] Line ending conversion (LF/CRLF)
-- [ ] Backup files (.bak)
-- [ ] Session management (save/restore workspace)
+- [ ] Encoding detection & conversion (UTF-8, UTF-16, Latin-1)
+- [ ] Line ending conversion (LF/CRLF/CR)
+- [ ] File comparison/diff tool
+- [ ] New file from template
+- [ ] Rename file from tab
+- [ ] Reveal in file explorer
 
-### Performance
-- [ ] Lazy loading for large files
-- [ ] Virtual scrolling
-- [ ] Incremental syntax highlighting
-- [ ] Background file loading
-- [ ] Memory usage optimization
+---
 
-## Long-term Vision (v2.0)
+## v3.0 — Extensibility
 
-### Advanced Features
-- [ ] LSP (Language Server Protocol) support
-- [ ] Integrated terminal
-- [ ] Git integration (status, diff, commit)
-- [ ] Project management
-- [ ] Build system integration
-- [ ] Debugger integration
-- [ ] Extension/plugin system
-- [ ] Macro recording and playback
+### Plugin System
+- [ ] Lua scripting API for plugins
+- [ ] Plugin manager (install, update, disable)
+- [ ] Event hooks (on save, on open, on key)
+- [ ] Custom commands and keybindings via plugins
+- [ ] Plugin marketplace/registry
 
-### Collaboration
-- [ ] Real-time collaborative editing
-- [ ] Code review tools
-- [ ] Shared sessions
-- [ ] Remote file editing (SSH/FTP)
-
-### Intelligence
-- [ ] AI-powered code completion
-- [ ] Code refactoring tools
-- [ ] Symbol navigation
-- [ ] Go to definition
-- [ ] Find all references
-- [ ] Rename symbol
-- [ ] Code formatting
-
-### Customization
-- [ ] Custom theme editor
-- [ ] Keybinding customization
-- [ ] Custom syntax definitions
-- [ ] Layout customization
+### Theme System
+- [ ] Theme editor (visual color picker)
+- [ ] Import VS Code themes (JSON)
+- [ ] Per-language color overrides
+- [ ] Icon themes for file tree
 - [ ] Font ligature support
-- [ ] Icon themes
 
-## UI/UX Enhancements
+### Keybinding Customization
+- [ ] Keybinding editor UI
+- [ ] Vim keybindings mode
+- [ ] Emacs keybindings mode
+- [ ] Import keymaps from other editors
+- [ ] Macro recording and playback (`Ctrl+Shift+M`)
 
-### Visual Improvements
-- [ ] Smooth scrolling animation
-- [ ] Tab animations
-- [ ] Fade in/out effects
-- [ ] Better icons (custom icon set)
-- [ ] Customizable status bar
-- [ ] Floating windows support
-- [ ] Full-screen mode
+### Debugger Integration
+- [ ] DAP (Debug Adapter Protocol) support
+- [ ] Breakpoints (line, conditional, logpoint)
+- [ ] Variable watch panel
+- [ ] Call stack view
+- [ ] Step through, step over, step out
+- [ ] Debug console
 
-### Accessibility
-- [ ] Screen reader support
-- [ ] Voice control
-- [ ] Keyboard-only navigation improvements
-- [ ] Colorblind-friendly themes
-- [ ] Adjustable UI scaling
-- [ ] Focus indicators
+---
 
-## Platform-Specific
+## Distribution
 
 ### Linux
-- [ ] .desktop file for application menu
 - [ ] AppImage distribution
 - [ ] Flatpak package
+- [ ] `.desktop` file for app menu
 - [ ] Snap package
-- [ ] Native file picker integration
-
-### macOS
-- [ ] .app bundle
-- [ ] Homebrew formula
-- [ ] Touch Bar support
-- [ ] Native menu bar
-- [ ] Spotlight integration
+- [ ] AUR package (Arch)
 
 ### Windows
-- [ ] Installer (NSIS/WiX)
-- [ ] Portable version
+- [ ] NSIS installer
+- [ ] Context menu integration ("Open with Jim")
+- [ ] File association for common extensions
+- [ ] Portable version (no install)
 - [ ] Windows Store package
-- [ ] Context menu integration
-- [ ] File association
 
-## Developer Experience
+### macOS
+- [ ] `.app` bundle
+- [ ] Homebrew formula
+- [ ] DMG installer
+- [ ] Spotlight integration
 
-### Build & Distribution
-- [ ] CMake support (alternative to Make)
-- [ ] Continuous integration (GitHub Actions)
-- [ ] Automated testing
+### CI/CD
+- [ ] GitHub Actions build pipeline
+- [ ] Automated release artifacts
+- [ ] Cross-platform build matrix
 - [ ] Code coverage reports
-- [ ] Static analysis integration
-- [ ] Documentation generation
+- [ ] Static analysis (clang-tidy)
 
-### Code Quality
-- [ ] Unit tests
-- [ ] Integration tests
-- [ ] Performance benchmarks
-- [ ] Memory leak detection
-- [ ] Code style enforcement
-- [ ] Automated formatting
-
-## Community Features
-
-### Documentation
-- [ ] User manual
-- [ ] Video tutorials
-- [ ] API documentation
-- [ ] Contributing guide
-- [ ] Code of conduct
-- [ ] FAQ section
-
-### Community
-- [ ] Issue templates
-- [ ] Feature request process
-- [ ] Discussion forum
-- [ ] Discord/Slack channel
-- [ ] Regular release schedule
-- [ ] Changelog maintenance
+---
 
 ## Performance Targets
 
-### Startup Time
-- Current: <500ms
-- Target: <200ms
+| Metric | Current | Target |
+|--------|---------|--------|
+| Startup | <500ms | <200ms |
+| Memory (base) | 15-20 MB | <10 MB |
+| File load (10MB) | ~1s | <500ms |
+| UI framerate | 60 FPS | 60 FPS |
+| Frame time | <16ms | <16ms |
 
-### Memory Usage
-- Current: 15-20 MB base
-- Target: <10 MB base
+---
 
-### File Loading
-- Current: 1s for 10MB
-- Target: <500ms for 10MB
+## Non-Goals
 
-### Responsiveness
-- Target: 60 FPS UI
-- Target: <16ms frame time
-- Target: No blocking operations
+Jim intentionally avoids these to stay lightweight:
+- Electron or web-based architecture
+- Cloud sync or telemetry
+- Built-in AI code generation
+- Full IDE-level project refactoring
+- Jupyter notebook support
 
-## Breaking Changes (v2.0)
-
-### Potential Changes
-- Configuration file format migration
-- New plugin API
-- Updated keyboard shortcuts
-- Refactored codebase architecture
-- New theme format
-
-### Migration Path
-- Automatic settings migration
-- Backward compatibility layer
-- Migration guide documentation
-- Deprecation warnings
-
-## Experimental Ideas
-
-### Innovative Features
-- [ ] AI pair programming assistant
-- [ ] Voice coding support
-- [ ] Gesture controls
-- [ ] VR/AR editing mode
-- [ ] Neural network-based predictions
-- [ ] Blockchain-based version control
-- [ ] Quantum computing integration (just kidding)
-
-### Research Areas
-- [ ] Better syntax highlighting algorithms
-- [ ] Predictive text optimization
-- [ ] Energy-efficient rendering
-- [ ] Novel UI paradigms
-- [ ] Accessibility innovations
-
+---
 
 ## Contributing
 
-Want to help implement these features? Check out the contributing guide and pick an item from the roadmap. All contributions are welcome!
-
-## Feedback
-
-Have ideas for improvements? Open an issue on GitHub or join the discussion in our community channels.
+Pick an unchecked item, open a PR, and keep it focused. See the [README](README.md) for build instructions.
