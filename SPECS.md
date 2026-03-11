@@ -15,6 +15,7 @@
 | `TextEditor` | `QMainWindow` | Main window, menus, actions, file management, theme coordination |
 | `CodeEditor` | `QPlainTextEdit` | Editor widget with line numbers, folding, auto-indent, bracket pairing |
 | `SyntaxHighlighter` | `QSyntaxHighlighter` | Multi-language pattern-based highlighting (11 languages) |
+| `HexEditor` | `QWidget` | Binary file viewer/editor with hex and ASCII display |
 | `LineNumberArea` | `QWidget` | Line number gutter, synchronized with editor scroll |
 | `FoldingArea` | `QWidget` | Code folding indicators (▶/▼), click to toggle |
 | `MiniMap` | `QWidget` | Code overview with viewport indicator |
@@ -34,6 +35,8 @@
 - Folder browsing via file tree sidebar
 - Command-line file/folder opening
 - File watcher with external change detection and reload prompt
+- Automatic binary file detection (null byte checking)
+- Binary files open in hex editor with `[HEX]` tab prefix
 
 ### Editor
 - Line numbers with current-line highlight
@@ -78,9 +81,22 @@
 - File tree sidebar (toggle Ctrl+B)
 - Split view (horizontal, Ctrl+\\)
 - Integrated terminal (Ctrl+`) with dynamic working directory matching open folder
+- Hex editor for binary files (automatic detection)
 - Mini map (Ctrl+M)
 - Word wrap toggle
 - Font size adjustment
+
+### Hex Editor Features
+- Address column (8-digit hex addresses)
+- Hex view (16 bytes per line, space-separated)
+- ASCII view (printable characters, dots for non-printable)
+- Keyboard navigation (arrows, Page Up/Down, Home/End)
+- Hex editing mode (type hex digits to modify bytes)
+- ASCII editing mode (type characters to modify bytes)
+- Tab key to switch between hex and ASCII areas
+- Selection support with visual highlighting
+- Vertical scrollbar for large files
+- Dark theme matching main editor
 
 ## Performance
 
@@ -111,11 +127,15 @@
 ```
 jim/
 ├── main.cpp              # Entry point + CLI argument handling
-├── texteditor.h          # All class declarations
-├── texteditor.cpp        # All implementations (~1920 lines)
+├── texteditor.h          # Main editor class declarations
+├── texteditor.cpp        # Main editor implementations
+├── hexeditor.h           # Hex editor class declaration
+├── hexeditor.cpp         # Hex editor implementation
 ├── linenumberarea.h      # LineNumberArea + FoldingArea + MiniMap headers
 ├── linenumberarea.cpp    # Widget implementations
-├── Makefile              # Build configuration
+├── jim.pro               # Qt project file
+├── build.ps1             # Windows build script
+├── Makefile              # Generated build configuration
 ├── README.md             # User documentation
 ├── SPECS.md              # This file
 ├── ROADMAP.md            # Development roadmap

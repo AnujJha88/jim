@@ -28,6 +28,7 @@ A lightweight, modern code editor built with C++ and Qt6. Designed for developer
 
 ### Developer Tools
 - **Integrated Terminal** — Embedded shell panel with command execution (Ctrl+`)
+- **Hex Editor** — Built-in binary file viewer/editor with hex and ASCII display
 - **File Watcher** — Detects external file changes and prompts to reload
 - **Welcome Screen** — Quick access to recent files and actions on launch
 
@@ -182,6 +183,12 @@ Configuration is stored in `~/.config/TextEditor/Settings.conf`
 
 
 ## Recent Updates
+
+### v1.2.1
+- Added **Hex Editor** — Automatic binary file detection with integrated hex/ASCII viewer
+- Binary files open in dedicated hex editor tab with `[HEX]` prefix
+- Hex editor features: address column, hex/ASCII dual view, keyboard navigation, editing support
+- Fixed build system to properly include hex editor compilation
 
 ### v1.2
 - Added **Line Editing Power**: Duplicate (`Ctrl+D`), Move Up/Down (`Alt+Up/Down`), Delete (`Ctrl+Shift+K`), and Toggle Comments (`Ctrl+/`).
