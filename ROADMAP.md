@@ -54,6 +54,12 @@ Focuses on enhancing the ability to find and move through code quickly.
 - [ ] Column selection mode (`Shift+Alt+Drag`)
 - [ ] Smart auto-closing tags (HTML/XML)
 
+### Typography & Fonts
+- [ ] Configurable font family and fallback fonts
+- [ ] Font ligature support (e.g., Fira Code, Cascadia Code)
+- [ ] Dynamic font size configuration (`Ctrl+MouseWheel`)
+- [ ] Custom line height and letter spacing adjustments
+
 ### Bookmarks
 - [ ] Toggle bookmark (`Ctrl+F2`)
 - [ ] Jump to next/previous bookmark
@@ -192,7 +198,6 @@ Focuses on enhancing the ability to find and move through code quickly.
 - [ ] Variable and Watch inspector
 - [ ] Step over, Step into, Step out controls
 - [ ] Hover over variables to inspect state during active debug sessions
-- [ ] Font ligature support
 
 ### Keybinding Customization
 - [ ] Keybinding editor UI

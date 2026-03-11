@@ -18,3 +18,7 @@ Thumbs.db
 # Qt files
 *.pro.user
 *.autosave
+release/
+debug/
+*.o 
+*.pro 

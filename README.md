@@ -150,22 +150,24 @@ jim /path/to/project
 ## Building from Source
 
 ### Requirements
-- Qt6 (Core, Gui, Widgets modules)
-- C++17 compatible compiler
-- Make
+- **Linux/macOS**: Qt6 (Core, Gui, Widgets), C++17 Compiler (GCC/Clang), Make
+- **Windows**: Qt6 (MSVC or MinGW), CMake or Make, PowerShell
 
-### Compile
+### Compile (Linux / macOS / WSL)
 ```bash
 git clone https://github.com/AnujJha88/jim.git
 cd jim
-make
+make clean && make -j4
+./jim
 ```
 
-### Development Build
-```bash
-make clean
-make
-./jim
+### Compile (Windows)
+We provide a convenient PowerShell script to automatically compile Jim on Windows natively without WSL. It produces a standalone GUI executable (`jim.exe`) that can be double-clicked directly from Explorer. Open PowerShell (as Administrator if required for Qt) and run:
+```powershell
+git clone https://github.com/AnujJha88/jim.git
+cd jim
+.\build.ps1
+.\release\jim.exe
 ```
 
 ## Configuration
@@ -188,6 +190,7 @@ Configuration is stored in `~/.config/TextEditor/Settings.conf`
 - Replaced standard OS window decorations with a custom Frameless Title Bar (minimize, maximize, close).
 - Added a VS Code-style "Open Folder" Empty State to the File Explorer when initialized without arguments.
 - Fixed layout to allow `QMenuBar` rendering below the custom Title Bar.
+
 
 ### v1.1
 - Added Welcome Screen with recent files and quick-action buttons
