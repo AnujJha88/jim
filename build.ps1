@@ -83,17 +83,11 @@ if ($Compiler -eq "mingw32-make" -and -not (Get-Command "mingw32-make.exe" -Erro
 }
 
 Write-Host "Generating Makefile with qmake..." -ForegroundColor Cyan
-# Generate the .pro file on the fly if it doesn't exist, since they only had a Makefile designed for Linux
-$ProContent = @"
-QT += core gui widgets
-TARGET = jim
-TEMPLATE = app
-CONFIG += c++17
-SOURCES += texteditor.cpp linenumberarea.cpp main.cpp
-HEADERS += texteditor.h linenumberarea.h
-"@
-
-Set-Content -Path "jim.pro" -Value $ProContent
+# Use existing jim.pro file
+if (-not (Test-Path "jim.pro")) {
+    Write-Error "jim.pro file not found!"
+    exit 1
+}
 
 # Run qmake
 & qmake -config release jim.pro

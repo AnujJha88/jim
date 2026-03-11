@@ -27,6 +27,7 @@ class LineNumberArea;
 class FoldingArea;
 class MiniMap;
 class QPropertyAnimation;
+class HexEditor;
 class WelcomeWidget;
 class BreadcrumbBar;
 class TerminalWidget;

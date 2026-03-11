@@ -1,5 +1,6 @@
 #include "texteditor.h"
 #include "linenumberarea.h"
+#include "hexeditor.h"
 #include <QApplication>
 #include <QCloseEvent>
 #include <QColorDialog>
@@ -1781,47 +1782,81 @@ bool TextEditor::maybeSave(int tabIndex) {
 
 void TextEditor::loadFile(const QString &fileName) {
     QFile file(fileName);
-    if (!file.open(QFile::ReadOnly | QFile::Text)) {
+    if (!file.open(QFile::ReadOnly)) {
         QMessageBox::warning(this, "Jim", QString("Cannot read file %1:\n%2.").arg(fileName).arg(file.errorString()));
         return;
     }
+    
+    // Check if file is binary
+    QByteArray fileData = file.readAll();
+    file.close();
+    
+    bool isBinary = false;
+    int nullCount = 0;
+    int sampleSize = qMin(512, fileData.size());
+    for (int i = 0; i < sampleSize; ++i) {
+        if (fileData[i] == 0) {
+            nullCount++;
+            if (nullCount > 1) {
+                isBinary = true;
+                break;
+            }
+        }
+    }
+    
     hideWelcomeScreen();
-    QTextStream in(&file);
     QApplication::setOverrideCursor(Qt::WaitCursor);
     
-    CodeEditor *editor = new CodeEditor();
-    editor->setPlainText(in.readAll());
-    editor->setFileName(fileName);
-    editor->document()->setModified(false);
+    Language lang = Language::PlainText; // Default language
     
-    // Auto-detect language
-    Language lang = detectLanguage(fileName);
-    editor->setLanguage(lang);
-    
-    SyntaxHighlighter *highlighter = new SyntaxHighlighter(editor->document());
-    highlighter->setLanguage(lang);
-    highlighters[editor] = highlighter;
-    
-    QFont font("Consolas", fontSize);
-    editor->setFont(font);
-    editor->setLineWrapMode(wordWrapEnabled ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
-    applyThemeToEditor(editor, highlighter);
-    
-    connect(editor->document(), &QTextDocument::modificationChanged, this, &TextEditor::documentWasModified);
-    connect(editor, &QPlainTextEdit::cursorPositionChanged, this, &TextEditor::updateStatusBar);
-    connect(editor, &QPlainTextEdit::cursorPositionChanged, this, &TextEditor::updateBreadcrumb);
-    
-    int index = tabWidget->addTab(editor, strippedName(fileName));
-    tabWidget->setCurrentIndex(index);
+    if (isBinary) {
+        // Open in hex editor
+        HexEditor *hexEditor = new HexEditor();
+        hexEditor->setData(fileData);
+        hexEditor->setProperty("fileName", fileName);
+        
+        int index = tabWidget->addTab(hexEditor, "[HEX] " + strippedName(fileName));
+        tabWidget->setCurrentIndex(index);
+    } else {
+        // Open in text editor
+        CodeEditor *editor = new CodeEditor();
+        editor->setPlainText(QString::fromUtf8(fileData));
+        editor->setFileName(fileName);
+        editor->document()->setModified(false);
+        
+        // Auto-detect language
+        lang = detectLanguage(fileName);
+        editor->setLanguage(lang);
+        
+        SyntaxHighlighter *highlighter = new SyntaxHighlighter(editor->document());
+        highlighter->setLanguage(lang);
+        highlighters[editor] = highlighter;
+        
+        QFont font("Consolas", fontSize);
+        editor->setFont(font);
+        editor->setLineWrapMode(wordWrapEnabled ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
+        applyThemeToEditor(editor, highlighter);
+        
+        connect(editor->document(), &QTextDocument::modificationChanged, this, &TextEditor::documentWasModified);
+        connect(editor, &QPlainTextEdit::cursorPositionChanged, this, &TextEditor::updateStatusBar);
+        connect(editor, &QPlainTextEdit::cursorPositionChanged, this, &TextEditor::updateBreadcrumb);
+        
+        int index = tabWidget->addTab(editor, strippedName(fileName));
+        tabWidget->setCurrentIndex(index);
+        
+        watchFile(fileName);
+    }
     
     QApplication::restoreOverrideCursor();
-    
-    watchFile(fileName);
     updateRecentFiles(fileName);
     
     // Update language label
-    QStringList langNames = {"Plain Text","C++","Python","JavaScript","HTML","CSS","Rust","Go","JSON","YAML","Markdown"};
-    languageLabel->setText(langNames[static_cast<int>(lang)]);
+    if (isBinary) {
+        languageLabel->setText("Binary (Hex)");
+    } else {
+        QStringList langNames = {"Plain Text","C++","Python","JavaScript","HTML","CSS","Rust","Go","JSON","YAML","Markdown"};
+        languageLabel->setText(langNames[static_cast<int>(lang)]);
+    }
     
     statusBar()->showMessage("File loaded", 2000);
 }

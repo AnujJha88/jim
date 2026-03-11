@@ -69,7 +69,39 @@ Focuses on enhancing the ability to find and move through code quickly.
 ### Indent Guides
 - [ ] Vertical indent guide lines
 - [ ] Active indent guide highlighting
-- [ ] Rainbow indent colors (optional)
+---
+
+## Unique Differentiators (The Native Advantage)
+
+Since Jim is a dynamically compiled native C++ application (unlike memory-heavy Electron editors like VS Code), we can leverage unique performance and system-level features to stand out:
+
+
+### 1. Built-In Hex Editor & Binary Analysis
+- [ ] Native, split-view hex editor mode
+- [ ] Inspect and manipulate binary files directly without external extensions
+- [ ] Value inspector (view bytes as int8, int16, int32, float, etc.)
+
+### 2. Hyper-Minimalist "Zen Mode"
+- [ ] Press `F11` to hide *all* UI elements (explorer, terminal, tabs, titlebar)
+- [ ] Seamless edge-fading of text for pure distraction-free algorithmic thinking
+- [ ] Subtle, non-intrusive block cursor
+
+### 3. Hardware-Accelerated Architecture Visualizer
+- [ ] Utilize `Qt3D` or `OpenGL` to generate a 3D interactive dependency graph of the current project
+- [ ] Fly through your codebase to visually understand complex includes and module hierarchies natively
+
+### 4. Integrated Disassembler & Executable Inspector
+- [ ] For C/C++ projects, right-click a function to instantly see its assembly output (via `objdump`/`llvm-objdump`)
+- [ ] Inspect executable headers (ELF/PE) and symbol tables directly in the editor
+
+### 5. Native Build & Resource Profiler
+- [ ] Real-time visualization of CPU/Memory/IO usage for your build processes and sub-processes
+- [ ] Visual build timeline to identify bottlenecks in your compilation pipeline natively without external tools
+
+### 6. "Ghost" Debugger Overlays
+- [ ] High-performance inline variable value overlays (ghost text) during active debug sessions
+- [ ] Observe data flow through loops and functions without needing to hover or use a separate watch panel
+
 
 ---
 
