@@ -19,7 +19,7 @@ CXXFLAGS      = -fno-keep-inline-dllexport -g -std=gnu++1z -Wall -Wextra -Wextra
 INCPATH       = -I. -IC:/Qt/6.10.2/mingw_64/include -IC:/Qt/6.10.2/mingw_64/include/QtWidgets -IC:/Qt/6.10.2/mingw_64/include/QtGui -IC:/Qt/6.10.2/mingw_64/include/QtCore -Idebug -I/include -IC:/Qt/6.10.2/mingw_64/mkspecs/win32-g++ 
 LINKER      =        g++
 LFLAGS        =        -Wl,-subsystem,windows -mthreads
-LIBS        =        C:\Qt\6.10.2\mingw_64\lib\libQt6Widgets.a C:\Qt\6.10.2\mingw_64\lib\libQt6Gui.a C:\Qt\6.10.2\mingw_64\lib\libQt6Core.a -lmingw32 C:\Qt\6.10.2\mingw_64\lib\libQt6EntryPoint.a -lshell32  
+LIBS        =        C:\Qt\6.10.2\mingw_64\lib\libQt6Widgets.a C:\Qt\6.10.2\mingw_64\lib\libQt6Gui.a C:\Qt\6.10.2\mingw_64\lib\libQt6Core.a debug\jim_resource_res.o -lmingw32 C:\Qt\6.10.2\mingw_64\lib\libQt6EntryPoint.a -lshell32  
 QMAKE         = C:\Qt\6.10.2\mingw_64\bin\qmake.exe
 DEL_FILE      = del
 CHK_DIR_EXISTS= if not exist
@@ -40,7 +40,7 @@ IDC           = idc
 IDL           = midl
 ZIP           = zip -r -9
 DEF_FILE      = 
-RES_FILE      = 
+RES_FILE      = debug\jim_resource_res.o
 SED           = $(QMAKE) -install sed
 MOVE          = move
 
@@ -80,8 +80,11 @@ DESTDIR_TARGET = debug\jim.exe
 first: all
 all: Makefile.Debug  debug/jim.exe
 
-debug/jim.exe: C:/Qt/6.10.2/mingw_64/lib/libQt6Widgets.a C:/Qt/6.10.2/mingw_64/lib/libQt6Gui.a C:/Qt/6.10.2/mingw_64/lib/libQt6Core.a C:/Qt/6.10.2/mingw_64/lib/libQt6EntryPoint.a $(OBJECTS) 
+debug/jim.exe: C:/Qt/6.10.2/mingw_64/lib/libQt6Widgets.a C:/Qt/6.10.2/mingw_64/lib/libQt6Gui.a C:/Qt/6.10.2/mingw_64/lib/libQt6Core.a C:/Qt/6.10.2/mingw_64/lib/libQt6EntryPoint.a $(OBJECTS) debug/jim_resource_res.o
 	$(LINKER) $(LFLAGS) -o $(DESTDIR_TARGET) $(OBJECTS) $(LIBS)
+
+debug/jim_resource_res.o: jim_resource.rc
+	windres -i jim_resource.rc -o debug\jim_resource_res.o --include-dir=. $(DEFINES)
 
 qmake: FORCE
 	@$(QMAKE) -o Makefile.Debug jim.pro -config release
@@ -93,6 +96,7 @@ dist:
 
 clean: compiler_clean 
 	-$(DEL_FILE) debug\texteditor.o debug\linenumberarea.o debug\hexeditor.o debug\main.o debug\moc_texteditor.o debug\moc_linenumberarea.o debug\moc_hexeditor.o
+	-$(DEL_FILE) debug\jim_resource_res.o
 
 distclean: clean 
 	-$(DEL_FILE) .qmake.stash
