@@ -154,13 +154,15 @@ jim /path/to/project
 - **Linux/macOS**: Qt6 (Core, Gui, Widgets), C++17 Compiler (GCC/Clang), Make
 - **Windows**: Qt6 (MSVC or MinGW), CMake or Make, PowerShell
 
-### Compile (Linux / macOS / WSL)
+### Compile and Install (Linux / macOS / WSL)
 ```bash
 git clone https://github.com/AnujJha88/jim.git
 cd jim
-make clean && make -j4
-./jim
+make
+sudo make install
 ```
+
+**Note:** The dispatcher `GNUmakefile` automatically detects Linux, runs `qmake`, and compiles the project. It then installs the binary to `/usr/local/bin` when you run `sudo make install`.
 
 ### Compile (Windows)
 We provide a convenient PowerShell script to automatically compile Jim on Windows natively without WSL. It produces a standalone GUI executable (`jim.exe`) that can be double-clicked directly from Explorer. Open PowerShell (as Administrator if required for Qt) and run:

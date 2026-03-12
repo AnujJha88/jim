@@ -1,0 +1,3 @@
+# This file is used on Windows to preserve the qmake-generated build logic
+# without being overwritten by the dispatcher Makefile on Linux.
+include Makefile.qmake
