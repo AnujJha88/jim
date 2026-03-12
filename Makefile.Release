@@ -1144,6 +1144,7 @@ release/texteditor.o: texteditor.cpp texteditor.h \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/qdialogbuttonbox.h \
 		C:/Qt/6.10.2/mingw_64/include/QtGui/QPainter \
 		C:/Qt/6.10.2/mingw_64/include/QtGui/qpainter.h \
+		C:/Qt/6.10.2/mingw_64/include/QtCore/QProcessEnvironment \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/QPropertyAnimation \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/qpropertyanimation.h \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/qvariantanimation.h \

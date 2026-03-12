@@ -232,7 +232,6 @@ public:
 private slots:
     void executeCommand();
     void onReadyRead();
-    void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
 private:
     QPlainTextEdit *output;

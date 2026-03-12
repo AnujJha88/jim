@@ -20,7 +20,9 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPainter>
+#include <QProcessEnvironment>
 #include <QPropertyAnimation>
+#include <QPushButton>
 #include <QSaveFile>
 #include <QScrollBar>
 #include <QSettings>
@@ -1330,15 +1332,19 @@ void BreadcrumbBar::updatePath(const QString &filePath, const QString &symbol) {
 // ============================================================
 // TerminalWidget Implementation
 // ============================================================
+// TerminalWidget Implementation
+// ============================================================
 TerminalWidget::TerminalWidget(QWidget *parent)
     : QWidget(parent), process(nullptr) {
   setupUI();
+  startShell();
 }
 
 TerminalWidget::~TerminalWidget() {
   if (process) {
-    process->kill();
+    process->write("exit\n");
     process->waitForFinished(1000);
+    process->kill();
   }
 }
 
@@ -1355,42 +1361,40 @@ void TerminalWidget::setupUI() {
                            "letter-spacing: 1px;");
   headerLayout->addWidget(termLabel);
   headerLayout->addStretch();
+  
+  QPushButton *clearBtn = new QPushButton("Clear");
+  clearBtn->setStyleSheet(
+      "QPushButton { background: transparent; color: #cccccc; border: none; "
+      "padding: 4px 8px; font-size: 11px; } "
+      "QPushButton:hover { background-color: #2a2d2e; }");
+  connect(clearBtn, &QPushButton::clicked, this, [this]() { output->clear(); });
+  headerLayout->addWidget(clearBtn);
+  
   header->setStyleSheet(
       "background-color: #252526; border-bottom: 1px solid #3e3e42;");
   layout->addWidget(header);
 
   output = new QPlainTextEdit();
   output->setReadOnly(true);
-  output->setFont(QFont("Consolas", 11));
+  output->setFont(QFont("Consolas", 10));
   output->setStyleSheet(
       "QPlainTextEdit { background-color: #1e1e1e; color: #cccccc; border: "
       "none; padding: 8px; selection-background-color: #264f78; }");
-  output->setMaximumBlockCount(5000);
+  output->setMaximumBlockCount(10000);
+  output->setWordWrapMode(QTextOption::WrapAnywhere);
   layout->addWidget(output);
 
-  QWidget *inputBar = new QWidget();
-  QHBoxLayout *inputLayout = new QHBoxLayout(inputBar);
-  inputLayout->setContentsMargins(8, 4, 8, 4);
-  inputLayout->setSpacing(8);
-  QLabel *prompt = new QLabel("$");
-  prompt->setStyleSheet("color: #569cd6; font-size: 13px; font-weight: bold; "
-                        "font-family: Consolas;");
-  inputLayout->addWidget(prompt);
   input = new QLineEdit();
-  input->setFont(QFont("Consolas", 11));
+  input->setFont(QFont("Consolas", 10));
   input->setStyleSheet(
-      "QLineEdit { background-color: #2d2d30; color: #cccccc; border: 1px "
-      "solid #3e3e42; border-radius: 4px; padding: 6px 10px; } QLineEdit:focus "
-      "{ border-color: #007acc; }");
-  input->setPlaceholderText("Enter command...");
-  connect(input, &QLineEdit::returnPressed, this,
-          &TerminalWidget::executeCommand);
-  inputLayout->addWidget(input);
-  inputBar->setStyleSheet(
-      "background-color: #252526; border-top: 1px solid #3e3e42;");
-  layout->addWidget(inputBar);
+      "QLineEdit { background-color: #1e1e1e; color: #cccccc; border: none; "
+      "border-top: 1px solid #3e3e42; padding: 8px; } "
+      "QLineEdit:focus { border-top: 1px solid #007acc; }");
+  input->setPlaceholderText("Type command and press Enter...");
+  connect(input, &QLineEdit::returnPressed, this, &TerminalWidget::executeCommand);
+  layout->addWidget(input);
 
-  currentDir = QDir::homePath(); // Default to home directory
+  currentDir = QDir::homePath();
   setStyleSheet("background-color: #1e1e1e;");
 }
 
@@ -1398,63 +1402,83 @@ void TerminalWidget::setWorkingDirectory(const QString &dir) {
   QDir d(dir);
   if (d.exists()) {
     currentDir = d.absolutePath();
+    if (process && process->state() == QProcess::Running) {
+      // Change directory in the running shell
+#ifdef Q_OS_WIN
+      process->write(QString("cd /d \"%1\"\n").arg(currentDir).toLocal8Bit());
+#else
+      process->write(QString("cd \"%1\"\n").arg(currentDir).toLocal8Bit());
+#endif
+    }
   }
 }
 
-void TerminalWidget::startShell() {}
+void TerminalWidget::startShell() {
+  if (process) {
+    process->kill();
+    process->deleteLater();
+  }
+  
+  process = new QProcess(this);
+  process->setWorkingDirectory(currentDir);
+  process->setProcessChannelMode(QProcess::MergedChannels);
+  
+  // Set environment for better shell experience
+  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+  env.insert("TERM", "xterm-256color");
+  env.insert("CLICOLOR", "1");
+  process->setProcessEnvironment(env);
+  
+  connect(process, &QProcess::readyReadStandardOutput, this, &TerminalWidget::onReadyRead);
+  connect(process, &QProcess::readyReadStandardError, this, &TerminalWidget::onReadyRead);
+  
+  connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+          this, [this](int exitCode, QProcess::ExitStatus status) {
+    if (status == QProcess::CrashExit) {
+      appendOutput("\n[Shell crashed - restarting...]\n");
+    } else {
+      appendOutput(QString("\n[Shell exited with code %1 - restarting...]\n").arg(exitCode));
+    }
+    QTimer::singleShot(500, this, &TerminalWidget::startShell);
+  });
+  
+#ifdef Q_OS_WIN
+  // Use PowerShell on Windows for better experience
+  process->start("powershell.exe", QStringList() << "-NoLogo" << "-NoExit");
+#else
+  // Use bash on Unix-like systems
+  process->start("/bin/bash", QStringList() << "-i");
+#endif
+  
+  if (!process->waitForStarted(2000)) {
+    appendOutput("[Error: Failed to start shell]\n");
+  }
+}
 
 void TerminalWidget::executeCommand() {
-  QString cmd = input->text().trimmed();
+  QString cmd = input->text();
   if (cmd.isEmpty())
     return;
-  appendOutput("\n$ " + cmd + "\n");
+  
   input->clear();
-
-  if (cmd.startsWith("cd ")) {
-    QString dir = cmd.mid(3).trimmed();
-    QDir newDir(currentDir);
-    if (newDir.cd(dir)) {
-      currentDir = newDir.absolutePath();
-      appendOutput(currentDir + "\n");
-    } else {
-      appendOutput("cd: no such directory: " + dir + "\n");
-    }
-    return;
+  
+  if (process && process->state() == QProcess::Running) {
+    // Send command to the running shell
+    process->write(cmd.toLocal8Bit() + "\n");
+  } else {
+    appendOutput("[Error: Shell not running]\n");
   }
-  if (cmd == "clear" || cmd == "cls") {
-    output->clear();
-    return;
-  }
-
-  QProcess *proc = new QProcess(this);
-  proc->setWorkingDirectory(currentDir);
-  connect(proc, &QProcess::readyReadStandardOutput, this,
-          &TerminalWidget::onReadyRead);
-  connect(proc, &QProcess::readyReadStandardError, this,
-          &TerminalWidget::onReadyRead);
-  connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-          this, &TerminalWidget::onProcessFinished);
-#ifdef Q_OS_WIN
-  proc->start("cmd.exe", QStringList() << "/c" << cmd);
-#else
-  proc->start("/bin/sh", QStringList() << "-c" << cmd);
-#endif
 }
 
 void TerminalWidget::onReadyRead() {
-  QProcess *proc = qobject_cast<QProcess *>(sender());
-  if (proc) {
-    appendOutput(QString::fromLocal8Bit(proc->readAllStandardOutput()));
-    appendOutput(QString::fromLocal8Bit(proc->readAllStandardError()));
-  }
-}
-
-void TerminalWidget::onProcessFinished(int, QProcess::ExitStatus) {
-  QProcess *proc = qobject_cast<QProcess *>(sender());
-  if (proc) {
-    appendOutput(QString::fromLocal8Bit(proc->readAllStandardOutput()));
-    appendOutput(QString::fromLocal8Bit(proc->readAllStandardError()));
-    proc->deleteLater();
+  if (process) {
+    QByteArray data = process->readAllStandardOutput();
+    QString text = QString::fromLocal8Bit(data);
+    
+    // Remove ANSI escape codes for cleaner output (optional)
+    // text.remove(QRegularExpression("\x1B\\[[0-9;]*[a-zA-Z]"));
+    
+    appendOutput(text);
   }
 }
 
@@ -1515,9 +1539,12 @@ void TextEditor::setupUI() {
 
   // Vertical splitter: top = editor area, bottom = terminal
   verticalSplitter = new QSplitter(Qt::Vertical, mainContainer);
+  verticalSplitter->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  verticalSplitter->setOpaqueResize(false); // Show live preview while dragging
 
   // Container for breadcrumb + editor
   QWidget *editorContainer = new QWidget();
+  editorContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   QVBoxLayout *editorLayout = new QVBoxLayout(editorContainer);
   editorLayout->setContentsMargins(0, 0, 0, 0);
   editorLayout->setSpacing(0);
@@ -1554,10 +1581,19 @@ void TextEditor::setupUI() {
 
   // Terminal widget (hidden by default)
   terminalWidget = new TerminalWidget();
+  terminalWidget->setMinimumHeight(100);
+  terminalWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   terminalWidget->hide();
   verticalSplitter->addWidget(terminalWidget);
   verticalSplitter->setStretchFactor(0, 3);
   verticalSplitter->setStretchFactor(1, 1);
+  verticalSplitter->setHandleWidth(6);
+  verticalSplitter->setChildrenCollapsible(false);
+  
+  // Set initial sizes for the splitter (70% editor, 30% terminal)
+  QList<int> sizes;
+  sizes << 700 << 300;
+  verticalSplitter->setSizes(sizes);
 
   mainLayout->addWidget(verticalSplitter, 1); // stretch to fill
   setCentralWidget(mainContainer);
@@ -2194,10 +2230,19 @@ void TextEditor::toggleWordWrap() {
 }
 
 void TextEditor::toggleTerminal() {
-  if (terminalWidget->isVisible())
+  if (terminalWidget->isVisible()) {
     terminalWidget->hide();
-  else
+  } else {
     terminalWidget->show();
+    // Ensure proper sizing when showing terminal
+    QList<int> sizes = verticalSplitter->sizes();
+    int total = sizes[0] + sizes[1];
+    if (total > 0) {
+      sizes[0] = total * 0.7;
+      sizes[1] = total * 0.3;
+      verticalSplitter->setSizes(sizes);
+    }
+  }
   terminalAct->setChecked(terminalWidget->isVisible());
 }
 
@@ -2368,6 +2413,10 @@ void TextEditor::loadFile(const QString &fileName) {
 
 bool TextEditor::saveFileToPath(const QString &fileName) {
   QGuiApplication::setOverrideCursor(Qt::WaitCursor);
+  
+  // Temporarily unwatch to prevent false "modified externally" alert
+  unwatchFile(fileName);
+  
   QSaveFile file(fileName);
   if (file.open(QFile::WriteOnly)) {
     CodeEditor *editor = currentEditor();
@@ -2388,6 +2437,7 @@ bool TextEditor::saveFileToPath(const QString &fileName) {
       out << text;
       if (!file.commit()) {
         QGuiApplication::restoreOverrideCursor();
+        watchFile(fileName); // Re-watch on failure
         QMessageBox::warning(this, "Jim",
                              QString("Cannot write file %1:\n%2.")
                                  .arg(fileName)
@@ -2398,6 +2448,7 @@ bool TextEditor::saveFileToPath(const QString &fileName) {
       file.write(hexEditor->data());
       if (!file.commit()) {
         QGuiApplication::restoreOverrideCursor();
+        watchFile(fileName); // Re-watch on failure
         QMessageBox::warning(this, "Jim",
                              QString("Cannot write file %1:\n%2.")
                                  .arg(fileName)
@@ -2409,6 +2460,7 @@ bool TextEditor::saveFileToPath(const QString &fileName) {
     }
   } else {
     QGuiApplication::restoreOverrideCursor();
+    watchFile(fileName); // Re-watch on failure
     QMessageBox::warning(this, "Jim",
                          QString("Cannot write file %1:\n%2.")
                              .arg(fileName)
@@ -2416,6 +2468,10 @@ bool TextEditor::saveFileToPath(const QString &fileName) {
     return false;
   }
   QApplication::restoreOverrideCursor();
+  
+  // Re-watch after successful save
+  watchFile(fileName);
+  
   setCurrentFile(fileName);
   updateRecentFiles(fileName);
   statusBar()->showMessage("File saved", 2000);
@@ -2870,12 +2926,20 @@ void TextEditor::applyModernStyle() {
             font-family: 'Consolas', 'Fira Code', monospace;
         }
         QSplitter::handle {
-            background-color: #252526;
-            width: 2px;
-            height: 2px;
+            background-color: #3e3e42;
+            width: 6px;
+            height: 6px;
         }
         QSplitter::handle:hover {
             background-color: #007acc;
+        }
+        QSplitter::handle:vertical {
+            height: 6px;
+            margin: 0px;
+        }
+        QSplitter::handle:horizontal {
+            width: 6px;
+            margin: 0px;
         }
         QInputDialog {
             background-color: #2d2d30;
