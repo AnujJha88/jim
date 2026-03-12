@@ -157,9 +157,11 @@ jim /path/to/project
 ```bash
 git clone https://github.com/AnujJha88/jim.git
 cd jim
-make clean && make -j4
+make
 ./jim
 ```
+
+**Note:** The `GNUmakefile` automatically detects Linux and runs `qmake` for you.
 
 ### Compile (Windows)
 We provide a convenient PowerShell script to automatically compile Jim on Windows natively without WSL. It produces a standalone GUI executable (`jim.exe`) that can be double-clicked directly from Explorer. Open PowerShell (as Administrator if required for Qt) and run:
