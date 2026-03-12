@@ -28,6 +28,7 @@ A lightweight, modern code editor built with C++ and Qt6. Designed for developer
 
 ### Developer Tools
 - **Integrated Terminal** — Embedded shell panel with command execution (Ctrl+`)
+- **Hex Editor** — Built-in binary file viewer/editor with hex and ASCII display
 - **File Watcher** — Detects external file changes and prompts to reload
 - **Welcome Screen** — Quick access to recent files and actions on launch
 
@@ -153,15 +154,15 @@ jim /path/to/project
 - **Linux/macOS**: Qt6 (Core, Gui, Widgets), C++17 Compiler (GCC/Clang), Make
 - **Windows**: Qt6 (MSVC or MinGW), CMake or Make, PowerShell
 
-### Compile (Linux / macOS / WSL)
+### Compile and Install (Linux / macOS / WSL)
 ```bash
 git clone https://github.com/AnujJha88/jim.git
 cd jim
 make
-./jim
+sudo make install
 ```
 
-**Note:** The `GNUmakefile` automatically detects Linux and runs `qmake` for you.
+**Note:** The dispatcher `GNUmakefile` automatically detects Linux, runs `qmake`, and compiles the project. It then installs the binary to `/usr/local/bin` when you run `sudo make install`.
 
 ### Compile (Windows)
 We provide a convenient PowerShell script to automatically compile Jim on Windows natively without WSL. It produces a standalone GUI executable (`jim.exe`) that can be double-clicked directly from Explorer. Open PowerShell (as Administrator if required for Qt) and run:
@@ -184,6 +185,12 @@ Configuration is stored in `~/.config/TextEditor/Settings.conf`
 
 
 ## Recent Updates
+
+### v1.2.1
+- Added **Hex Editor** — Automatic binary file detection with integrated hex/ASCII viewer
+- Binary files open in dedicated hex editor tab with `[HEX]` prefix
+- Hex editor features: address column, hex/ASCII dual view, keyboard navigation, editing support
+- Fixed build system to properly include hex editor compilation
 
 ### v1.2
 - Added **Line Editing Power**: Duplicate (`Ctrl+D`), Move Up/Down (`Alt+Up/Down`), Delete (`Ctrl+Shift+K`), and Toggle Comments (`Ctrl+/`).

@@ -38,6 +38,14 @@ Focuses on making the editor more productive for keyboard-centric developers.
 - [x] **Formatting:** Automatic trimming of trailing whitespace on save.
 - [x] **UI Polish:** Custom Frameless Window Title Bar with matching dark aesthetics and draggable mechanics.
 
+## v1.2.1 — Hex Editor & Binary Support (COMPLETED)
+- [x] **Hex Editor:** Integrated hex/ASCII viewer for binary files
+- [x] **Auto-Detection:** Automatic binary file detection (checks for null bytes)
+- [x] **Dual View:** Side-by-side hex and ASCII display with address column
+- [x] **Navigation:** Keyboard navigation (arrows, Page Up/Down, Home/End)
+- [x] **Editing:** Hex and ASCII editing modes with Tab to switch
+- [x] **Tab Integration:** Binary files open with `[HEX]` prefix in tabs
+
 ## v1.3 — Search, Replace & Navigation (Planned)
 Focuses on enhancing the ability to find and move through code quickly.
 - [ ] **Advanced Search:** Regex support, match case, match whole word in Find/Replace.
@@ -45,7 +53,7 @@ Focuses on enhancing the ability to find and move through code quickly.
 - [ ] **Go to Symbol:** Quick navigation to classes/functions within the current file (`Ctrl+Shift+O`).
 - [ ] **Command Palette:** Centralized palette to execute any editor action (`Ctrl+Shift+P`).
 
-## v1.5 — Multi-Cursor & Intelligence
+## v1.4 — Multi-Cursor & Intelligence
 - [ ] Snippet support (user-defined templates)
 - [ ] Bracket completion for multi-line blocks
 - [ ] Emmet abbreviation expansion (HTML/CSS)
@@ -77,9 +85,10 @@ Since Jim is a dynamically compiled native C++ application (unlike memory-heavy 
 
 
 ### 1. Built-In Hex Editor & Binary Analysis
-- [ ] Native, split-view hex editor mode
-- [ ] Inspect and manipulate binary files directly without external extensions
+- [x] Native hex editor mode with automatic binary detection
+- [x] Inspect and manipulate binary files directly without external extensions
 - [ ] Value inspector (view bytes as int8, int16, int32, float, etc.)
+- [ ] Split-view mode (hex + text editor side-by-side)
 
 ### 2. Hyper-Minimalist "Zen Mode"
 - [ ] Press `F11` to hide *all* UI elements (explorer, terminal, tabs, titlebar)

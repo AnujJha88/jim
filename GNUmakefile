@@ -1,33 +1,48 @@
-# Multi-platform Makefile Dispatcher
-# Priority given to GNUmakefile by the 'make' command on Linux/WSL.
+# Jim Multi-Platform Makefile
+# Detects OS and routes to appropriate build system
 
 ifeq ($(OS),Windows_NT)
-    # On Windows, we prefer using the PowerShell script for better Qt discovery.
-all:
-	powershell -ExecutionPolicy Bypass -File .\build.ps1
-clean:
-	if exist build rmdir /s /q build
-	if exist release rmdir /s /q release
-	if exist debug rmdir /s /q debug
-	if exist Makefile del Makefile
-	if exist Makefile.Debug del Makefile.Debug
-	if exist Makefile.Release del Makefile.Release
-	if exist .qmake.stash del .qmake.stash
+    # Windows-specific logic
+    BUILD_CMD = powershell -ExecutionPolicy Bypass -File .\build.ps1
+    CLEAN_CMD = if exist release rmdir /s /q release && if exist debug rmdir /s /q debug
+    RUN_CMD = .\release\jim.exe
 else
-    # Linux / WSL / macOS
-    QMAKE := $(shell command -v qmake6 || command -v qmake)
-    
-all:
-	@if [ -z "$(QMAKE)" ]; then \
-		echo "Error: qmake6 or qmake not found."; \
-		echo "Install with: sudo apt install qt6-base-dev qt6-tools-dev-tools build-essential"; \
-		exit 1; \
-	fi
-	$(QMAKE) jim.pro && $(MAKE) -f Makefile
-
-clean:
-	@if [ -f Makefile ]; then $(MAKE) -f Makefile clean; fi
-	rm -f Makefile Makefile.Debug Makefile.Release .qmake.stash jim jim.pro.user
+    # Linux/Unix-specific logic
+    QMAKE = $(shell which qmake6 || which qmake)
+    ifeq ($(QMAKE),)
+        BUILD_CMD = @echo "Error: qmake or qmake6 not found. Please install Qt6 (e.g., sudo apt install qt6-base-dev)"; exit 1
+    else
+        BUILD_CMD = $(QMAKE) jim.pro && $(MAKE) -f Makefile
+    endif
+    CLEAN_CMD = $(MAKE) -f Makefile clean || true && rm -rf jim *.o moc_* .qmake.stash
+    RUN_CMD = ./jim
+    INSTALL_DIR = /usr/local/bin
 endif
 
-.PHONY: all clean
+.PHONY: all clean run install uninstall
+
+all:
+	$(BUILD_CMD)
+
+clean:
+	$(CLEAN_CMD)
+
+run:
+	$(RUN_CMD)
+
+install:
+ifeq ($(OS),Windows_NT)
+	@echo "Install is not supported via Makefile on Windows. Use build.ps1."
+else
+	cp jim $(INSTALL_DIR)/jim
+	chmod +x $(INSTALL_DIR)/jim
+	@echo "Jim installed to $(INSTALL_DIR)/jim"
+endif
+
+uninstall:
+ifeq ($(OS),Windows_NT)
+	@echo "Uninstall is not supported via Makefile on Windows."
+else
+	rm -f $(INSTALL_DIR)/jim
+	@echo "Jim uninstalled from $(INSTALL_DIR)/jim"
+endif
