@@ -16,6 +16,7 @@ HexEditor::HexEditor(QWidget *parent)
     , m_bytesPerLine(16)
     , m_addressWidth(8)
     , m_readOnly(false)
+    , m_modified(false)
     , m_cursorInHexArea(true)
     , m_nibblePosition(false)
 {
@@ -37,6 +38,7 @@ void HexEditor::setData(const QByteArray &data) {
     m_cursorPosition = 0;
     m_selectionStart = -1;
     m_selectionEnd = -1;
+    setModified(false);
     updateScrollBar();
     update();
     emit dataChanged();
@@ -69,7 +71,15 @@ bool HexEditor::saveFile(const QString &fileName) {
     }
     
     file.write(m_data);
+    setModified(false);
     return true;
+}
+
+void HexEditor::setModified(bool modified) {
+    if (m_modified != modified) {
+        m_modified = modified;
+        emit modificationChanged(m_modified);
+    }
 }
 
 void HexEditor::paintEvent(QPaintEvent *event) {
@@ -232,6 +242,7 @@ void HexEditor::keyPressEvent(QKeyEvent *event) {
                     }
                     
                     m_data[m_cursorPosition] = byte;
+                    setModified(true);
                     emit dataChanged();
                     update();
                 } else if (text.length() == 1 && text[0] >= 'A' && text[0] <= 'F') {
@@ -250,6 +261,7 @@ void HexEditor::keyPressEvent(QKeyEvent *event) {
                     }
                     
                     m_data[m_cursorPosition] = byte;
+                    setModified(true);
                     emit dataChanged();
                     update();
                 }
@@ -260,6 +272,7 @@ void HexEditor::keyPressEvent(QKeyEvent *event) {
                     if (m_cursorPosition < m_data.size() - 1) {
                         m_cursorPosition++;
                     }
+                    setModified(true);
                     emit dataChanged();
                     update();
                 }

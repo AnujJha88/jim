@@ -21,12 +21,16 @@ public:
     
     void setReadOnly(bool readOnly) { m_readOnly = readOnly; }
     bool isReadOnly() const { return m_readOnly; }
+
+    bool isModified() const { return m_modified; }
+    void setModified(bool modified);
     
     void setAddressWidth(int width) { m_addressWidth = width; update(); }
     void setBytesPerLine(int bytes) { m_bytesPerLine = bytes; updateScrollBar(); update(); }
 
 signals:
     void dataChanged();
+    void modificationChanged(bool modified);
     void currentAddressChanged(qint64 address);
 
 protected:
@@ -50,6 +54,7 @@ private:
     int m_charHeight;
     
     bool m_readOnly;
+    bool m_modified;
     bool m_cursorInHexArea;
     bool m_nibblePosition; // false = high nibble, true = low nibble
     

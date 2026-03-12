@@ -1107,13 +1107,13 @@ debug/texteditor.o: texteditor.cpp texteditor.h \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/qlayoutitem.h \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/qgridlayout.h \
 		C:/Qt/6.10.2/mingw_64/include/QtGui/QMouseEvent \
-		linenumberarea.h \
-		C:/Qt/6.10.2/mingw_64/include/QtWidgets/QWidget \
 		hexeditor.h \
+		C:/Qt/6.10.2/mingw_64/include/QtWidgets/QWidget \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/QScrollBar \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/qscrollbar.h \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/QByteArray \
 		C:/Qt/6.10.2/mingw_64/include/QtGui/QFont \
+		linenumberarea.h \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/QApplication \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/qapplication.h \
 		C:/Qt/6.10.2/mingw_64/include/QtGui/QCloseEvent \
@@ -1130,6 +1130,7 @@ debug/texteditor.o: texteditor.cpp texteditor.h \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/QGraphicsDropShadowEffect \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/qgraphicseffect.h \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/QGridLayout \
+		C:/Qt/6.10.2/mingw_64/include/QtGui/QGuiApplication \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/QHBoxLayout \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/QHeaderView \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/qheaderview.h \
@@ -1148,6 +1149,8 @@ debug/texteditor.o: texteditor.cpp texteditor.h \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/qvariantanimation.h \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/qabstractanimation.h \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/qeasingcurve.h \
+		C:/Qt/6.10.2/mingw_64/include/QtCore/QSaveFile \
+		C:/Qt/6.10.2/mingw_64/include/QtCore/qsavefile.h \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/QSettings \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/qsettings.h \
 		C:/Qt/6.10.2/mingw_64/include/QtWidgets/QStatusBar \
@@ -1156,10 +1159,7 @@ debug/texteditor.o: texteditor.cpp texteditor.h \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/QTextStream \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/QTimer \
 		C:/Qt/6.10.2/mingw_64/include/QtCore/qtimer.h \
-		C:/Qt/6.10.2/mingw_64/include/QtGui/QWheelEvent \
-		C:/Qt/6.10.2/mingw_64/include/QtCore/QSaveFile \
-		C:/Qt/6.10.2/mingw_64/include/QtCore/qsavefile.h \
-		C:/Qt/6.10.2/mingw_64/include/QtGui/QGuiApplication
+		C:/Qt/6.10.2/mingw_64/include/QtGui/QWheelEvent
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o debug\texteditor.o texteditor.cpp
 
 debug/linenumberarea.o: linenumberarea.cpp linenumberarea.h \

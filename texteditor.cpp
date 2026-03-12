@@ -1,6 +1,6 @@
 #include "texteditor.h"
-#include "linenumberarea.h"
 #include "hexeditor.h"
+#include "linenumberarea.h"
 #include <QApplication>
 #include <QCloseEvent>
 #include <QColorDialog>
@@ -13,6 +13,7 @@
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QGridLayout>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QInputDialog>
@@ -20,9 +21,11 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPropertyAnimation>
+#include <QSaveFile>
 #include <QScrollBar>
 #include <QSettings>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QTextBlock>
 #include <QTextStream>
@@ -31,9 +34,6 @@
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QWheelEvent>
-#include <QSaveFile>
-#include <QGuiApplication>
-#include <QStackedWidget>
 
 // ============================================================
 // Language Auto-Detection
@@ -224,9 +224,10 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event) {
 // ============================================================
 bool CodeEditor::isFoldable(const QTextBlock &block) const {
   QString text = block.text().trimmed();
-    return text.endsWith('{') || (text.endsWith('(') && text.contains("class ")) ||
-           text.startsWith("def ") || text.startsWith("function ") ||
-           text.startsWith("class ") || text.endsWith(":");
+  return text.endsWith('{') ||
+         (text.endsWith('(') && text.contains("class ")) ||
+         text.startsWith("def ") || text.startsWith("function ") ||
+         text.startsWith("class ") || text.endsWith(":");
 }
 
 bool CodeEditor::isFolded(const QTextBlock &block) const {
@@ -329,12 +330,13 @@ void CodeEditor::keyPressEvent(QKeyEvent *event) {
     autoIndent();
     return;
   }
-  
+
   if (event->key() == Qt::Key_Home) {
-    if (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier) {
+    if (event->modifiers() == Qt::NoModifier ||
+        event->modifiers() == Qt::ShiftModifier) {
       smartHome();
-      // To handle Shift+Home selection, we could enhance smartHome to take a KeepAnchor flag,
-      // but simple smartHome on Home press is a good start.
+      // To handle Shift+Home selection, we could enhance smartHome to take a
+      // KeepAnchor flag, but simple smartHome on Home press is a good start.
       return;
     }
   }
@@ -474,159 +476,179 @@ void CodeEditor::enableSmoothScrolling(bool enable) {
 }
 
 void CodeEditor::duplicateLine() {
-    QTextCursor cursor = textCursor();
-    cursor.beginEditBlock();
-    cursor.movePosition(QTextCursor::StartOfBlock);
-    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-    QString textText = cursor.selectedText();
-    cursor.movePosition(QTextCursor::EndOfBlock);
-    cursor.insertText("\n" + textText);
-    cursor.endEditBlock();
+  QTextCursor cursor = textCursor();
+  cursor.beginEditBlock();
+  cursor.movePosition(QTextCursor::StartOfBlock);
+  cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+  QString textText = cursor.selectedText();
+  cursor.movePosition(QTextCursor::EndOfBlock);
+  cursor.insertText("\n" + textText);
+  cursor.endEditBlock();
 }
 
 void CodeEditor::moveLineUp() {
-    QTextCursor cursor = textCursor();
-    cursor.beginEditBlock();
-    if (cursor.blockNumber() == 0) { cursor.endEditBlock(); return; }
-    
-    QTextBlock currentBlock = cursor.block();
-    QTextBlock prevBlock = currentBlock.previous();
-    
-    // Select current block + trailing newline
-    cursor.movePosition(QTextCursor::StartOfBlock);
-    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-    if (!cursor.atEnd()) cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
-    QString text = cursor.selectedText();
-    cursor.removeSelectedText();
-    
-    cursor.setPosition(prevBlock.position());
-    cursor.insertText(text);
+  QTextCursor cursor = textCursor();
+  cursor.beginEditBlock();
+  if (cursor.blockNumber() == 0) {
     cursor.endEditBlock();
+    return;
+  }
+
+  QTextBlock currentBlock = cursor.block();
+  QTextBlock prevBlock = currentBlock.previous();
+
+  // Select current block + trailing newline
+  cursor.movePosition(QTextCursor::StartOfBlock);
+  cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+  if (!cursor.atEnd())
+    cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+  QString text = cursor.selectedText();
+  cursor.removeSelectedText();
+
+  cursor.setPosition(prevBlock.position());
+  cursor.insertText(text);
+  cursor.endEditBlock();
 }
 
 void CodeEditor::moveLineDown() {
-    QTextCursor cursor = textCursor();
-    cursor.beginEditBlock();
-    if (cursor.blockNumber() == document()->blockCount() - 1) { cursor.endEditBlock(); return; }
-    
-    QTextBlock currentBlock = cursor.block();
-    QTextBlock nextBlock = currentBlock.next();
-    
-    // Select current block + trailing newline
-    cursor.movePosition(QTextCursor::StartOfBlock);
-    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-    if (!cursor.atEnd()) cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
-    QString text = cursor.selectedText();
-    cursor.removeSelectedText();
-    
-    cursor.setPosition(nextBlock.position());
-    cursor.movePosition(QTextCursor::EndOfBlock);
-    if (cursor.atEnd()) cursor.insertText("\n" + text.trimmed());
-    else { cursor.movePosition(QTextCursor::NextCharacter); cursor.insertText(text); }
-    
+  QTextCursor cursor = textCursor();
+  cursor.beginEditBlock();
+  if (cursor.blockNumber() == document()->blockCount() - 1) {
     cursor.endEditBlock();
+    return;
+  }
+
+  QTextBlock currentBlock = cursor.block();
+  QTextBlock nextBlock = currentBlock.next();
+
+  // Select current block + trailing newline
+  cursor.movePosition(QTextCursor::StartOfBlock);
+  cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+  if (!cursor.atEnd())
+    cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+  QString text = cursor.selectedText();
+  cursor.removeSelectedText();
+
+  cursor.setPosition(nextBlock.position());
+  cursor.movePosition(QTextCursor::EndOfBlock);
+  if (cursor.atEnd())
+    cursor.insertText("\n" + text.trimmed());
+  else {
+    cursor.movePosition(QTextCursor::NextCharacter);
+    cursor.insertText(text);
+  }
+
+  cursor.endEditBlock();
 }
 
 void CodeEditor::deleteLine() {
-    QTextCursor cursor = textCursor();
-    cursor.beginEditBlock();
-    cursor.movePosition(QTextCursor::StartOfBlock);
-    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-    if (!cursor.atEnd()) cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
-    cursor.removeSelectedText();
-    cursor.endEditBlock();
+  QTextCursor cursor = textCursor();
+  cursor.beginEditBlock();
+  cursor.movePosition(QTextCursor::StartOfBlock);
+  cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+  if (!cursor.atEnd())
+    cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+  cursor.removeSelectedText();
+  cursor.endEditBlock();
 }
 
 void CodeEditor::toggleComment() {
-    QTextCursor cursor = textCursor();
-    cursor.beginEditBlock();
-    
-    QString prefix = "//";
-    if (currentLanguage == Language::Python || currentLanguage == Language::YAML) prefix = "#";
-    else if (currentLanguage == Language::HTML) prefix = "<!--";
-    
-    int startBlock = cursor.selectionStart();
-    int endBlock = cursor.selectionEnd();
-    QTextCursor iterCursor(document());
-    iterCursor.setPosition(startBlock);
-    int firstBlockNum = iterCursor.blockNumber();
-    iterCursor.setPosition(endBlock);
-    int lastBlockNum = iterCursor.blockNumber();
-    
-    // Check if commenting or uncommenting
-    bool allCommented = true;
-    for (int i = firstBlockNum; i <= lastBlockNum; ++i) {
-        QTextBlock block = document()->findBlockByLineNumber(i);
-        QString text = block.text().trimmed();
-        if (!text.isEmpty() && !text.startsWith(prefix)) {
-            allCommented = false;
-            break;
-        }
+  QTextCursor cursor = textCursor();
+  cursor.beginEditBlock();
+
+  QString prefix = "//";
+  if (currentLanguage == Language::Python || currentLanguage == Language::YAML)
+    prefix = "#";
+  else if (currentLanguage == Language::HTML)
+    prefix = "<!--";
+
+  int startBlock = cursor.selectionStart();
+  int endBlock = cursor.selectionEnd();
+  QTextCursor iterCursor(document());
+  iterCursor.setPosition(startBlock);
+  int firstBlockNum = iterCursor.blockNumber();
+  iterCursor.setPosition(endBlock);
+  int lastBlockNum = iterCursor.blockNumber();
+
+  // Check if commenting or uncommenting
+  bool allCommented = true;
+  for (int i = firstBlockNum; i <= lastBlockNum; ++i) {
+    QTextBlock block = document()->findBlockByLineNumber(i);
+    QString text = block.text().trimmed();
+    if (!text.isEmpty() && !text.startsWith(prefix)) {
+      allCommented = false;
+      break;
     }
-    
-    for (int i = firstBlockNum; i <= lastBlockNum; ++i) {
-        QTextBlock block = document()->findBlockByLineNumber(i);
-        QString text = block.text();
-        if (text.trimmed().isEmpty()) continue;
-        
-        iterCursor.setPosition(block.position());
-        if (allCommented) {
-            int idx = text.indexOf(prefix);
-            if (idx != -1) {
-                iterCursor.setPosition(block.position() + idx);
-                iterCursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, prefix.length());
-                if (prefix == "<!--") {
-                    // special HTML uncommenting
-                    QString full = text;
-                    int endIdx = full.indexOf("-->", idx);
-                    if (endIdx != -1) {
-                        QTextCursor endCur(document());
-                        endCur.setPosition(block.position() + endIdx);
-                        endCur.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, 3);
-                        endCur.removeSelectedText();
-                    }
-                }
-                iterCursor.removeSelectedText();
-                // Remove trailing space if exists
-                if (iterCursor.block().text().length() > iterCursor.positionInBlock() && 
-                    iterCursor.block().text().at(iterCursor.positionInBlock()) == ' ') {
-                    iterCursor.deleteChar();
-                }
-            }
-        } else {
-            // Find first non-whitespace
-            int idx = 0;
-            while (idx < text.length() && text.at(idx).isSpace()) idx++;
-            iterCursor.setPosition(block.position() + idx);
-            if (prefix == "<!--") {
-                iterCursor.insertText(prefix + " ");
-                iterCursor.movePosition(QTextCursor::EndOfBlock);
-                iterCursor.insertText(" -->");
-            } else {
-                iterCursor.insertText(prefix + " ");
-            }
+  }
+
+  for (int i = firstBlockNum; i <= lastBlockNum; ++i) {
+    QTextBlock block = document()->findBlockByLineNumber(i);
+    QString text = block.text();
+    if (text.trimmed().isEmpty())
+      continue;
+
+    iterCursor.setPosition(block.position());
+    if (allCommented) {
+      int idx = text.indexOf(prefix);
+      if (idx != -1) {
+        iterCursor.setPosition(block.position() + idx);
+        iterCursor.movePosition(QTextCursor::NextCharacter,
+                                QTextCursor::KeepAnchor, prefix.length());
+        if (prefix == "<!--") {
+          // special HTML uncommenting
+          QString full = text;
+          int endIdx = full.indexOf("-->", idx);
+          if (endIdx != -1) {
+            QTextCursor endCur(document());
+            endCur.setPosition(block.position() + endIdx);
+            endCur.movePosition(QTextCursor::NextCharacter,
+                                QTextCursor::KeepAnchor, 3);
+            endCur.removeSelectedText();
+          }
         }
+        iterCursor.removeSelectedText();
+        // Remove trailing space if exists
+        if (iterCursor.block().text().length() > iterCursor.positionInBlock() &&
+            iterCursor.block().text().at(iterCursor.positionInBlock()) == ' ') {
+          iterCursor.deleteChar();
+        }
+      }
+    } else {
+      // Find first non-whitespace
+      int idx = 0;
+      while (idx < text.length() && text.at(idx).isSpace())
+        idx++;
+      iterCursor.setPosition(block.position() + idx);
+      if (prefix == "<!--") {
+        iterCursor.insertText(prefix + " ");
+        iterCursor.movePosition(QTextCursor::EndOfBlock);
+        iterCursor.insertText(" -->");
+      } else {
+        iterCursor.insertText(prefix + " ");
+      }
     }
-    cursor.endEditBlock();
+  }
+  cursor.endEditBlock();
 }
 
 void CodeEditor::smartHome() {
-    QTextCursor cursor = textCursor();
-    QTextBlock block = cursor.block();
-    QString text = block.text();
-    
-    int firstNonSpace = 0;
-    while (firstNonSpace < text.length() && text.at(firstNonSpace).isSpace()) {
-        firstNonSpace++;
-    }
-    
-    int currentPos = cursor.positionInBlock();
-    if (currentPos == firstNonSpace) {
-        cursor.movePosition(QTextCursor::StartOfBlock, QTextCursor::MoveAnchor);
-    } else {
-        cursor.setPosition(block.position() + firstNonSpace, QTextCursor::MoveAnchor);
-    }
-    setTextCursor(cursor);
+  QTextCursor cursor = textCursor();
+  QTextBlock block = cursor.block();
+  QString text = block.text();
+
+  int firstNonSpace = 0;
+  while (firstNonSpace < text.length() && text.at(firstNonSpace).isSpace()) {
+    firstNonSpace++;
+  }
+
+  int currentPos = cursor.positionInBlock();
+  if (currentPos == firstNonSpace) {
+    cursor.movePosition(QTextCursor::StartOfBlock, QTextCursor::MoveAnchor);
+  } else {
+    cursor.setPosition(block.position() + firstNonSpace,
+                       QTextCursor::MoveAnchor);
+  }
+  setTextCursor(cursor);
 }
 
 // ============================================================
@@ -635,1483 +657,2014 @@ void CodeEditor::smartHome() {
 // TitleBar Implementation
 // ============================================================
 TitleBar::TitleBar(QWidget *parent) : QWidget(parent) {
-    QHBoxLayout *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(10, 0, 0, 0);
-    layout->setSpacing(0);
-    
-    // Logo / Title
-    QLabel *icon = new QLabel("J");
-    icon->setStyleSheet("color: #569cd6; font-weight: bold; font-family: Consolas; font-size: 14px;");
-    layout->addWidget(icon);
-    
-    layout->addSpacing(10);
-    
-    titleLabel = new QLabel("Jim");
-    titleLabel->setStyleSheet("color: #cccccc; font-size: 12px; font-family: 'Segoe UI', sans-serif;");
-    titleLabel->setAlignment(Qt::AlignCenter);
-    layout->addWidget(titleLabel, 1); // stretch
-    
-    // Window controls
-    QString btnStyle = 
-        "QPushButton {"
-        "    background-color: transparent;"
-        "    color: #cccccc;"
-        "    border: none;"
-        "    width: 45px;"
-        "    height: 30px;"
-        "    font-family: 'Segoe MDL2 Assets', 'Segoe UI Symbol', sans-serif;"
-        "    font-size: 10px;"
-        "}"
-        "QPushButton:hover {"
-        "    background-color: #3e3e42;"
-        "}";
-    
-    QString closeBtnStyle = 
-        "QPushButton {"
-        "    background-color: transparent;"
-        "    color: #cccccc;"
-        "    border: none;"
-        "    width: 45px;"
-        "    height: 30px;"
-        "    font-family: 'Segoe MDL2 Assets', 'Segoe UI Symbol', sans-serif;"
-        "    font-size: 10px;"
-        "}"
-        "QPushButton:hover {"
-        "    background-color: #e81123;"
-        "    color: white;"
-        "}";
-    
-    QPushButton *minBtn = new QPushButton(QString::fromUtf8("\xE2\x80\x94")); // Em dash
-    minBtn->setStyleSheet(btnStyle);
-    connect(minBtn, &QPushButton::clicked, this, [this]() {
-        if (window()) window()->showMinimized();
-    });
-    layout->addWidget(minBtn);
-    
-    QPushButton *maxBtn = new QPushButton(QString::fromUtf8("\xE2\x96\xA1")); // White square
-    maxBtn->setStyleSheet(btnStyle);
-    connect(maxBtn, &QPushButton::clicked, this, &TitleBar::toggleMaximized);
-    layout->addWidget(maxBtn);
-    
-    QPushButton *closeBtn = new QPushButton(QString::fromUtf8("\xE2\x95\xB3")); // Cross
-    closeBtn->setStyleSheet(closeBtnStyle);
-    connect(closeBtn, &QPushButton::clicked, this, [this]() {
-        if (window()) window()->close();
-    });
-    layout->addWidget(closeBtn);
-    
-    setFixedHeight(30);
-    setStyleSheet("background-color: #323233;");
+  QHBoxLayout *layout = new QHBoxLayout(this);
+  layout->setContentsMargins(10, 0, 0, 0);
+  layout->setSpacing(0);
+
+  // Logo / Title
+  QLabel *icon = new QLabel("J");
+  icon->setStyleSheet("color: #569cd6; font-weight: bold; font-family: "
+                      "Consolas; font-size: 14px;");
+  layout->addWidget(icon);
+
+  layout->addSpacing(10);
+
+  titleLabel = new QLabel("Jim");
+  titleLabel->setStyleSheet(
+      "color: #cccccc; font-size: 12px; font-family: 'Segoe UI', sans-serif;");
+  titleLabel->setAlignment(Qt::AlignCenter);
+  layout->addWidget(titleLabel, 1); // stretch
+
+  // Window controls
+  QString btnStyle =
+      "QPushButton {"
+      "    background-color: transparent;"
+      "    color: #cccccc;"
+      "    border: none;"
+      "    width: 45px;"
+      "    height: 30px;"
+      "    font-family: 'Segoe MDL2 Assets', 'Segoe UI Symbol', sans-serif;"
+      "    font-size: 10px;"
+      "}"
+      "QPushButton:hover {"
+      "    background-color: #3e3e42;"
+      "}";
+
+  QString closeBtnStyle =
+      "QPushButton {"
+      "    background-color: transparent;"
+      "    color: #cccccc;"
+      "    border: none;"
+      "    width: 45px;"
+      "    height: 30px;"
+      "    font-family: 'Segoe MDL2 Assets', 'Segoe UI Symbol', sans-serif;"
+      "    font-size: 10px;"
+      "}"
+      "QPushButton:hover {"
+      "    background-color: #e81123;"
+      "    color: white;"
+      "}";
+
+  QPushButton *minBtn =
+      new QPushButton(QString::fromUtf8("\xE2\x80\x94")); // Em dash
+  minBtn->setStyleSheet(btnStyle);
+  connect(minBtn, &QPushButton::clicked, this, [this]() {
+    if (window())
+      window()->showMinimized();
+  });
+  layout->addWidget(minBtn);
+
+  QPushButton *maxBtn =
+      new QPushButton(QString::fromUtf8("\xE2\x96\xA1")); // White square
+  maxBtn->setStyleSheet(btnStyle);
+  connect(maxBtn, &QPushButton::clicked, this, &TitleBar::toggleMaximized);
+  layout->addWidget(maxBtn);
+
+  QPushButton *closeBtn =
+      new QPushButton(QString::fromUtf8("\xE2\x95\xB3")); // Cross
+  closeBtn->setStyleSheet(closeBtnStyle);
+  connect(closeBtn, &QPushButton::clicked, this, [this]() {
+    if (window())
+      window()->close();
+  });
+  layout->addWidget(closeBtn);
+
+  setFixedHeight(30);
+  setStyleSheet("background-color: #323233;");
 }
 
-void TitleBar::setTitle(const QString &title) {
-    titleLabel->setText(title);
-}
+void TitleBar::setTitle(const QString &title) { titleLabel->setText(title); }
 
 void TitleBar::toggleMaximized() {
-    if (!window()) return;
-    if (window()->isMaximized()) {
-        window()->showNormal();
-        qobject_cast<QPushButton*>(sender())->setText(QString::fromUtf8("\xE2\x96\xA1"));
-    } else {
-        window()->showMaximized();
-        qobject_cast<QPushButton*>(sender())->setText(QString::fromUtf8("\xE2\x9D\x90")); // Maximize icon
-    }
+  if (!window())
+    return;
+  if (window()->isMaximized()) {
+    window()->showNormal();
+    qobject_cast<QPushButton *>(sender())->setText(
+        QString::fromUtf8("\xE2\x96\xA1"));
+  } else {
+    window()->showMaximized();
+    qobject_cast<QPushButton *>(sender())->setText(
+        QString::fromUtf8("\xE2\x9D\x90")); // Maximize icon
+  }
 }
 
 void TitleBar::mousePressEvent(QMouseEvent *event) {
-    if (event->button() == Qt::LeftButton) {
-        dragStartPos = event->globalPosition().toPoint() - window()->frameGeometry().topLeft();
-        event->accept();
-    }
+  if (event->button() == Qt::LeftButton) {
+    dragStartPos =
+        event->globalPosition().toPoint() - window()->frameGeometry().topLeft();
+    event->accept();
+  }
 }
 
 void TitleBar::mouseMoveEvent(QMouseEvent *event) {
-    if (event->buttons() & Qt::LeftButton) {
-        if (window()->isMaximized()) {
-            window()->showNormal();
-            dragStartPos = QPoint(window()->width() / 2, height() / 2);
-        }
-        window()->move(event->globalPosition().toPoint() - dragStartPos);
-        event->accept();
+  if (event->buttons() & Qt::LeftButton) {
+    if (window()->isMaximized()) {
+      window()->showNormal();
+      dragStartPos = QPoint(window()->width() / 2, height() / 2);
     }
+    window()->move(event->globalPosition().toPoint() - dragStartPos);
+    event->accept();
+  }
 }
 
 void TitleBar::mouseDoubleClickEvent(QMouseEvent *event) {
-    if (event->button() == Qt::LeftButton) {
-        toggleMaximized();
-        event->accept();
-    }
+  if (event->button() == Qt::LeftButton) {
+    toggleMaximized();
+    event->accept();
+  }
 }
 // SyntaxHighlighter Implementation
 // ============================================================
-QRegularExpression SyntaxHighlighter::multiLineCommentStart = QRegularExpression("/\\*");
-QRegularExpression SyntaxHighlighter::multiLineCommentEnd = QRegularExpression("\\*/");
+QRegularExpression SyntaxHighlighter::multiLineCommentStart =
+    QRegularExpression("/\\*");
+QRegularExpression SyntaxHighlighter::multiLineCommentEnd =
+    QRegularExpression("\\*/");
 
-SyntaxHighlighter::SyntaxHighlighter(QTextDocument *parent) : QSyntaxHighlighter(parent), currentLanguage(Language::CPP) {
-    setupRules();
+SyntaxHighlighter::SyntaxHighlighter(QTextDocument *parent)
+    : QSyntaxHighlighter(parent), currentLanguage(Language::CPP) {
+  setupRules();
 }
 
 void SyntaxHighlighter::setLanguage(Language lang) {
-    currentLanguage = lang;
-    setupRules();
-    rehighlight();
+  currentLanguage = lang;
+  setupRules();
+  rehighlight();
 }
 
 void SyntaxHighlighter::setupRules() {
-    highlightingRules.clear();
-    switch (currentLanguage) {
-        case Language::CPP: setupCppRules(); break;
-        case Language::Python: setupPythonRules(); break;
-        case Language::JavaScript: setupJavaScriptRules(); break;
-        case Language::HTML: setupHtmlRules(); break;
-        case Language::CSS: setupCssRules(); break;
-        case Language::Rust: setupRustRules(); break;
-        case Language::Go: setupGoRules(); break;
-        case Language::JSON: setupJsonRules(); break;
-        case Language::YAML: setupYamlRules(); break;
-        case Language::Markdown: setupMarkdownRules(); break;
-        default: setupCppRules(); break;
-    }
+  highlightingRules.clear();
+  switch (currentLanguage) {
+  case Language::CPP:
+    setupCppRules();
+    break;
+  case Language::Python:
+    setupPythonRules();
+    break;
+  case Language::JavaScript:
+    setupJavaScriptRules();
+    break;
+  case Language::HTML:
+    setupHtmlRules();
+    break;
+  case Language::CSS:
+    setupCssRules();
+    break;
+  case Language::Rust:
+    setupRustRules();
+    break;
+  case Language::Go:
+    setupGoRules();
+    break;
+  case Language::JSON:
+    setupJsonRules();
+    break;
+  case Language::YAML:
+    setupYamlRules();
+    break;
+  case Language::Markdown:
+    setupMarkdownRules();
+    break;
+  default:
+    setupCppRules();
+    break;
+  }
 }
 
 void SyntaxHighlighter::setupCppRules() {
-    HighlightingRule rule;
-    keywordFormat.setFontWeight(QFont::Bold);
-    QStringList kw = {"\\bclass\\b","\\bconst\\b","\\benum\\b","\\bexplicit\\b","\\bfriend\\b","\\binline\\b","\\bint\\b","\\blong\\b","\\bnamespace\\b","\\boperator\\b","\\bprivate\\b","\\bprotected\\b","\\bpublic\\b","\\bshort\\b","\\bsignals\\b","\\bsigned\\b","\\bslots\\b","\\bstatic\\b","\\bstruct\\b","\\btemplate\\b","\\btypedef\\b","\\btypename\\b","\\bunion\\b","\\bunsigned\\b","\\bvirtual\\b","\\bvoid\\b","\\bvolatile\\b","\\bbool\\b","\\bchar\\b","\\bdouble\\b","\\bfloat\\b","\\bif\\b","\\belse\\b","\\bfor\\b","\\bwhile\\b","\\breturn\\b","\\bswitch\\b","\\bcase\\b","\\bbreak\\b","\\bcontinue\\b","\\bauto\\b","\\busing\\b","\\binclude\\b","\\bdefine\\b","\\bnullptr\\b","\\boverride\\b","\\bfinal\\b","\\bconstexpr\\b","\\bnoexcept\\b","\\btrue\\b","\\bfalse\\b","\\bnew\\b","\\bdelete\\b","\\bthrow\\b","\\btry\\b","\\bcatch\\b"};
-    for (const QString &p : kw) { rule.pattern = QRegularExpression(p); rule.format = keywordFormat; highlightingRules.append(rule); }
-    classFormat.setFontWeight(QFont::Bold);
-    rule.pattern = QRegularExpression("\\bQ[A-Za-z]+\\b"); rule.format = classFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\".*?\"|'.*?'"); rule.format = stringFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b"); rule.format = numberFormat; highlightingRules.append(rule);
-    functionFormat.setFontItalic(true);
-    rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()"); rule.format = functionFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("//[^\n]*"); rule.format = commentFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("#[^\n]*"); rule.format = commentFormat; highlightingRules.append(rule);
+  HighlightingRule rule;
+  keywordFormat.setFontWeight(QFont::Bold);
+  QStringList kw = {
+      "\\bclass\\b",     "\\bconst\\b",    "\\benum\\b",     "\\bexplicit\\b",
+      "\\bfriend\\b",    "\\binline\\b",   "\\bint\\b",      "\\blong\\b",
+      "\\bnamespace\\b", "\\boperator\\b", "\\bprivate\\b",  "\\bprotected\\b",
+      "\\bpublic\\b",    "\\bshort\\b",    "\\bsignals\\b",  "\\bsigned\\b",
+      "\\bslots\\b",     "\\bstatic\\b",   "\\bstruct\\b",   "\\btemplate\\b",
+      "\\btypedef\\b",   "\\btypename\\b", "\\bunion\\b",    "\\bunsigned\\b",
+      "\\bvirtual\\b",   "\\bvoid\\b",     "\\bvolatile\\b", "\\bbool\\b",
+      "\\bchar\\b",      "\\bdouble\\b",   "\\bfloat\\b",    "\\bif\\b",
+      "\\belse\\b",      "\\bfor\\b",      "\\bwhile\\b",    "\\breturn\\b",
+      "\\bswitch\\b",    "\\bcase\\b",     "\\bbreak\\b",    "\\bcontinue\\b",
+      "\\bauto\\b",      "\\busing\\b",    "\\binclude\\b",  "\\bdefine\\b",
+      "\\bnullptr\\b",   "\\boverride\\b", "\\bfinal\\b",    "\\bconstexpr\\b",
+      "\\bnoexcept\\b",  "\\btrue\\b",     "\\bfalse\\b",    "\\bnew\\b",
+      "\\bdelete\\b",    "\\bthrow\\b",    "\\btry\\b",      "\\bcatch\\b"};
+  for (const QString &p : kw) {
+    rule.pattern = QRegularExpression(p);
+    rule.format = keywordFormat;
+    highlightingRules.append(rule);
+  }
+  classFormat.setFontWeight(QFont::Bold);
+  rule.pattern = QRegularExpression("\\bQ[A-Za-z]+\\b");
+  rule.format = classFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\".*?\"|'.*?'");
+  rule.format = stringFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.format = numberFormat;
+  highlightingRules.append(rule);
+  functionFormat.setFontItalic(true);
+  rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
+  rule.format = functionFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("//[^\n]*");
+  rule.format = commentFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("#[^\n]*");
+  rule.format = commentFormat;
+  highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::setupPythonRules() {
-    HighlightingRule rule;
-    keywordFormat.setFontWeight(QFont::Bold);
-    QStringList kw = {"\\bdef\\b","\\bclass\\b","\\bif\\b","\\belif\\b","\\belse\\b","\\bfor\\b","\\bwhile\\b","\\breturn\\b","\\bimport\\b","\\bfrom\\b","\\bas\\b","\\btry\\b","\\bexcept\\b","\\bfinally\\b","\\braise\\b","\\bwith\\b","\\byield\\b","\\blambda\\b","\\band\\b","\\bor\\b","\\bnot\\b","\\bin\\b","\\bis\\b","\\bpass\\b","\\bbreak\\b","\\bcontinue\\b","\\bNone\\b","\\bTrue\\b","\\bFalse\\b","\\bself\\b","\\bglobal\\b","\\bnonlocal\\b","\\bassert\\b","\\basync\\b","\\bawait\\b","\\bdel\\b"};
-    for (const QString &p : kw) { rule.pattern = QRegularExpression(p); rule.format = keywordFormat; highlightingRules.append(rule); }
-    rule.pattern = QRegularExpression("\".*?\"|'.*?'"); rule.format = stringFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b"); rule.format = numberFormat; highlightingRules.append(rule);
-    functionFormat.setFontItalic(true);
-    rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()"); rule.format = functionFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("#[^\n]*"); rule.format = commentFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("@[A-Za-z_][A-Za-z0-9_]*"); rule.format = functionFormat; highlightingRules.append(rule);
+  HighlightingRule rule;
+  keywordFormat.setFontWeight(QFont::Bold);
+  QStringList kw = {
+      "\\bdef\\b",    "\\bclass\\b",    "\\bif\\b",     "\\belif\\b",
+      "\\belse\\b",   "\\bfor\\b",      "\\bwhile\\b",  "\\breturn\\b",
+      "\\bimport\\b", "\\bfrom\\b",     "\\bas\\b",     "\\btry\\b",
+      "\\bexcept\\b", "\\bfinally\\b",  "\\braise\\b",  "\\bwith\\b",
+      "\\byield\\b",  "\\blambda\\b",   "\\band\\b",    "\\bor\\b",
+      "\\bnot\\b",    "\\bin\\b",       "\\bis\\b",     "\\bpass\\b",
+      "\\bbreak\\b",  "\\bcontinue\\b", "\\bNone\\b",   "\\bTrue\\b",
+      "\\bFalse\\b",  "\\bself\\b",     "\\bglobal\\b", "\\bnonlocal\\b",
+      "\\bassert\\b", "\\basync\\b",    "\\bawait\\b",  "\\bdel\\b"};
+  for (const QString &p : kw) {
+    rule.pattern = QRegularExpression(p);
+    rule.format = keywordFormat;
+    highlightingRules.append(rule);
+  }
+  rule.pattern = QRegularExpression("\".*?\"|'.*?'");
+  rule.format = stringFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.format = numberFormat;
+  highlightingRules.append(rule);
+  functionFormat.setFontItalic(true);
+  rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
+  rule.format = functionFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("#[^\n]*");
+  rule.format = commentFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("@[A-Za-z_][A-Za-z0-9_]*");
+  rule.format = functionFormat;
+  highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::setupJavaScriptRules() {
-    HighlightingRule rule;
-    keywordFormat.setFontWeight(QFont::Bold);
-    QStringList kw = {"\\bfunction\\b","\\bvar\\b","\\blet\\b","\\bconst\\b","\\bif\\b","\\belse\\b","\\bfor\\b","\\bwhile\\b","\\breturn\\b","\\bclass\\b","\\bnew\\b","\\bthis\\b","\\bimport\\b","\\bexport\\b","\\bdefault\\b","\\bfrom\\b","\\basync\\b","\\bawait\\b","\\btry\\b","\\bcatch\\b","\\bfinally\\b","\\bthrow\\b","\\bswitch\\b","\\bcase\\b","\\bbreak\\b","\\bcontinue\\b","\\btypeof\\b","\\binstanceof\\b","\\bvoid\\b","\\bnull\\b","\\bundefined\\b","\\btrue\\b","\\bfalse\\b","\\bof\\b","\\bin\\b","\\bdelete\\b","\\byield\\b","\\bsuper\\b","\\bextends\\b","\\bstatic\\b","\\binterface\\b","\\btype\\b","\\benum\\b"};
-    for (const QString &p : kw) { rule.pattern = QRegularExpression(p); rule.format = keywordFormat; highlightingRules.append(rule); }
-    rule.pattern = QRegularExpression("=>"); rule.format = keywordFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\".*?\"|'.*?'|`[^`]*`"); rule.format = stringFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b"); rule.format = numberFormat; highlightingRules.append(rule);
-    functionFormat.setFontItalic(true);
-    rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()"); rule.format = functionFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("//[^\n]*"); rule.format = commentFormat; highlightingRules.append(rule);
+  HighlightingRule rule;
+  keywordFormat.setFontWeight(QFont::Bold);
+  QStringList kw = {"\\bfunction\\b",   "\\bvar\\b",       "\\blet\\b",
+                    "\\bconst\\b",      "\\bif\\b",        "\\belse\\b",
+                    "\\bfor\\b",        "\\bwhile\\b",     "\\breturn\\b",
+                    "\\bclass\\b",      "\\bnew\\b",       "\\bthis\\b",
+                    "\\bimport\\b",     "\\bexport\\b",    "\\bdefault\\b",
+                    "\\bfrom\\b",       "\\basync\\b",     "\\bawait\\b",
+                    "\\btry\\b",        "\\bcatch\\b",     "\\bfinally\\b",
+                    "\\bthrow\\b",      "\\bswitch\\b",    "\\bcase\\b",
+                    "\\bbreak\\b",      "\\bcontinue\\b",  "\\btypeof\\b",
+                    "\\binstanceof\\b", "\\bvoid\\b",      "\\bnull\\b",
+                    "\\bundefined\\b",  "\\btrue\\b",      "\\bfalse\\b",
+                    "\\bof\\b",         "\\bin\\b",        "\\bdelete\\b",
+                    "\\byield\\b",      "\\bsuper\\b",     "\\bextends\\b",
+                    "\\bstatic\\b",     "\\binterface\\b", "\\btype\\b",
+                    "\\benum\\b"};
+  for (const QString &p : kw) {
+    rule.pattern = QRegularExpression(p);
+    rule.format = keywordFormat;
+    highlightingRules.append(rule);
+  }
+  rule.pattern = QRegularExpression("=>");
+  rule.format = keywordFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\".*?\"|'.*?'|`[^`]*`");
+  rule.format = stringFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.format = numberFormat;
+  highlightingRules.append(rule);
+  functionFormat.setFontItalic(true);
+  rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
+  rule.format = functionFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("//[^\n]*");
+  rule.format = commentFormat;
+  highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::setupHtmlRules() {
-    HighlightingRule rule;
-    tagFormat.setFontWeight(QFont::Bold);
-    rule.pattern = QRegularExpression("</?[A-Za-z][A-Za-z0-9]*"); rule.format = tagFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("/?>"); rule.format = tagFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\b[A-Za-z-]+(?==)"); rule.format = attributeFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\"[^\"]*\""); rule.format = stringFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("<!--[^\n]*-->"); rule.format = commentFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("&[A-Za-z]+;"); rule.format = numberFormat; highlightingRules.append(rule);
+  HighlightingRule rule;
+  tagFormat.setFontWeight(QFont::Bold);
+  rule.pattern = QRegularExpression("</?[A-Za-z][A-Za-z0-9]*");
+  rule.format = tagFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("/?>");
+  rule.format = tagFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\\b[A-Za-z-]+(?==)");
+  rule.format = attributeFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\"[^\"]*\"");
+  rule.format = stringFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("<!--[^\n]*-->");
+  rule.format = commentFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("&[A-Za-z]+;");
+  rule.format = numberFormat;
+  highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::setupCssRules() {
-    HighlightingRule rule;
-    keywordFormat.setFontWeight(QFont::Bold);
-    rule.pattern = QRegularExpression("[.#]?[A-Za-z_-][A-Za-z0-9_-]*\\s*(?=\\{)"); rule.format = keywordFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("[A-Za-z-]+(?=\\s*:)"); rule.format = functionFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*(px|em|rem|%|vh|vw|s|ms)?\\b"); rule.format = numberFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("#[0-9a-fA-F]{3,8}\\b"); rule.format = numberFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\"[^\"]*\"|'[^']*'"); rule.format = stringFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("@[A-Za-z-]+"); rule.format = keywordFormat; highlightingRules.append(rule);
+  HighlightingRule rule;
+  keywordFormat.setFontWeight(QFont::Bold);
+  rule.pattern = QRegularExpression("[.#]?[A-Za-z_-][A-Za-z0-9_-]*\\s*(?=\\{)");
+  rule.format = keywordFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("[A-Za-z-]+(?=\\s*:)");
+  rule.format = functionFormat;
+  highlightingRules.append(rule);
+  rule.pattern =
+      QRegularExpression("\\b[0-9]+\\.?[0-9]*(px|em|rem|%|vh|vw|s|ms)?\\b");
+  rule.format = numberFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("#[0-9a-fA-F]{3,8}\\b");
+  rule.format = numberFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\"[^\"]*\"|'[^']*'");
+  rule.format = stringFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("@[A-Za-z-]+");
+  rule.format = keywordFormat;
+  highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::setupRustRules() {
-    HighlightingRule rule;
-    keywordFormat.setFontWeight(QFont::Bold);
-    QStringList kw = {"\\bfn\\b","\\blet\\b","\\bmut\\b","\\bif\\b","\\belse\\b","\\bfor\\b","\\bwhile\\b","\\breturn\\b","\\bstruct\\b","\\benum\\b","\\bimpl\\b","\\btrait\\b","\\buse\\b","\\bmod\\b","\\bpub\\b","\\bcrate\\b","\\bself\\b","\\bSelf\\b","\\bsuper\\b","\\bmatch\\b","\\bloop\\b","\\bin\\b","\\bas\\b","\\bref\\b","\\bwhere\\b","\\bunsafe\\b","\\basync\\b","\\bawait\\b","\\bmove\\b","\\btype\\b","\\bconst\\b","\\bstatic\\b","\\bdyn\\b","\\btrue\\b","\\bfalse\\b","\\bBox\\b","\\bVec\\b","\\bString\\b","\\bOption\\b","\\bResult\\b","\\bSome\\b","\\bNone\\b","\\bOk\\b","\\bErr\\b"};
-    for (const QString &p : kw) { rule.pattern = QRegularExpression(p); rule.format = keywordFormat; highlightingRules.append(rule); }
-    rule.pattern = QRegularExpression("\".*?\"|'.'"); rule.format = stringFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b"); rule.format = numberFormat; highlightingRules.append(rule);
-    functionFormat.setFontItalic(true);
-    rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()"); rule.format = functionFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("//[^\n]*"); rule.format = commentFormat; highlightingRules.append(rule);
-    classFormat.setFontWeight(QFont::Bold);
-    rule.pattern = QRegularExpression("[A-Z][A-Za-z0-9]+"); rule.format = classFormat; highlightingRules.append(rule);
+  HighlightingRule rule;
+  keywordFormat.setFontWeight(QFont::Bold);
+  QStringList kw = {
+      "\\bfn\\b",     "\\blet\\b",    "\\bmut\\b",    "\\bif\\b",
+      "\\belse\\b",   "\\bfor\\b",    "\\bwhile\\b",  "\\breturn\\b",
+      "\\bstruct\\b", "\\benum\\b",   "\\bimpl\\b",   "\\btrait\\b",
+      "\\buse\\b",    "\\bmod\\b",    "\\bpub\\b",    "\\bcrate\\b",
+      "\\bself\\b",   "\\bSelf\\b",   "\\bsuper\\b",  "\\bmatch\\b",
+      "\\bloop\\b",   "\\bin\\b",     "\\bas\\b",     "\\bref\\b",
+      "\\bwhere\\b",  "\\bunsafe\\b", "\\basync\\b",  "\\bawait\\b",
+      "\\bmove\\b",   "\\btype\\b",   "\\bconst\\b",  "\\bstatic\\b",
+      "\\bdyn\\b",    "\\btrue\\b",   "\\bfalse\\b",  "\\bBox\\b",
+      "\\bVec\\b",    "\\bString\\b", "\\bOption\\b", "\\bResult\\b",
+      "\\bSome\\b",   "\\bNone\\b",   "\\bOk\\b",     "\\bErr\\b"};
+  for (const QString &p : kw) {
+    rule.pattern = QRegularExpression(p);
+    rule.format = keywordFormat;
+    highlightingRules.append(rule);
+  }
+  rule.pattern = QRegularExpression("\".*?\"|'.'");
+  rule.format = stringFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.format = numberFormat;
+  highlightingRules.append(rule);
+  functionFormat.setFontItalic(true);
+  rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
+  rule.format = functionFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("//[^\n]*");
+  rule.format = commentFormat;
+  highlightingRules.append(rule);
+  classFormat.setFontWeight(QFont::Bold);
+  rule.pattern = QRegularExpression("[A-Z][A-Za-z0-9]+");
+  rule.format = classFormat;
+  highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::setupGoRules() {
-    HighlightingRule rule;
-    keywordFormat.setFontWeight(QFont::Bold);
-    QStringList kw = {"\\bfunc\\b","\\bpackage\\b","\\bimport\\b","\\bvar\\b","\\bconst\\b","\\btype\\b","\\bstruct\\b","\\binterface\\b","\\bmap\\b","\\bchan\\b","\\bif\\b","\\belse\\b","\\bfor\\b","\\brange\\b","\\breturn\\b","\\bswitch\\b","\\bcase\\b","\\bdefault\\b","\\bbreak\\b","\\bcontinue\\b","\\bgo\\b","\\bdefer\\b","\\bselect\\b","\\bfallthrough\\b","\\bgoto\\b","\\bnil\\b","\\btrue\\b","\\bfalse\\b","\\bmake\\b","\\bappend\\b","\\blen\\b","\\bcap\\b","\\bstring\\b","\\bint\\b","\\bfloat64\\b","\\bbool\\b","\\bbyte\\b","\\berror\\b","\\bfmt\\b"};
-    for (const QString &p : kw) { rule.pattern = QRegularExpression(p); rule.format = keywordFormat; highlightingRules.append(rule); }
-    rule.pattern = QRegularExpression("\".*?\"|`[^`]*`"); rule.format = stringFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b"); rule.format = numberFormat; highlightingRules.append(rule);
-    functionFormat.setFontItalic(true);
-    rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()"); rule.format = functionFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("//[^\n]*"); rule.format = commentFormat; highlightingRules.append(rule);
+  HighlightingRule rule;
+  keywordFormat.setFontWeight(QFont::Bold);
+  QStringList kw = {
+      "\\bfunc\\b",   "\\bpackage\\b", "\\bimport\\b",  "\\bvar\\b",
+      "\\bconst\\b",  "\\btype\\b",    "\\bstruct\\b",  "\\binterface\\b",
+      "\\bmap\\b",    "\\bchan\\b",    "\\bif\\b",      "\\belse\\b",
+      "\\bfor\\b",    "\\brange\\b",   "\\breturn\\b",  "\\bswitch\\b",
+      "\\bcase\\b",   "\\bdefault\\b", "\\bbreak\\b",   "\\bcontinue\\b",
+      "\\bgo\\b",     "\\bdefer\\b",   "\\bselect\\b",  "\\bfallthrough\\b",
+      "\\bgoto\\b",   "\\bnil\\b",     "\\btrue\\b",    "\\bfalse\\b",
+      "\\bmake\\b",   "\\bappend\\b",  "\\blen\\b",     "\\bcap\\b",
+      "\\bstring\\b", "\\bint\\b",     "\\bfloat64\\b", "\\bbool\\b",
+      "\\bbyte\\b",   "\\berror\\b",   "\\bfmt\\b"};
+  for (const QString &p : kw) {
+    rule.pattern = QRegularExpression(p);
+    rule.format = keywordFormat;
+    highlightingRules.append(rule);
+  }
+  rule.pattern = QRegularExpression("\".*?\"|`[^`]*`");
+  rule.format = stringFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.format = numberFormat;
+  highlightingRules.append(rule);
+  functionFormat.setFontItalic(true);
+  rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
+  rule.format = functionFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("//[^\n]*");
+  rule.format = commentFormat;
+  highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::setupJsonRules() {
-    HighlightingRule rule;
-    rule.pattern = QRegularExpression("\"[^\"]*\"\\s*(?=:)"); rule.format = keywordFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression(":\\s*\"[^\"]*\""); rule.format = stringFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b"); rule.format = numberFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\btrue\\b|\\bfalse\\b|\\bnull\\b"); rule.format = keywordFormat; highlightingRules.append(rule);
+  HighlightingRule rule;
+  rule.pattern = QRegularExpression("\"[^\"]*\"\\s*(?=:)");
+  rule.format = keywordFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression(":\\s*\"[^\"]*\"");
+  rule.format = stringFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.format = numberFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\\btrue\\b|\\bfalse\\b|\\bnull\\b");
+  rule.format = keywordFormat;
+  highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::setupYamlRules() {
-    HighlightingRule rule;
-    keywordFormat.setFontWeight(QFont::Bold);
-    rule.pattern = QRegularExpression("^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*:)"); rule.format = keywordFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\"[^\"]*\"|'[^']*'"); rule.format = stringFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b"); rule.format = numberFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\btrue\\b|\\bfalse\\b|\\bnull\\b|\\byes\\b|\\bno\\b"); rule.format = numberFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("#[^\n]*"); rule.format = commentFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("^\\s*-\\s"); rule.format = functionFormat; highlightingRules.append(rule);
+  HighlightingRule rule;
+  keywordFormat.setFontWeight(QFont::Bold);
+  rule.pattern = QRegularExpression("^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*:)");
+  rule.format = keywordFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\"[^\"]*\"|'[^']*'");
+  rule.format = stringFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.format = numberFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression(
+      "\\btrue\\b|\\bfalse\\b|\\bnull\\b|\\byes\\b|\\bno\\b");
+  rule.format = numberFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("#[^\n]*");
+  rule.format = commentFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("^\\s*-\\s");
+  rule.format = functionFormat;
+  highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::setupMarkdownRules() {
-    HighlightingRule rule;
-    headingFormat.setFontWeight(QFont::Bold);
-    rule.pattern = QRegularExpression("^#{1,6}\\s.*$"); rule.format = headingFormat; highlightingRules.append(rule);
-    boldFormat.setFontWeight(QFont::Bold);
-    rule.pattern = QRegularExpression("\\*\\*[^*]+\\*\\*|__[^_]+__"); rule.format = boldFormat; highlightingRules.append(rule);
-    QTextCharFormat italicFmt; italicFmt.setFontItalic(true);
-    rule.pattern = QRegularExpression("\\*[^*]+\\*|_[^_]+_"); rule.format = italicFmt; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("`[^`]+`"); rule.format = stringFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("```[^\n]*"); rule.format = commentFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("\\[.*?\\]\\(.*?\\)"); rule.format = linkFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("^\\s*[-*+]\\s"); rule.format = keywordFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("^\\s*\\d+\\.\\s"); rule.format = keywordFormat; highlightingRules.append(rule);
-    rule.pattern = QRegularExpression("^>\\s.*$"); rule.format = commentFormat; highlightingRules.append(rule);
+  HighlightingRule rule;
+  headingFormat.setFontWeight(QFont::Bold);
+  rule.pattern = QRegularExpression("^#{1,6}\\s.*$");
+  rule.format = headingFormat;
+  highlightingRules.append(rule);
+  boldFormat.setFontWeight(QFont::Bold);
+  rule.pattern = QRegularExpression("\\*\\*[^*]+\\*\\*|__[^_]+__");
+  rule.format = boldFormat;
+  highlightingRules.append(rule);
+  QTextCharFormat italicFmt;
+  italicFmt.setFontItalic(true);
+  rule.pattern = QRegularExpression("\\*[^*]+\\*|_[^_]+_");
+  rule.format = italicFmt;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("`[^`]+`");
+  rule.format = stringFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("```[^\n]*");
+  rule.format = commentFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("\\[.*?\\]\\(.*?\\)");
+  rule.format = linkFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("^\\s*[-*+]\\s");
+  rule.format = keywordFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("^\\s*\\d+\\.\\s");
+  rule.format = keywordFormat;
+  highlightingRules.append(rule);
+  rule.pattern = QRegularExpression("^>\\s.*$");
+  rule.format = commentFormat;
+  highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::highlightBlock(const QString &text) {
-    if (text.isEmpty()) { setCurrentBlockState(0); return; }
+  if (text.isEmpty()) {
     setCurrentBlockState(0);
-    int startIndex = 0;
-    if (currentLanguage == Language::CPP || currentLanguage == Language::JavaScript ||
-        currentLanguage == Language::Rust || currentLanguage == Language::Go || currentLanguage == Language::CSS) {
-        if (previousBlockState() != 1) startIndex = text.indexOf(multiLineCommentStart);
-        while (startIndex >= 0) {
-            int endIndex = text.indexOf(multiLineCommentEnd, startIndex);
-            int commentLength;
-            if (endIndex == -1) { setCurrentBlockState(1); commentLength = text.length() - startIndex; }
-            else { commentLength = endIndex - startIndex + 2; }
-            setFormat(startIndex, commentLength, commentFormat);
-            startIndex = text.indexOf(multiLineCommentStart, startIndex + commentLength);
-        }
+    return;
+  }
+  setCurrentBlockState(0);
+  int startIndex = 0;
+  if (currentLanguage == Language::CPP ||
+      currentLanguage == Language::JavaScript ||
+      currentLanguage == Language::Rust || currentLanguage == Language::Go ||
+      currentLanguage == Language::CSS) {
+    if (previousBlockState() != 1)
+      startIndex = text.indexOf(multiLineCommentStart);
+    while (startIndex >= 0) {
+      int endIndex = text.indexOf(multiLineCommentEnd, startIndex);
+      int commentLength;
+      if (endIndex == -1) {
+        setCurrentBlockState(1);
+        commentLength = text.length() - startIndex;
+      } else {
+        commentLength = endIndex - startIndex + 2;
+      }
+      setFormat(startIndex, commentLength, commentFormat);
+      startIndex =
+          text.indexOf(multiLineCommentStart, startIndex + commentLength);
     }
-    if (previousBlockState() != 1) {
-        for (const HighlightingRule &rule : highlightingRules) {
-            QRegularExpressionMatchIterator matchIterator = rule.pattern.globalMatch(text);
-            while (matchIterator.hasNext()) {
-                QRegularExpressionMatch match = matchIterator.next();
-                setFormat(match.capturedStart(), match.capturedLength(), rule.format);
-            }
-        }
+  }
+  if (previousBlockState() != 1) {
+    for (const HighlightingRule &rule : highlightingRules) {
+      QRegularExpressionMatchIterator matchIterator =
+          rule.pattern.globalMatch(text);
+      while (matchIterator.hasNext()) {
+        QRegularExpressionMatch match = matchIterator.next();
+        setFormat(match.capturedStart(), match.capturedLength(), rule.format);
+      }
     }
+  }
 }
 
 void SyntaxHighlighter::applyTheme(const ColorTheme &theme) {
-    keywordFormat.setForeground(theme.keyword);
-    stringFormat.setForeground(theme.string);
-    commentFormat.setForeground(theme.comment);
-    numberFormat.setForeground(theme.number);
-    functionFormat.setForeground(theme.function);
-    classFormat.setForeground(theme.keyword);
-    tagFormat.setForeground(theme.keyword);
-    attributeFormat.setForeground(theme.function);
-    headingFormat.setForeground(theme.keyword);
-    boldFormat.setForeground(theme.foreground);
-    linkFormat.setForeground(QColor(86, 156, 214));
-    setupRules();
-    rehighlight();
+  keywordFormat.setForeground(theme.keyword);
+  stringFormat.setForeground(theme.string);
+  commentFormat.setForeground(theme.comment);
+  numberFormat.setForeground(theme.number);
+  functionFormat.setForeground(theme.function);
+  classFormat.setForeground(theme.keyword);
+  tagFormat.setForeground(theme.keyword);
+  attributeFormat.setForeground(theme.function);
+  headingFormat.setForeground(theme.keyword);
+  boldFormat.setForeground(theme.foreground);
+  linkFormat.setForeground(QColor(86, 156, 214));
+  setupRules();
+  rehighlight();
 }
 // ============================================================
 // WelcomeWidget Implementation
 // ============================================================
-WelcomeWidget::WelcomeWidget(QWidget *parent) : QWidget(parent) {
-    setupUI();
-}
+WelcomeWidget::WelcomeWidget(QWidget *parent) : QWidget(parent) { setupUI(); }
 
 void WelcomeWidget::setupUI() {
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setAlignment(Qt::AlignCenter);
-    mainLayout->setSpacing(20);
-    
-    QLabel *logo = new QLabel("Jim");
-    logo->setStyleSheet("font-size: 64px; font-weight: 300; color: #569cd6; letter-spacing: 8px; font-family: 'Segoe UI', 'Consolas', monospace;");
-    logo->setAlignment(Qt::AlignCenter);
-    mainLayout->addWidget(logo);
-    
-    QLabel *subtitle = new QLabel("Lightweight Code Editor");
-    subtitle->setStyleSheet("font-size: 16px; color: #808080; font-weight: 300; letter-spacing: 2px; margin-bottom: 30px;");
-    subtitle->setAlignment(Qt::AlignCenter);
-    mainLayout->addWidget(subtitle);
-    
-    QHBoxLayout *buttonLayout = new QHBoxLayout();
-    buttonLayout->setAlignment(Qt::AlignCenter);
-    buttonLayout->setSpacing(16);
-    
-    QString btnStyle = "QPushButton { background-color: #0e639c; color: #ffffff; border: none; padding: 12px 28px; border-radius: 6px; font-size: 14px; font-weight: 500; min-width: 140px; } QPushButton:hover { background-color: #1177bb; } QPushButton:pressed { background-color: #094771; }";
-    
-    QPushButton *openFileBtn = new QPushButton("Open File");
-    openFileBtn->setStyleSheet(btnStyle);
-    connect(openFileBtn, &QPushButton::clicked, this, &WelcomeWidget::openFileRequested);
-    buttonLayout->addWidget(openFileBtn);
-    
-    QPushButton *openFolderBtn = new QPushButton("Open Folder");
-    openFolderBtn->setStyleSheet(btnStyle);
-    connect(openFolderBtn, &QPushButton::clicked, this, &WelcomeWidget::openFolderRequested);
-    buttonLayout->addWidget(openFolderBtn);
-    
-    mainLayout->addLayout(buttonLayout);
-    
-    QLabel *recentLabel = new QLabel("Recent Files");
-    recentLabel->setStyleSheet("font-size: 13px; color: #cccccc; font-weight: 600; margin-top: 30px; letter-spacing: 1px;");
-    recentLabel->setAlignment(Qt::AlignCenter);
-    mainLayout->addWidget(recentLabel);
-    
-    recentFilesLayout = new QVBoxLayout();
-    recentFilesLayout->setAlignment(Qt::AlignCenter);
-    recentFilesLayout->setSpacing(4);
-    mainLayout->addLayout(recentFilesLayout);
-    mainLayout->addStretch();
-    setStyleSheet("QWidget { background-color: #1e1e1e; }");
+  QVBoxLayout *mainLayout = new QVBoxLayout(this);
+  mainLayout->setAlignment(Qt::AlignCenter);
+  mainLayout->setSpacing(20);
+
+  QLabel *logo = new QLabel("Jim");
+  logo->setStyleSheet(
+      "font-size: 64px; font-weight: 300; color: #569cd6; letter-spacing: 8px; "
+      "font-family: 'Segoe UI', 'Consolas', monospace;");
+  logo->setAlignment(Qt::AlignCenter);
+  mainLayout->addWidget(logo);
+
+  QLabel *subtitle = new QLabel("Lightweight Code Editor");
+  subtitle->setStyleSheet("font-size: 16px; color: #808080; font-weight: 300; "
+                          "letter-spacing: 2px; margin-bottom: 30px;");
+  subtitle->setAlignment(Qt::AlignCenter);
+  mainLayout->addWidget(subtitle);
+
+  QHBoxLayout *buttonLayout = new QHBoxLayout();
+  buttonLayout->setAlignment(Qt::AlignCenter);
+  buttonLayout->setSpacing(16);
+
+  QString btnStyle =
+      "QPushButton { background-color: #0e639c; color: #ffffff; border: none; "
+      "padding: 12px 28px; border-radius: 6px; font-size: 14px; font-weight: "
+      "500; min-width: 140px; } QPushButton:hover { background-color: #1177bb; "
+      "} QPushButton:pressed { background-color: #094771; }";
+
+  QPushButton *openFileBtn = new QPushButton("Open File");
+  openFileBtn->setStyleSheet(btnStyle);
+  connect(openFileBtn, &QPushButton::clicked, this,
+          &WelcomeWidget::openFileRequested);
+  buttonLayout->addWidget(openFileBtn);
+
+  QPushButton *openFolderBtn = new QPushButton("Open Folder");
+  openFolderBtn->setStyleSheet(btnStyle);
+  connect(openFolderBtn, &QPushButton::clicked, this,
+          &WelcomeWidget::openFolderRequested);
+  buttonLayout->addWidget(openFolderBtn);
+
+  mainLayout->addLayout(buttonLayout);
+
+  QLabel *recentLabel = new QLabel("Recent Files");
+  recentLabel->setStyleSheet("font-size: 13px; color: #cccccc; font-weight: "
+                             "600; margin-top: 30px; letter-spacing: 1px;");
+  recentLabel->setAlignment(Qt::AlignCenter);
+  mainLayout->addWidget(recentLabel);
+
+  recentFilesLayout = new QVBoxLayout();
+  recentFilesLayout->setAlignment(Qt::AlignCenter);
+  recentFilesLayout->setSpacing(4);
+  mainLayout->addLayout(recentFilesLayout);
+  mainLayout->addStretch();
+  setStyleSheet("QWidget { background-color: #1e1e1e; }");
 }
 
 void WelcomeWidget::setRecentFiles(const QStringList &files) {
-    QLayoutItem *item;
-    while ((item = recentFilesLayout->takeAt(0)) != nullptr) {
-        delete item->widget();
-        delete item;
-    }
-    int count = 0;
-    for (const QString &file : files) {
-        if (count >= 8) break;
-        QPushButton *btn = new QPushButton(QFileInfo(file).fileName());
-        btn->setToolTip(file);
-        btn->setStyleSheet("QPushButton { background-color: transparent; color: #3794ff; border: none; padding: 6px 16px; font-size: 13px; text-align: center; border-radius: 4px; min-width: 200px; } QPushButton:hover { background-color: #2a2d2e; color: #58b0ff; }");
-        QString filePath = file;
-        connect(btn, &QPushButton::clicked, this, [this, filePath]() { emit recentFileClicked(filePath); });
-        recentFilesLayout->addWidget(btn);
-        count++;
-    }
-    if (files.isEmpty()) {
-        QLabel *noFiles = new QLabel("No recent files");
-        noFiles->setStyleSheet("color: #555555; font-size: 12px; padding: 8px;");
-        noFiles->setAlignment(Qt::AlignCenter);
-        recentFilesLayout->addWidget(noFiles);
-    }
+  QLayoutItem *item;
+  while ((item = recentFilesLayout->takeAt(0)) != nullptr) {
+    delete item->widget();
+    delete item;
+  }
+  int count = 0;
+  for (const QString &file : files) {
+    if (count >= 8)
+      break;
+    QPushButton *btn = new QPushButton(QFileInfo(file).fileName());
+    btn->setToolTip(file);
+    btn->setStyleSheet(
+        "QPushButton { background-color: transparent; color: #3794ff; border: "
+        "none; padding: 6px 16px; font-size: 13px; text-align: center; "
+        "border-radius: 4px; min-width: 200px; } QPushButton:hover { "
+        "background-color: #2a2d2e; color: #58b0ff; }");
+    QString filePath = file;
+    connect(btn, &QPushButton::clicked, this,
+            [this, filePath]() { emit recentFileClicked(filePath); });
+    recentFilesLayout->addWidget(btn);
+    count++;
+  }
+  if (files.isEmpty()) {
+    QLabel *noFiles = new QLabel("No recent files");
+    noFiles->setStyleSheet("color: #555555; font-size: 12px; padding: 8px;");
+    noFiles->setAlignment(Qt::AlignCenter);
+    recentFilesLayout->addWidget(noFiles);
+  }
 }
 
 // ============================================================
 // BreadcrumbBar Implementation
 // ============================================================
 BreadcrumbBar::BreadcrumbBar(QWidget *parent) : QWidget(parent) {
-    QHBoxLayout *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(12, 4, 12, 4);
-    layout->setSpacing(0);
-    pathLabel = new QLabel("");
-    pathLabel->setStyleSheet("color: #999999; font-size: 12px; font-family: 'Segoe UI', sans-serif;");
-    layout->addWidget(pathLabel);
-    layout->addStretch();
-    setFixedHeight(28);
-    setStyleSheet("QWidget { background-color: #252526; border-bottom: 1px solid #3e3e42; }");
+  QHBoxLayout *layout = new QHBoxLayout(this);
+  layout->setContentsMargins(12, 4, 12, 4);
+  layout->setSpacing(0);
+  pathLabel = new QLabel("");
+  pathLabel->setStyleSheet(
+      "color: #999999; font-size: 12px; font-family: 'Segoe UI', sans-serif;");
+  layout->addWidget(pathLabel);
+  layout->addStretch();
+  setFixedHeight(28);
+  setStyleSheet("QWidget { background-color: #252526; border-bottom: 1px solid "
+                "#3e3e42; }");
 }
 
 void BreadcrumbBar::updatePath(const QString &filePath, const QString &symbol) {
-    if (filePath.isEmpty()) { pathLabel->setText("Untitled"); return; }
-    QFileInfo info(filePath);
-    QString display = "<span style='color:#808080;'>" + info.absolutePath() + " &gt; </span>"
-                    + "<span style='color:#cccccc;'>" + info.fileName() + "</span>";
-    if (!symbol.isEmpty())
-        display += "<span style='color:#808080;'> &gt; </span><span style='color:#dcdcaa;'>" + symbol + "</span>";
-    pathLabel->setText(display);
+  if (filePath.isEmpty()) {
+    pathLabel->setText("Untitled");
+    return;
+  }
+  QFileInfo info(filePath);
+  QString display = "<span style='color:#808080;'>" + info.absolutePath() +
+                    " &gt; </span>" + "<span style='color:#cccccc;'>" +
+                    info.fileName() + "</span>";
+  if (!symbol.isEmpty())
+    display += "<span style='color:#808080;'> &gt; </span><span "
+               "style='color:#dcdcaa;'>" +
+               symbol + "</span>";
+  pathLabel->setText(display);
 }
 
 // ============================================================
 // TerminalWidget Implementation
 // ============================================================
-TerminalWidget::TerminalWidget(QWidget *parent) : QWidget(parent), process(nullptr) {
-    setupUI();
+TerminalWidget::TerminalWidget(QWidget *parent)
+    : QWidget(parent), process(nullptr) {
+  setupUI();
 }
 
 TerminalWidget::~TerminalWidget() {
-    if (process) { process->kill(); process->waitForFinished(1000); }
+  if (process) {
+    process->kill();
+    process->waitForFinished(1000);
+  }
 }
 
 void TerminalWidget::setupUI() {
-    QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    
-    QWidget *header = new QWidget();
-    QHBoxLayout *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(12, 6, 12, 6);
-    QLabel *termLabel = new QLabel("TERMINAL");
-    termLabel->setStyleSheet("color: #cccccc; font-size: 11px; font-weight: 600; letter-spacing: 1px;");
-    headerLayout->addWidget(termLabel);
-    headerLayout->addStretch();
-    header->setStyleSheet("background-color: #252526; border-bottom: 1px solid #3e3e42;");
-    layout->addWidget(header);
-    
-    output = new QPlainTextEdit();
-    output->setReadOnly(true);
-    output->setFont(QFont("Consolas", 11));
-    output->setStyleSheet("QPlainTextEdit { background-color: #1e1e1e; color: #cccccc; border: none; padding: 8px; selection-background-color: #264f78; }");
-    output->setMaximumBlockCount(5000);
-    layout->addWidget(output);
-    
-    QWidget *inputBar = new QWidget();
-    QHBoxLayout *inputLayout = new QHBoxLayout(inputBar);
-    inputLayout->setContentsMargins(8, 4, 8, 4);
-    inputLayout->setSpacing(8);
-    QLabel *prompt = new QLabel("$");
-    prompt->setStyleSheet("color: #569cd6; font-size: 13px; font-weight: bold; font-family: Consolas;");
-    inputLayout->addWidget(prompt);
-    input = new QLineEdit();
-    input->setFont(QFont("Consolas", 11));
-    input->setStyleSheet("QLineEdit { background-color: #2d2d30; color: #cccccc; border: 1px solid #3e3e42; border-radius: 4px; padding: 6px 10px; } QLineEdit:focus { border-color: #007acc; }");
-    input->setPlaceholderText("Enter command...");
-    connect(input, &QLineEdit::returnPressed, this, &TerminalWidget::executeCommand);
-    inputLayout->addWidget(input);
-    inputBar->setStyleSheet("background-color: #252526; border-top: 1px solid #3e3e42;");
-    layout->addWidget(inputBar);
-    
-    currentDir = QDir::homePath(); // Default to home directory
-    setStyleSheet("background-color: #1e1e1e;");
+  QVBoxLayout *layout = new QVBoxLayout(this);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+
+  QWidget *header = new QWidget();
+  QHBoxLayout *headerLayout = new QHBoxLayout(header);
+  headerLayout->setContentsMargins(12, 6, 12, 6);
+  QLabel *termLabel = new QLabel("TERMINAL");
+  termLabel->setStyleSheet("color: #cccccc; font-size: 11px; font-weight: 600; "
+                           "letter-spacing: 1px;");
+  headerLayout->addWidget(termLabel);
+  headerLayout->addStretch();
+  header->setStyleSheet(
+      "background-color: #252526; border-bottom: 1px solid #3e3e42;");
+  layout->addWidget(header);
+
+  output = new QPlainTextEdit();
+  output->setReadOnly(true);
+  output->setFont(QFont("Consolas", 11));
+  output->setStyleSheet(
+      "QPlainTextEdit { background-color: #1e1e1e; color: #cccccc; border: "
+      "none; padding: 8px; selection-background-color: #264f78; }");
+  output->setMaximumBlockCount(5000);
+  layout->addWidget(output);
+
+  QWidget *inputBar = new QWidget();
+  QHBoxLayout *inputLayout = new QHBoxLayout(inputBar);
+  inputLayout->setContentsMargins(8, 4, 8, 4);
+  inputLayout->setSpacing(8);
+  QLabel *prompt = new QLabel("$");
+  prompt->setStyleSheet("color: #569cd6; font-size: 13px; font-weight: bold; "
+                        "font-family: Consolas;");
+  inputLayout->addWidget(prompt);
+  input = new QLineEdit();
+  input->setFont(QFont("Consolas", 11));
+  input->setStyleSheet(
+      "QLineEdit { background-color: #2d2d30; color: #cccccc; border: 1px "
+      "solid #3e3e42; border-radius: 4px; padding: 6px 10px; } QLineEdit:focus "
+      "{ border-color: #007acc; }");
+  input->setPlaceholderText("Enter command...");
+  connect(input, &QLineEdit::returnPressed, this,
+          &TerminalWidget::executeCommand);
+  inputLayout->addWidget(input);
+  inputBar->setStyleSheet(
+      "background-color: #252526; border-top: 1px solid #3e3e42;");
+  layout->addWidget(inputBar);
+
+  currentDir = QDir::homePath(); // Default to home directory
+  setStyleSheet("background-color: #1e1e1e;");
 }
 
 void TerminalWidget::setWorkingDirectory(const QString &dir) {
-    QDir d(dir);
-    if (d.exists()) {
-        currentDir = d.absolutePath();
-    }
+  QDir d(dir);
+  if (d.exists()) {
+    currentDir = d.absolutePath();
+  }
 }
 
-void TerminalWidget::startShell() { }
+void TerminalWidget::startShell() {}
 
 void TerminalWidget::executeCommand() {
-    QString cmd = input->text().trimmed();
-    if (cmd.isEmpty()) return;
-    appendOutput("\n$ " + cmd + "\n");
-    input->clear();
-    
-    if (cmd.startsWith("cd ")) {
-        QString dir = cmd.mid(3).trimmed();
-        QDir newDir(currentDir);
-        if (newDir.cd(dir)) { currentDir = newDir.absolutePath(); appendOutput(currentDir + "\n"); }
-        else { appendOutput("cd: no such directory: " + dir + "\n"); }
-        return;
+  QString cmd = input->text().trimmed();
+  if (cmd.isEmpty())
+    return;
+  appendOutput("\n$ " + cmd + "\n");
+  input->clear();
+
+  if (cmd.startsWith("cd ")) {
+    QString dir = cmd.mid(3).trimmed();
+    QDir newDir(currentDir);
+    if (newDir.cd(dir)) {
+      currentDir = newDir.absolutePath();
+      appendOutput(currentDir + "\n");
+    } else {
+      appendOutput("cd: no such directory: " + dir + "\n");
     }
-    if (cmd == "clear" || cmd == "cls") { output->clear(); return; }
-    
-    QProcess *proc = new QProcess(this);
-    proc->setWorkingDirectory(currentDir);
-    connect(proc, &QProcess::readyReadStandardOutput, this, &TerminalWidget::onReadyRead);
-    connect(proc, &QProcess::readyReadStandardError, this, &TerminalWidget::onReadyRead);
-    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, &TerminalWidget::onProcessFinished);
+    return;
+  }
+  if (cmd == "clear" || cmd == "cls") {
+    output->clear();
+    return;
+  }
+
+  QProcess *proc = new QProcess(this);
+  proc->setWorkingDirectory(currentDir);
+  connect(proc, &QProcess::readyReadStandardOutput, this,
+          &TerminalWidget::onReadyRead);
+  connect(proc, &QProcess::readyReadStandardError, this,
+          &TerminalWidget::onReadyRead);
+  connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+          this, &TerminalWidget::onProcessFinished);
 #ifdef Q_OS_WIN
-    proc->start("cmd.exe", QStringList() << "/c" << cmd);
+  proc->start("cmd.exe", QStringList() << "/c" << cmd);
 #else
-    proc->start("/bin/sh", QStringList() << "-c" << cmd);
+  proc->start("/bin/sh", QStringList() << "-c" << cmd);
 #endif
 }
 
 void TerminalWidget::onReadyRead() {
-    QProcess *proc = qobject_cast<QProcess*>(sender());
-    if (proc) {
-        appendOutput(QString::fromLocal8Bit(proc->readAllStandardOutput()));
-        appendOutput(QString::fromLocal8Bit(proc->readAllStandardError()));
-    }
+  QProcess *proc = qobject_cast<QProcess *>(sender());
+  if (proc) {
+    appendOutput(QString::fromLocal8Bit(proc->readAllStandardOutput()));
+    appendOutput(QString::fromLocal8Bit(proc->readAllStandardError()));
+  }
 }
 
 void TerminalWidget::onProcessFinished(int, QProcess::ExitStatus) {
-    QProcess *proc = qobject_cast<QProcess*>(sender());
-    if (proc) {
-        appendOutput(QString::fromLocal8Bit(proc->readAllStandardOutput()));
-        appendOutput(QString::fromLocal8Bit(proc->readAllStandardError()));
-        proc->deleteLater();
-    }
+  QProcess *proc = qobject_cast<QProcess *>(sender());
+  if (proc) {
+    appendOutput(QString::fromLocal8Bit(proc->readAllStandardOutput()));
+    appendOutput(QString::fromLocal8Bit(proc->readAllStandardError()));
+    proc->deleteLater();
+  }
 }
 
 void TerminalWidget::appendOutput(const QString &text) {
-    QTextCursor cursor = output->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    cursor.insertText(text);
-    output->setTextCursor(cursor);
-    output->ensureCursorVisible();
+  QTextCursor cursor = output->textCursor();
+  cursor.movePosition(QTextCursor::End);
+  cursor.insertText(text);
+  output->setTextCursor(cursor);
+  output->ensureCursorVisible();
 }
 
 // ============================================================
 // TextEditor Implementation (Main Window)
 // ============================================================
-TextEditor::TextEditor(QWidget *parent) : QMainWindow(parent), wordWrapEnabled(false), splitViewEnabled(false), fontSize(11), currentThemeIndex(0) {
-    fileWatcher = new QFileSystemWatcher(this);
-    connect(fileWatcher, &QFileSystemWatcher::fileChanged, this, &TextEditor::onFileChangedExternally);
-    
-    // Frameless window with custom title bar
-    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowSystemMenuHint | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint);
-    
-    setupUI();
-    initializeThemes();
-    createActions();
-    createMenus();
-    createStatusBar();
-    applyModernStyle();
-    readSettings();
-    setWindowTitle("Jim");
-    resize(1200, 800);
-    showWelcomeScreen();
+TextEditor::TextEditor(QWidget *parent)
+    : QMainWindow(parent), wordWrapEnabled(false), splitViewEnabled(false),
+      fontSize(11), currentThemeIndex(0) {
+  fileWatcher = new QFileSystemWatcher(this);
+  connect(fileWatcher, &QFileSystemWatcher::fileChanged, this,
+          &TextEditor::onFileChangedExternally);
+
+  // Frameless window with custom title bar
+  setWindowFlags(Qt::FramelessWindowHint | Qt::WindowSystemMenuHint |
+                 Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint |
+                 Qt::WindowCloseButtonHint);
+
+  setupUI();
+  initializeThemes();
+  createActions();
+  createMenus();
+  createStatusBar();
+  applyModernStyle();
+  readSettings();
+  setWindowTitle("Jim");
+  resize(1200, 800);
+  showWelcomeScreen();
 }
 
 TextEditor::~TextEditor() { writeSettings(); }
 
 void TextEditor::setupUI() {
-    // Main layout container (since QMainWindow needs a central widget)
-    QWidget *mainContainer = new QWidget(this);
-    QVBoxLayout *mainLayout = new QVBoxLayout(mainContainer);
-    mainLayout->setContentsMargins(1, 1, 1, 1); // 1px border for frameless
-    mainLayout->setSpacing(0);
-    
-    titleBar = new TitleBar(this);
-    mainLayout->addWidget(titleBar);
-    
-    // Explicitly place a custom menu bar inside our custom layout so it renders below the title bar
-    customMenuBar = new QMenuBar(mainContainer);
-    customMenuBar->setStyleSheet("QMenuBar { background-color: transparent; color: #cccccc; } QMenuBar::item:selected { background-color: #3e3e42; }");
-    mainLayout->addWidget(customMenuBar);
-    
-    // Vertical splitter: top = editor area, bottom = terminal
-    verticalSplitter = new QSplitter(Qt::Vertical, mainContainer);
-    
-    // Container for breadcrumb + editor
-    QWidget *editorContainer = new QWidget();
-    QVBoxLayout *editorLayout = new QVBoxLayout(editorContainer);
-    editorLayout->setContentsMargins(0, 0, 0, 0);
-    editorLayout->setSpacing(0);
-    
-    // Breadcrumb bar
-    breadcrumbBar = new BreadcrumbBar();
-    editorLayout->addWidget(breadcrumbBar);
-    
-    // Main horizontal splitter for editor tabs
-    mainSplitter = new QSplitter(Qt::Horizontal);
-    tabWidget = new QTabWidget();
-    tabWidget->setTabsClosable(true);
-    tabWidget->setMovable(true);
-    tabWidget->setDocumentMode(true);
-    mainSplitter->addWidget(tabWidget);
-    tabWidget2 = nullptr;
-    
-    connect(tabWidget, &QTabWidget::tabCloseRequested, this, &TextEditor::closeTab);
-    connect(tabWidget, &QTabWidget::currentChanged, this, &TextEditor::tabChanged);
-    
-    editorLayout->addWidget(mainSplitter);
-    verticalSplitter->addWidget(editorContainer);
-    
-    // Welcome widget (stacked on top of editor)
-    welcomeWidget = new WelcomeWidget();
-    connect(welcomeWidget, &WelcomeWidget::openFileRequested, this, &TextEditor::openFile);
-    connect(welcomeWidget, &WelcomeWidget::openFolderRequested, this, &TextEditor::openFolder);
-    connect(welcomeWidget, &WelcomeWidget::recentFileClicked, this, [this](const QString &path) { loadFile(path); });
-    
-    // Terminal widget (hidden by default)
-    terminalWidget = new TerminalWidget();
-    terminalWidget->hide();
-    verticalSplitter->addWidget(terminalWidget);
-    verticalSplitter->setStretchFactor(0, 3);
-    verticalSplitter->setStretchFactor(1, 1);
-    
-    mainLayout->addWidget(verticalSplitter, 1); // stretch to fill
-    setCentralWidget(mainContainer);
-    
-    // File tree dock
-    fileTreeDock = new QDockWidget("Explorer", this);
-    fileTreeDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
-    
-    fileTreeContainer = new QStackedWidget();
-    
-    // 0: Empty state
-    emptyTreeWidget = new QWidget();
-    QVBoxLayout *emptyLayout = new QVBoxLayout(emptyTreeWidget);
-    emptyLayout->setAlignment(Qt::AlignCenter);
-    QLabel *emptyDesc = new QLabel("You have not yet opened a folder.");
-    emptyDesc->setStyleSheet("color: #cccccc; font-size: 13px;");
-    emptyDesc->setWordWrap(true);
-    emptyDesc->setAlignment(Qt::AlignCenter);
-    QPushButton *openFolderBtn = new QPushButton("Open Folder");
-    openFolderBtn->setStyleSheet("QPushButton { background-color: #0e639c; color: white; border: none; padding: 6px 12px; border-radius: 2px; } QPushButton:hover { background-color: #1177bb; }");
-    connect(openFolderBtn, &QPushButton::clicked, this, &TextEditor::openFolder);
-    emptyLayout->addWidget(emptyDesc);
-    emptyLayout->addWidget(openFolderBtn);
-    fileTreeContainer->addWidget(emptyTreeWidget);
-    
-    // 1: File tree state
-    fileTree = new QTreeView();
-    fileSystemModel = new QFileSystemModel();
-    fileSystemModel->setFilter(QDir::AllDirs | QDir::Files | QDir::NoDotAndDotDot);
-    fileTree->setModel(fileSystemModel);
-    fileTree->setColumnWidth(0, 250);
-    fileTree->setHeaderHidden(false);
-    fileTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    fileTree->setAnimated(true);
-    fileTree->setIndentation(20);
-    fileTree->setSortingEnabled(true);
-    for (int i = 1; i < fileSystemModel->columnCount(); ++i) fileTree->hideColumn(i);
-    connect(fileTree, &QTreeView::doubleClicked, this, &TextEditor::onFileTreeDoubleClicked);
-    fileTreeContainer->addWidget(fileTree);
-    
-    // Set default state to Empty (0)
-    fileTreeContainer->setCurrentIndex(0);
-    
-    fileTreeDock->setWidget(fileTreeContainer);
-    addDockWidget(Qt::LeftDockWidgetArea, fileTreeDock);
+  // Main layout container (since QMainWindow needs a central widget)
+  QWidget *mainContainer = new QWidget(this);
+  QVBoxLayout *mainLayout = new QVBoxLayout(mainContainer);
+  mainLayout->setContentsMargins(1, 1, 1, 1); // 1px border for frameless
+  mainLayout->setSpacing(0);
+
+  titleBar = new TitleBar(this);
+  mainLayout->addWidget(titleBar);
+
+  // Explicitly place a custom menu bar inside our custom layout so it renders
+  // below the title bar
+  customMenuBar = new QMenuBar(mainContainer);
+  customMenuBar->setStyleSheet(
+      "QMenuBar { background-color: transparent; color: #cccccc; } "
+      "QMenuBar::item:selected { background-color: #3e3e42; }");
+  mainLayout->addWidget(customMenuBar);
+
+  // Vertical splitter: top = editor area, bottom = terminal
+  verticalSplitter = new QSplitter(Qt::Vertical, mainContainer);
+
+  // Container for breadcrumb + editor
+  QWidget *editorContainer = new QWidget();
+  QVBoxLayout *editorLayout = new QVBoxLayout(editorContainer);
+  editorLayout->setContentsMargins(0, 0, 0, 0);
+  editorLayout->setSpacing(0);
+
+  // Breadcrumb bar
+  breadcrumbBar = new BreadcrumbBar();
+  editorLayout->addWidget(breadcrumbBar);
+
+  // Main horizontal splitter for editor tabs
+  mainSplitter = new QSplitter(Qt::Horizontal);
+  tabWidget = new QTabWidget();
+  tabWidget->setTabsClosable(true);
+  tabWidget->setMovable(true);
+  tabWidget->setDocumentMode(true);
+  mainSplitter->addWidget(tabWidget);
+  tabWidget2 = nullptr;
+
+  connect(tabWidget, &QTabWidget::tabCloseRequested, this,
+          &TextEditor::closeTab);
+  connect(tabWidget, &QTabWidget::currentChanged, this,
+          &TextEditor::tabChanged);
+
+  editorLayout->addWidget(mainSplitter);
+  verticalSplitter->addWidget(editorContainer);
+
+  // Welcome widget (stacked on top of editor)
+  welcomeWidget = new WelcomeWidget();
+  connect(welcomeWidget, &WelcomeWidget::openFileRequested, this,
+          &TextEditor::openFile);
+  connect(welcomeWidget, &WelcomeWidget::openFolderRequested, this,
+          &TextEditor::openFolder);
+  connect(welcomeWidget, &WelcomeWidget::recentFileClicked, this,
+          [this](const QString &path) { loadFile(path); });
+
+  // Terminal widget (hidden by default)
+  terminalWidget = new TerminalWidget();
+  terminalWidget->hide();
+  verticalSplitter->addWidget(terminalWidget);
+  verticalSplitter->setStretchFactor(0, 3);
+  verticalSplitter->setStretchFactor(1, 1);
+
+  mainLayout->addWidget(verticalSplitter, 1); // stretch to fill
+  setCentralWidget(mainContainer);
+
+  // File tree dock
+  fileTreeDock = new QDockWidget("Explorer", this);
+  fileTreeDock->setFeatures(QDockWidget::DockWidgetMovable |
+                            QDockWidget::DockWidgetClosable);
+
+  fileTreeContainer = new QStackedWidget();
+
+  // 0: Empty state
+  emptyTreeWidget = new QWidget();
+  QVBoxLayout *emptyLayout = new QVBoxLayout(emptyTreeWidget);
+  emptyLayout->setAlignment(Qt::AlignCenter);
+  QLabel *emptyDesc = new QLabel("You have not yet opened a folder.");
+  emptyDesc->setStyleSheet("color: #cccccc; font-size: 13px;");
+  emptyDesc->setWordWrap(true);
+  emptyDesc->setAlignment(Qt::AlignCenter);
+  QPushButton *openFolderBtn = new QPushButton("Open Folder");
+  openFolderBtn->setStyleSheet(
+      "QPushButton { background-color: #0e639c; color: white; border: none; "
+      "padding: 6px 12px; border-radius: 2px; } QPushButton:hover { "
+      "background-color: #1177bb; }");
+  connect(openFolderBtn, &QPushButton::clicked, this, &TextEditor::openFolder);
+  emptyLayout->addWidget(emptyDesc);
+  emptyLayout->addWidget(openFolderBtn);
+  fileTreeContainer->addWidget(emptyTreeWidget);
+
+  // 1: File tree state
+  fileTree = new QTreeView();
+  fileSystemModel = new QFileSystemModel();
+  fileSystemModel->setFilter(QDir::AllDirs | QDir::Files |
+                             QDir::NoDotAndDotDot);
+  fileTree->setModel(fileSystemModel);
+  fileTree->setColumnWidth(0, 250);
+  fileTree->setHeaderHidden(false);
+  fileTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+  fileTree->setAnimated(true);
+  fileTree->setIndentation(20);
+  fileTree->setSortingEnabled(true);
+  for (int i = 1; i < fileSystemModel->columnCount(); ++i)
+    fileTree->hideColumn(i);
+  connect(fileTree, &QTreeView::doubleClicked, this,
+          &TextEditor::onFileTreeDoubleClicked);
+  fileTreeContainer->addWidget(fileTree);
+
+  // Set default state to Empty (0)
+  fileTreeContainer->setCurrentIndex(0);
+
+  fileTreeDock->setWidget(fileTreeContainer);
+  addDockWidget(Qt::LeftDockWidgetArea, fileTreeDock);
 }
 
 void TextEditor::showWelcomeScreen() {
-    welcomeWidget->setRecentFiles(recentFiles);
-    // Add as a tab
-    int idx = tabWidget->addTab(welcomeWidget, "Welcome");
-    tabWidget->setCurrentIndex(idx);
+  welcomeWidget->setRecentFiles(recentFiles);
+  // Add as a tab
+  int idx = tabWidget->addTab(welcomeWidget, "Welcome");
+  tabWidget->setCurrentIndex(idx);
 }
 
 void TextEditor::hideWelcomeScreen() {
-    for (int i = 0; i < tabWidget->count(); ++i) {
-        if (tabWidget->widget(i) == welcomeWidget) {
-            tabWidget->removeTab(i);
-            break;
-        }
+  for (int i = 0; i < tabWidget->count(); ++i) {
+    if (tabWidget->widget(i) == welcomeWidget) {
+      tabWidget->removeTab(i);
+      break;
     }
+  }
 }
 
 void TextEditor::watchFile(const QString &filePath) {
-    if (!filePath.isEmpty() && QFileInfo::exists(filePath))
-        fileWatcher->addPath(filePath);
+  if (!filePath.isEmpty() && QFileInfo::exists(filePath))
+    fileWatcher->addPath(filePath);
 }
 
 void TextEditor::unwatchFile(const QString &filePath) {
-    if (!filePath.isEmpty() && fileWatcher->files().contains(filePath))
-        fileWatcher->removePath(filePath);
+  if (!filePath.isEmpty() && fileWatcher->files().contains(filePath))
+    fileWatcher->removePath(filePath);
 }
 
 void TextEditor::onFileChangedExternally(const QString &path) {
-    // Find the editor with this file
-    for (int i = 0; i < tabWidget->count(); ++i) {
-        CodeEditor *editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-        if (editor && editor->getFileName() == path) {
-            QMessageBox::StandardButton reply = QMessageBox::question(this, "File Changed",
-                QString("The file '%1' has been modified externally.\nDo you want to reload it?")
-                    .arg(QFileInfo(path).fileName()),
-                QMessageBox::Yes | QMessageBox::No);
-            if (reply == QMessageBox::Yes) {
-                QFile file(path);
-                if (file.open(QFile::ReadOnly | QFile::Text)) {
-                    int cursorPos = editor->textCursor().position();
-                    editor->setPlainText(QTextStream(&file).readAll());
-                    editor->document()->setModified(false);
-                    QTextCursor cursor = editor->textCursor();
-                    cursor.setPosition(qMin(cursorPos, editor->document()->characterCount() - 1));
-                    editor->setTextCursor(cursor);
-                }
-            }
-            // Re-watch (Qt removes paths after change signal)
-            watchFile(path);
-            break;
+  // Find the editor with this file
+  for (int i = 0; i < tabWidget->count(); ++i) {
+    CodeEditor *editor = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+    if (editor && editor->getFileName() == path) {
+      QMessageBox::StandardButton reply = QMessageBox::question(
+          this, "File Changed",
+          QString("The file '%1' has been modified externally.\nDo you want to "
+                  "reload it?")
+              .arg(QFileInfo(path).fileName()),
+          QMessageBox::Yes | QMessageBox::No);
+      if (reply == QMessageBox::Yes) {
+        QFile file(path);
+        if (file.open(QFile::ReadOnly | QFile::Text)) {
+          int cursorPos = editor->textCursor().position();
+          editor->setPlainText(QTextStream(&file).readAll());
+          editor->document()->setModified(false);
+          QTextCursor cursor = editor->textCursor();
+          cursor.setPosition(
+              qMin(cursorPos, editor->document()->characterCount() - 1));
+          editor->setTextCursor(cursor);
         }
+      }
+      // Re-watch (Qt removes paths after change signal)
+      watchFile(path);
+      break;
     }
+  }
 }
 
 QString TextEditor::detectCurrentSymbol(CodeEditor *editor) {
-    if (!editor) return "";
-    QTextBlock block = editor->textCursor().block();
-    // Walk upward to find function/class definition
-    while (block.isValid()) {
-        QString text = block.text().trimmed();
-        QRegularExpression funcRe("(?:void|int|bool|auto|QString|float|double|char|string|fn|func|def|function|pub\\s+fn|async\\s+function)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(");
-        QRegularExpressionMatch m = funcRe.match(text);
-        if (m.hasMatch()) return m.captured(1) + "()";
-        QRegularExpression classRe("(?:class|struct|enum|interface|trait|impl)\\s+([A-Za-z_][A-Za-z0-9_]*)");
-        m = classRe.match(text);
-        if (m.hasMatch()) return m.captured(1);
-        block = block.previous();
-    }
+  if (!editor)
     return "";
+  QTextBlock block = editor->textCursor().block();
+  // Walk upward to find function/class definition
+  while (block.isValid()) {
+    QString text = block.text().trimmed();
+    QRegularExpression funcRe("(?:void|int|bool|auto|QString|float|double|char|"
+                              "string|fn|func|def|function|pub\\s+fn|async\\s+"
+                              "function)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(");
+    QRegularExpressionMatch m = funcRe.match(text);
+    if (m.hasMatch())
+      return m.captured(1) + "()";
+    QRegularExpression classRe("(?:class|struct|enum|interface|trait|impl)\\s+("
+                               "[A-Za-z_][A-Za-z0-9_]*)");
+    m = classRe.match(text);
+    if (m.hasMatch())
+      return m.captured(1);
+    block = block.previous();
+  }
+  return "";
 }
 
 void TextEditor::updateBreadcrumb() {
-    CodeEditor *editor = currentEditor();
-    if (!editor) { breadcrumbBar->updatePath("", ""); return; }
-    QString symbol = detectCurrentSymbol(editor);
-    breadcrumbBar->updatePath(editor->getFileName(), symbol);
+  CodeEditor *editor = currentEditor();
+  if (!editor) {
+    breadcrumbBar->updatePath("", "");
+    return;
+  }
+  QString symbol = detectCurrentSymbol(editor);
+  breadcrumbBar->updatePath(editor->getFileName(), symbol);
 }
 
 void TextEditor::createActions() {
-    newAct = new QAction("&New", this);
-    newAct->setShortcuts(QKeySequence::New);
-    connect(newAct, &QAction::triggered, this, &TextEditor::newFile);
-    
-    openAct = new QAction("&Open File...", this);
-    openAct->setShortcuts(QKeySequence::Open);
-    connect(openAct, &QAction::triggered, this, &TextEditor::openFile);
-    
-    openFolderAct = new QAction("Open &Folder...", this);
-    openFolderAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
-    connect(openFolderAct, &QAction::triggered, this, &TextEditor::openFolder);
-    
-    saveAct = new QAction("&Save", this);
-    saveAct->setShortcuts(QKeySequence::Save);
-    connect(saveAct, &QAction::triggered, this, &TextEditor::saveFile);
-    
-    saveAsAct = new QAction("Save &As...", this);
-    saveAsAct->setShortcuts(QKeySequence::SaveAs);
-    connect(saveAsAct, &QAction::triggered, this, &TextEditor::saveFileAs);
-    
-    closeTabAct = new QAction("&Close Tab", this);
-    closeTabAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_W));
-    connect(closeTabAct, &QAction::triggered, this, [this]() { closeTab(tabWidget->currentIndex()); });
-    
-    exitAct = new QAction("E&xit", this);
-    exitAct->setShortcuts(QKeySequence::Quit);
-    connect(exitAct, &QAction::triggered, this, &QWidget::close);
+  newAct = new QAction("&New", this);
+  newAct->setShortcuts(QKeySequence::New);
+  connect(newAct, &QAction::triggered, this, &TextEditor::newFile);
 
-    cutAct = new QAction("Cu&t", this);
-    cutAct->setShortcuts(QKeySequence::Cut);
-    connect(cutAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->cut(); });
-    
-    copyAct = new QAction("&Copy", this);
-    copyAct->setShortcuts(QKeySequence::Copy);
-    connect(copyAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->copy(); });
-    
-    pasteAct = new QAction("&Paste", this);
-    pasteAct->setShortcuts(QKeySequence::Paste);
-    connect(pasteAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->paste(); });
-    
-    undoAct = new QAction("&Undo", this);
-    undoAct->setShortcuts(QKeySequence::Undo);
-    connect(undoAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->undo(); });
-    
-    redoAct = new QAction("&Redo", this);
-    redoAct->setShortcuts(QKeySequence::Redo);
-    connect(redoAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->redo(); });
-    
-    selectAllAct = new QAction("Select &All", this);
-    selectAllAct->setShortcuts(QKeySequence::SelectAll);
-    connect(selectAllAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->selectAll(); });
-    
-    findAct = new QAction("&Find...", this);
-    findAct->setShortcuts(QKeySequence::Find);
-    connect(findAct, &QAction::triggered, this, &TextEditor::findText);
-    
-    findNextAct = new QAction("Find &Next", this);
-    findNextAct->setShortcut(QKeySequence(Qt::Key_F3));
-    connect(findNextAct, &QAction::triggered, this, &TextEditor::findNext);
-    
-    replaceAct = new QAction("&Replace...", this);
-    replaceAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_H));
-    connect(replaceAct, &QAction::triggered, this, &TextEditor::replaceText);
-    
-    goToLineAct = new QAction("&Go to Line...", this);
-    goToLineAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
-    connect(goToLineAct, &QAction::triggered, this, &TextEditor::goToLine);
-    
-    // Line editing actions
-    duplicateLineAct = new QAction("Duplicate Line", this);
-    duplicateLineAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
-    connect(duplicateLineAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->duplicateLine(); });
-    
-    moveLineUpAct = new QAction("Move Line Up", this);
-    moveLineUpAct->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Up));
-    connect(moveLineUpAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->moveLineUp(); });
-    
-    moveLineDownAct = new QAction("Move Line Down", this);
-    moveLineDownAct->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Down));
-    connect(moveLineDownAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->moveLineDown(); });
-    
-    deleteLineAct = new QAction("Delete Line", this);
-    deleteLineAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K));
-    connect(deleteLineAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->deleteLine(); });
-    
-    toggleCommentAct = new QAction("Toggle Line Comment", this);
-    toggleCommentAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Slash));
-    connect(toggleCommentAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->toggleComment(); });
-    
-    smartHomeAct = new QAction("Smart Home", this);
-    // Home key handling is done in keyPressEvent directly so it auto-overrides
-    // but we add it to the menu just in case.
-    connect(smartHomeAct, &QAction::triggered, this, [this]() { if (currentEditor()) currentEditor()->smartHome(); });
-    
-    increaseFontAct = new QAction("Increase Font Size", this);
-    increaseFontAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Plus));
-    connect(increaseFontAct, &QAction::triggered, this, &TextEditor::increaseFontSize);
-    
-    decreaseFontAct = new QAction("Decrease Font Size", this);
-    decreaseFontAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Minus));
-    connect(decreaseFontAct, &QAction::triggered, this, &TextEditor::decreaseFontSize);
-    
-    wordWrapAct = new QAction("Word Wrap", this);
-    wordWrapAct->setCheckable(true);
-    wordWrapAct->setChecked(wordWrapEnabled);
-    connect(wordWrapAct, &QAction::triggered, this, &TextEditor::toggleWordWrap);
-    
-    splitViewAct = new QAction("Split View", this);
-    splitViewAct->setCheckable(true);
-    splitViewAct->setChecked(splitViewEnabled);
-    splitViewAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Backslash));
-    connect(splitViewAct, &QAction::triggered, this, &TextEditor::toggleSplitView);
-    
-    fileTreeAct = new QAction("Explorer", this);
-    fileTreeAct->setCheckable(true);
-    fileTreeAct->setChecked(true);
-    fileTreeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_B));
-    connect(fileTreeAct, &QAction::triggered, this, &TextEditor::toggleFileTree);
-    
-    miniMapAct = new QAction("Mini Map", this);
-    miniMapAct->setCheckable(true);
-    miniMapAct->setChecked(false);
-    miniMapAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_M));
-    connect(miniMapAct, &QAction::triggered, this, &TextEditor::toggleMiniMap);
-    
-    terminalAct = new QAction("Terminal", this);
-    terminalAct->setCheckable(true);
-    terminalAct->setChecked(false);
-    terminalAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft));
-    connect(terminalAct, &QAction::triggered, this, &TextEditor::toggleTerminal);
-    
-    themeAct = new QAction("Toggle Theme", this);
-    themeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
-    connect(themeAct, &QAction::triggered, this, &TextEditor::changeTheme);
-    
-    customizeColorsAct = new QAction("Customize Colors...", this);
-    connect(customizeColorsAct, &QAction::triggered, this, &TextEditor::customizeColors);
-    
-    aboutAct = new QAction("&About", this);
-    connect(aboutAct, &QAction::triggered, this, &TextEditor::showAbout);
+  openAct = new QAction("&Open File...", this);
+  openAct->setShortcuts(QKeySequence::Open);
+  connect(openAct, &QAction::triggered, this, &TextEditor::openFile);
+
+  openFolderAct = new QAction("Open &Folder...", this);
+  openFolderAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
+  connect(openFolderAct, &QAction::triggered, this, &TextEditor::openFolder);
+
+  saveAct = new QAction("&Save", this);
+  saveAct->setShortcuts(QKeySequence::Save);
+  connect(saveAct, &QAction::triggered, this, &TextEditor::saveFile);
+
+  saveAsAct = new QAction("Save &As...", this);
+  saveAsAct->setShortcuts(QKeySequence::SaveAs);
+  connect(saveAsAct, &QAction::triggered, this, &TextEditor::saveFileAs);
+
+  closeTabAct = new QAction("&Close Tab", this);
+  closeTabAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_W));
+  connect(closeTabAct, &QAction::triggered, this,
+          [this]() { closeTab(tabWidget->currentIndex()); });
+
+  exitAct = new QAction("E&xit", this);
+  exitAct->setShortcuts(QKeySequence::Quit);
+  connect(exitAct, &QAction::triggered, this, &QWidget::close);
+
+  cutAct = new QAction("Cu&t", this);
+  cutAct->setShortcuts(QKeySequence::Cut);
+  connect(cutAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->cut();
+  });
+
+  copyAct = new QAction("&Copy", this);
+  copyAct->setShortcuts(QKeySequence::Copy);
+  connect(copyAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->copy();
+  });
+
+  pasteAct = new QAction("&Paste", this);
+  pasteAct->setShortcuts(QKeySequence::Paste);
+  connect(pasteAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->paste();
+  });
+
+  undoAct = new QAction("&Undo", this);
+  undoAct->setShortcuts(QKeySequence::Undo);
+  connect(undoAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->undo();
+  });
+
+  redoAct = new QAction("&Redo", this);
+  redoAct->setShortcuts(QKeySequence::Redo);
+  connect(redoAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->redo();
+  });
+
+  selectAllAct = new QAction("Select &All", this);
+  selectAllAct->setShortcuts(QKeySequence::SelectAll);
+  connect(selectAllAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->selectAll();
+  });
+
+  findAct = new QAction("&Find...", this);
+  findAct->setShortcuts(QKeySequence::Find);
+  connect(findAct, &QAction::triggered, this, &TextEditor::findText);
+
+  findNextAct = new QAction("Find &Next", this);
+  findNextAct->setShortcut(QKeySequence(Qt::Key_F3));
+  connect(findNextAct, &QAction::triggered, this, &TextEditor::findNext);
+
+  replaceAct = new QAction("&Replace...", this);
+  replaceAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_H));
+  connect(replaceAct, &QAction::triggered, this, &TextEditor::replaceText);
+
+  goToLineAct = new QAction("&Go to Line...", this);
+  goToLineAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
+  connect(goToLineAct, &QAction::triggered, this, &TextEditor::goToLine);
+
+  // Line editing actions
+  duplicateLineAct = new QAction("Duplicate Line", this);
+  duplicateLineAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
+  connect(duplicateLineAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->duplicateLine();
+  });
+
+  moveLineUpAct = new QAction("Move Line Up", this);
+  moveLineUpAct->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Up));
+  connect(moveLineUpAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->moveLineUp();
+  });
+
+  moveLineDownAct = new QAction("Move Line Down", this);
+  moveLineDownAct->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Down));
+  connect(moveLineDownAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->moveLineDown();
+  });
+
+  deleteLineAct = new QAction("Delete Line", this);
+  deleteLineAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K));
+  connect(deleteLineAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->deleteLine();
+  });
+
+  toggleCommentAct = new QAction("Toggle Line Comment", this);
+  toggleCommentAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Slash));
+  connect(toggleCommentAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->toggleComment();
+  });
+
+  smartHomeAct = new QAction("Smart Home", this);
+  // Home key handling is done in keyPressEvent directly so it auto-overrides
+  // but we add it to the menu just in case.
+  connect(smartHomeAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->smartHome();
+  });
+
+  increaseFontAct = new QAction("Increase Font Size", this);
+  increaseFontAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Plus));
+  connect(increaseFontAct, &QAction::triggered, this,
+          &TextEditor::increaseFontSize);
+
+  decreaseFontAct = new QAction("Decrease Font Size", this);
+  decreaseFontAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Minus));
+  connect(decreaseFontAct, &QAction::triggered, this,
+          &TextEditor::decreaseFontSize);
+
+  wordWrapAct = new QAction("Word Wrap", this);
+  wordWrapAct->setCheckable(true);
+  wordWrapAct->setChecked(wordWrapEnabled);
+  connect(wordWrapAct, &QAction::triggered, this, &TextEditor::toggleWordWrap);
+
+  splitViewAct = new QAction("Split View", this);
+  splitViewAct->setCheckable(true);
+  splitViewAct->setChecked(splitViewEnabled);
+  splitViewAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Backslash));
+  connect(splitViewAct, &QAction::triggered, this,
+          &TextEditor::toggleSplitView);
+
+  fileTreeAct = new QAction("Explorer", this);
+  fileTreeAct->setCheckable(true);
+  fileTreeAct->setChecked(true);
+  fileTreeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_B));
+  connect(fileTreeAct, &QAction::triggered, this, &TextEditor::toggleFileTree);
+
+  miniMapAct = new QAction("Mini Map", this);
+  miniMapAct->setCheckable(true);
+  miniMapAct->setChecked(false);
+  miniMapAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_M));
+  connect(miniMapAct, &QAction::triggered, this, &TextEditor::toggleMiniMap);
+
+  terminalAct = new QAction("Terminal", this);
+  terminalAct->setCheckable(true);
+  terminalAct->setChecked(false);
+  terminalAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft));
+  connect(terminalAct, &QAction::triggered, this, &TextEditor::toggleTerminal);
+
+  themeAct = new QAction("Toggle Theme", this);
+  themeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
+  connect(themeAct, &QAction::triggered, this, &TextEditor::changeTheme);
+
+  customizeColorsAct = new QAction("Customize Colors...", this);
+  connect(customizeColorsAct, &QAction::triggered, this,
+          &TextEditor::customizeColors);
+
+  aboutAct = new QAction("&About", this);
+  connect(aboutAct, &QAction::triggered, this, &TextEditor::showAbout);
 }
 
 void TextEditor::createMenus() {
-    fileMenu = customMenuBar->addMenu("&File");
-    fileMenu->addAction(newAct);
-    fileMenu->addAction(openAct);
-    fileMenu->addAction(openFolderAct);
-    recentFilesMenu = fileMenu->addMenu("Recent Files");
-    fileMenu->addSeparator();
-    fileMenu->addAction(saveAct);
-    fileMenu->addAction(saveAsAct);
-    fileMenu->addAction(closeTabAct);
-    fileMenu->addSeparator();
-    fileMenu->addAction(exitAct);
-    
-    editMenu = customMenuBar->addMenu("&Edit");
-    editMenu->addAction(undoAct);
-    editMenu->addAction(redoAct);
-    editMenu->addSeparator();
-    editMenu->addAction(cutAct);
-    editMenu->addAction(copyAct);
-    editMenu->addAction(pasteAct);
-    editMenu->addSeparator();
-    editMenu->addAction(selectAllAct);
-    
-    searchMenu = customMenuBar->addMenu("&Search");
-    searchMenu->addAction(findAct);
-    searchMenu->addAction(findNextAct);
-    searchMenu->addAction(replaceAct);
-    searchMenu->addAction(goToLineAct);
-    
-    viewMenu = customMenuBar->addMenu("&View");
-    viewMenu->addAction(fileTreeAct);
-    viewMenu->addAction(miniMapAct);
-    viewMenu->addAction(terminalAct);
-    viewMenu->addAction(splitViewAct);
-    viewMenu->addSeparator();
-    viewMenu->addAction(increaseFontAct);
-    viewMenu->addAction(decreaseFontAct);
-    viewMenu->addSeparator();
-    viewMenu->addAction(wordWrapAct);
-    viewMenu->addSeparator();
-    viewMenu->addAction(themeAct);
-    viewMenu->addAction(customizeColorsAct);
-    
-    helpMenu = customMenuBar->addMenu("&Help");
-    helpMenu->addAction(aboutAct);
-    
-    updateRecentFilesMenu();
+  fileMenu = customMenuBar->addMenu("&File");
+  fileMenu->addAction(newAct);
+  fileMenu->addAction(openAct);
+  fileMenu->addAction(openFolderAct);
+  recentFilesMenu = fileMenu->addMenu("Recent Files");
+  fileMenu->addSeparator();
+  fileMenu->addAction(saveAct);
+  fileMenu->addAction(saveAsAct);
+  fileMenu->addAction(closeTabAct);
+  fileMenu->addSeparator();
+  fileMenu->addAction(exitAct);
+
+  editMenu = customMenuBar->addMenu("&Edit");
+  editMenu->addAction(undoAct);
+  editMenu->addAction(redoAct);
+  editMenu->addSeparator();
+  editMenu->addAction(cutAct);
+  editMenu->addAction(copyAct);
+  editMenu->addAction(pasteAct);
+  editMenu->addSeparator();
+  editMenu->addAction(selectAllAct);
+
+  searchMenu = customMenuBar->addMenu("&Search");
+  searchMenu->addAction(findAct);
+  searchMenu->addAction(findNextAct);
+  searchMenu->addAction(replaceAct);
+  searchMenu->addAction(goToLineAct);
+
+  viewMenu = customMenuBar->addMenu("&View");
+  viewMenu->addAction(fileTreeAct);
+  viewMenu->addAction(miniMapAct);
+  viewMenu->addAction(terminalAct);
+  viewMenu->addAction(splitViewAct);
+  viewMenu->addSeparator();
+  viewMenu->addAction(increaseFontAct);
+  viewMenu->addAction(decreaseFontAct);
+  viewMenu->addSeparator();
+  viewMenu->addAction(wordWrapAct);
+  viewMenu->addSeparator();
+  viewMenu->addAction(themeAct);
+  viewMenu->addAction(customizeColorsAct);
+
+  helpMenu = customMenuBar->addMenu("&Help");
+  helpMenu->addAction(aboutAct);
+
+  updateRecentFilesMenu();
 }
 
 void TextEditor::createStatusBar() {
-    statusLabel = new QLabel("Line 1, Col 1");
-    languageLabel = new QLabel("Plain Text");
-    languageLabel->setStyleSheet("padding: 2px 12px; color: #ffffff; background-color: transparent;");
-    statusBar()->addPermanentWidget(languageLabel);
-    statusBar()->addPermanentWidget(statusLabel);
-    statusBar()->showMessage("Ready");
+  statusLabel = new QLabel("Line 1, Col 1");
+  languageLabel = new QLabel("Plain Text");
+  languageLabel->setStyleSheet(
+      "padding: 2px 12px; color: #ffffff; background-color: transparent;");
+  statusBar()->addPermanentWidget(languageLabel);
+  statusBar()->addPermanentWidget(statusLabel);
+  statusBar()->showMessage("Ready");
 }
 
 void TextEditor::newFile() {
-    hideWelcomeScreen();
-    CodeEditor *editor = new CodeEditor();
-    SyntaxHighlighter *highlighter = new SyntaxHighlighter(editor->document());
-    highlighters[editor] = highlighter;
-    QFont font("Consolas", fontSize);
-    editor->setFont(font);
-    editor->setLineWrapMode(wordWrapEnabled ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
-    applyThemeToEditor(editor, highlighter);
-    connect(editor->document(), &QTextDocument::modificationChanged, this, &TextEditor::documentWasModified);
-    connect(editor, &QPlainTextEdit::cursorPositionChanged, this, &TextEditor::updateStatusBar);
-    connect(editor, &QPlainTextEdit::cursorPositionChanged, this, &TextEditor::updateBreadcrumb);
-    int index = tabWidget->addTab(editor, "Untitled");
-    tabWidget->setCurrentIndex(index);
-    editor->setFocus();
+  hideWelcomeScreen();
+  CodeEditor *editor = new CodeEditor();
+  SyntaxHighlighter *highlighter = new SyntaxHighlighter(editor->document());
+  highlighters[editor] = highlighter;
+  QFont font("Consolas", fontSize);
+  editor->setFont(font);
+  editor->setLineWrapMode(wordWrapEnabled ? QPlainTextEdit::WidgetWidth
+                                          : QPlainTextEdit::NoWrap);
+  applyThemeToEditor(editor, highlighter);
+  connect(editor->document(), &QTextDocument::modificationChanged, this,
+          &TextEditor::documentWasModified);
+  connect(editor, &QPlainTextEdit::cursorPositionChanged, this,
+          &TextEditor::updateStatusBar);
+  connect(editor, &QPlainTextEdit::cursorPositionChanged, this,
+          &TextEditor::updateBreadcrumb);
+  int index = tabWidget->addTab(editor, "Untitled");
+  tabWidget->setCurrentIndex(index);
+  editor->setFocus();
 }
 
 void TextEditor::openFile() {
-    QString fileName = QFileDialog::getOpenFileName(this, "Open File", "",
-        "All Files (*);;Text Files (*.txt);;C++ Files (*.cpp *.h);;Python Files (*.py);;JavaScript (*.js *.ts);;Rust (*.rs);;Go (*.go)");
-    if (!fileName.isEmpty()) {
-        for (int i = 0; i < tabWidget->count(); ++i) {
-            CodeEditor *editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-            if (editor && editor->getFileName() == fileName) { tabWidget->setCurrentIndex(i); return; }
-        }
-        loadFile(fileName);
+  QString fileName = QFileDialog::getOpenFileName(
+      this, "Open File", "",
+      "All Files (*);;Text Files (*.txt);;C++ Files (*.cpp *.h);;Python Files "
+      "(*.py);;JavaScript (*.js *.ts);;Rust (*.rs);;Go (*.go)");
+  if (!fileName.isEmpty()) {
+    for (int i = 0; i < tabWidget->count(); ++i) {
+      CodeEditor *editor = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+      if (editor && editor->getFileName() == fileName) {
+        tabWidget->setCurrentIndex(i);
+        return;
+      }
     }
+    loadFile(fileName);
+  }
 }
 
 void TextEditor::openRecentFile() {
-    QAction *action = qobject_cast<QAction*>(sender());
-    if (action) loadFile(action->data().toString());
+  QAction *action = qobject_cast<QAction *>(sender());
+  if (action)
+    loadFile(action->data().toString());
 }
 
 bool TextEditor::saveFile() {
-    CodeEditor *editor = currentEditor();
-    if (!editor) return false;
-    if (editor->getFileName().isEmpty()) return saveFileAs();
-    else return saveFileToPath(editor->getFileName());
+  CodeEditor *editor = currentEditor();
+  if (!editor) {
+    HexEditor *hexEditor =
+        qobject_cast<HexEditor *>(tabWidget->currentWidget());
+    if (hexEditor) {
+      QString fileName = hexEditor->property("fileName").toString();
+      if (fileName.isEmpty())
+        return saveFileAs();
+      return saveFileToPath(fileName);
+    }
+    return false;
+  }
+  if (editor->getFileName().isEmpty())
+    return saveFileAs();
+  else
+    return saveFileToPath(editor->getFileName());
 }
 
 bool TextEditor::saveFileAs() {
-    CodeEditor *editor = currentEditor();
-    if (!editor) return false;
-    QString fileName = QFileDialog::getSaveFileName(this, "Save File", "",
-        "All Files (*);;Text Files (*.txt);;C++ Files (*.cpp *.h);;Python Files (*.py)");
-    if (fileName.isEmpty()) return false;
-    return saveFileToPath(fileName);
+  CodeEditor *editor = currentEditor();
+  HexEditor *hexEditor = qobject_cast<HexEditor *>(tabWidget->currentWidget());
+  if (!editor && !hexEditor)
+    return false;
+
+  QString fileName =
+      QFileDialog::getSaveFileName(this, "Save File", "",
+                                   "All Files (*);;Text Files (*.txt);;C++ "
+                                   "Files (*.cpp *.h);;Python Files (*.py)");
+  if (fileName.isEmpty())
+    return false;
+  return saveFileToPath(fileName);
 }
 
 void TextEditor::closeTab(int index) {
-    if (tabWidget->widget(index) == welcomeWidget) { tabWidget->removeTab(index); return; }
-    if (maybeSave(index)) {
-        CodeEditor *editor = qobject_cast<CodeEditor*>(tabWidget->widget(index));
-        if (editor) {
-            unwatchFile(editor->getFileName());
-            highlighters.remove(editor);
-        }
-        tabWidget->removeTab(index);
-        if (tabWidget->count() == 0) showWelcomeScreen();
+  if (tabWidget->widget(index) == welcomeWidget) {
+    tabWidget->removeTab(index);
+    return;
+  }
+  if (maybeSave(index)) {
+    CodeEditor *editor = qobject_cast<CodeEditor *>(tabWidget->widget(index));
+    if (editor) {
+      unwatchFile(editor->getFileName());
+      highlighters.remove(editor);
     }
+    tabWidget->removeTab(index);
+    if (tabWidget->count() == 0)
+      showWelcomeScreen();
+  }
 }
 
 void TextEditor::tabChanged(int) {
-    updateStatusBar();
-    updateBreadcrumb();
-    CodeEditor *editor = currentEditor();
-    if (editor) {
-        QString title = "Jim";
-        if (!editor->getFileName().isEmpty()) title = strippedName(editor->getFileName()) + " - " + title;
-        if (editor->isModified()) title = "*" + title;
-        setWindowTitle(title);
-        // Update language label
-        Language lang = editor->getLanguage();
-        QStringList langNames = {"Plain Text","C++","Python","JavaScript","HTML","CSS","Rust","Go","JSON","YAML","Markdown"};
-        languageLabel->setText(langNames[static_cast<int>(lang)]);
-    }
+  updateStatusBar();
+  updateBreadcrumb();
+  CodeEditor *editor = currentEditor();
+  HexEditor *hexEditor = qobject_cast<HexEditor *>(tabWidget->currentWidget());
+  if (editor) {
+    QString title = "Jim";
+    if (!editor->getFileName().isEmpty())
+      title = strippedName(editor->getFileName()) + " - " + title;
+    if (editor->isModified())
+      title = "*" + title;
+    setWindowTitle(title);
+
+    // Update tab text with asterisk if modified
+    int currentIdx = tabWidget->currentIndex();
+    QString tabText = strippedName(editor->getFileName());
+    if (tabText.isEmpty())
+      tabText = "Untitled";
+    if (editor->isModified())
+      tabText = "*" + tabText;
+    tabWidget->setTabText(currentIdx, tabText);
+
+    // Update language label
+    Language lang = editor->getLanguage();
+    QStringList langNames = {"Plain Text", "C++",  "Python",  "JavaScript",
+                             "HTML",       "CSS",  "Rust",    "Go",
+                             "JSON",       "YAML", "Markdown"};
+    languageLabel->setText(langNames[static_cast<int>(lang)]);
+  } else if (hexEditor) {
+    QString fileName = hexEditor->property("fileName").toString();
+    QString title = "Jim";
+    if (!fileName.isEmpty())
+      title = strippedName(fileName) + " - " + title;
+    if (hexEditor->isModified())
+      title = "*" + title;
+    setWindowTitle(title);
+
+    // Update tab text with asterisk
+    int currentIdx = tabWidget->currentIndex();
+    QString tabText = "[HEX] " + strippedName(fileName);
+    if (hexEditor->isModified())
+      tabText = "*" + tabText;
+    tabWidget->setTabText(currentIdx, tabText);
+
+    languageLabel->setText("Binary (Hex)");
+  }
 }
 
 void TextEditor::findText() {
-    bool ok;
-    QString text = QInputDialog::getText(this, "Find", "Find what:", QLineEdit::Normal, lastSearchText, &ok);
-    if (ok && !text.isEmpty()) { lastSearchText = text; findNext(); }
+  bool ok;
+  QString text = QInputDialog::getText(
+      this, "Find", "Find what:", QLineEdit::Normal, lastSearchText, &ok);
+  if (ok && !text.isEmpty()) {
+    lastSearchText = text;
+    findNext();
+  }
 }
 
 void TextEditor::findNext() {
-    CodeEditor *editor = currentEditor();
-    if (!editor || lastSearchText.isEmpty()) return;
-    if (!editor->find(lastSearchText)) {
-        QTextCursor cursor = editor->textCursor();
-        cursor.movePosition(QTextCursor::Start);
-        editor->setTextCursor(cursor);
-        editor->find(lastSearchText);
-    }
+  CodeEditor *editor = currentEditor();
+  if (!editor || lastSearchText.isEmpty())
+    return;
+  if (!editor->find(lastSearchText)) {
+    QTextCursor cursor = editor->textCursor();
+    cursor.movePosition(QTextCursor::Start);
+    editor->setTextCursor(cursor);
+    editor->find(lastSearchText);
+  }
 }
 
 void TextEditor::replaceText() {
-    CodeEditor *editor = currentEditor();
-    if (!editor) return;
-    bool ok;
-    QString findStr = QInputDialog::getText(this, "Replace", "Find what:", QLineEdit::Normal, lastSearchText, &ok);
-    if (!ok || findStr.isEmpty()) return;
-    QString replaceStr = QInputDialog::getText(this, "Replace", "Replace with:", QLineEdit::Normal, "", &ok);
-    if (!ok) return;
-    lastSearchText = findStr;
-    QString content = editor->toPlainText();
-    content.replace(findStr, replaceStr);
-    editor->setPlainText(content);
+  CodeEditor *editor = currentEditor();
+  if (!editor)
+    return;
+  bool ok;
+  QString findStr = QInputDialog::getText(
+      this, "Replace", "Find what:", QLineEdit::Normal, lastSearchText, &ok);
+  if (!ok || findStr.isEmpty())
+    return;
+  QString replaceStr = QInputDialog::getText(
+      this, "Replace", "Replace with:", QLineEdit::Normal, "", &ok);
+  if (!ok)
+    return;
+  lastSearchText = findStr;
+  QString content = editor->toPlainText();
+  content.replace(findStr, replaceStr);
+  editor->setPlainText(content);
 }
 
 void TextEditor::goToLine() {
-    CodeEditor *editor = currentEditor();
-    if (!editor) return;
-    bool ok;
-    int line = QInputDialog::getInt(this, "Go to Line", "Line number:", 1, 1, editor->document()->blockCount(), 1, &ok);
-    if (ok) {
-        QTextCursor cursor(editor->document()->findBlockByLineNumber(line - 1));
-        editor->setTextCursor(cursor);
-        editor->centerCursor();
-    }
+  CodeEditor *editor = currentEditor();
+  if (!editor)
+    return;
+  bool ok;
+  int line = QInputDialog::getInt(this, "Go to Line", "Line number:", 1, 1,
+                                  editor->document()->blockCount(), 1, &ok);
+  if (ok) {
+    QTextCursor cursor(editor->document()->findBlockByLineNumber(line - 1));
+    editor->setTextCursor(cursor);
+    editor->centerCursor();
+  }
 }
 
-void TextEditor::documentWasModified() { tabChanged(tabWidget->currentIndex()); }
+void TextEditor::documentWasModified() {
+  tabChanged(tabWidget->currentIndex());
+}
 
 void TextEditor::updateStatusBar() {
-    CodeEditor *editor = currentEditor();
-    if (editor) {
-        QTextCursor cursor = editor->textCursor();
-        statusLabel->setText(QString("Ln %1, Col %2").arg(cursor.blockNumber() + 1).arg(cursor.columnNumber() + 1));
-    }
+  CodeEditor *editor = currentEditor();
+  if (editor) {
+    QTextCursor cursor = editor->textCursor();
+    statusLabel->setText(QString("Ln %1, Col %2")
+                             .arg(cursor.blockNumber() + 1)
+                             .arg(cursor.columnNumber() + 1));
+  }
 }
 
 void TextEditor::increaseFontSize() {
-    fontSize++;
-    for (int i = 0; i < tabWidget->count(); ++i) {
-        CodeEditor *editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-        if (editor) { QFont font = editor->font(); font.setPointSize(fontSize); editor->setFont(font); }
+  fontSize++;
+  for (int i = 0; i < tabWidget->count(); ++i) {
+    CodeEditor *editor = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+    if (editor) {
+      QFont font = editor->font();
+      font.setPointSize(fontSize);
+      editor->setFont(font);
     }
+  }
 }
 
 void TextEditor::decreaseFontSize() {
-    if (fontSize > 6) {
-        fontSize--;
-        for (int i = 0; i < tabWidget->count(); ++i) {
-            CodeEditor *editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-            if (editor) { QFont font = editor->font(); font.setPointSize(fontSize); editor->setFont(font); }
-        }
+  if (fontSize > 6) {
+    fontSize--;
+    for (int i = 0; i < tabWidget->count(); ++i) {
+      CodeEditor *editor = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+      if (editor) {
+        QFont font = editor->font();
+        font.setPointSize(fontSize);
+        editor->setFont(font);
+      }
     }
+  }
 }
 
 void TextEditor::toggleWordWrap() {
-    wordWrapEnabled = !wordWrapEnabled;
-    wordWrapAct->setChecked(wordWrapEnabled);
-    for (int i = 0; i < tabWidget->count(); ++i) {
-        CodeEditor *editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-        if (editor) editor->setLineWrapMode(wordWrapEnabled ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
-    }
+  wordWrapEnabled = !wordWrapEnabled;
+  wordWrapAct->setChecked(wordWrapEnabled);
+  for (int i = 0; i < tabWidget->count(); ++i) {
+    CodeEditor *editor = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+    if (editor)
+      editor->setLineWrapMode(wordWrapEnabled ? QPlainTextEdit::WidgetWidth
+                                              : QPlainTextEdit::NoWrap);
+  }
 }
 
 void TextEditor::toggleTerminal() {
-    if (terminalWidget->isVisible()) terminalWidget->hide();
-    else terminalWidget->show();
-    terminalAct->setChecked(terminalWidget->isVisible());
+  if (terminalWidget->isVisible())
+    terminalWidget->hide();
+  else
+    terminalWidget->show();
+  terminalAct->setChecked(terminalWidget->isVisible());
 }
 
 void TextEditor::showAbout() {
-    QMessageBox::about(this, "About Jim",
-        "Jim - Lightweight Code Editor\n\n"
-        "Features:\n"
-        "  Syntax highlighting (11 languages)\n"
-        "  Code folding & Breadcrumb navigation\n"
-        "  Integrated terminal\n"
-        "  Multiple tabs & Split view\n"
-        "  Find & Replace\n"
-        "  Auto-indentation & bracket pairing\n"
-        "  Theme switching & File watcher\n"
-        "  Mini map & Welcome screen");
+  QMessageBox::about(this, "About Jim",
+                     "Jim - Lightweight Code Editor\n\n"
+                     "Features:\n"
+                     "  Syntax highlighting (11 languages)\n"
+                     "  Code folding & Breadcrumb navigation\n"
+                     "  Integrated terminal\n"
+                     "  Multiple tabs & Split view\n"
+                     "  Find & Replace\n"
+                     "  Auto-indentation & bracket pairing\n"
+                     "  Theme switching & File watcher\n"
+                     "  Mini map & Welcome screen");
 }
 
 void TextEditor::closeEvent(QCloseEvent *event) {
-    for (int i = 0; i < tabWidget->count(); ++i) {
-        if (tabWidget->widget(i) == welcomeWidget) continue;
-        if (!maybeSave(i)) { event->ignore(); return; }
+  for (int i = 0; i < tabWidget->count(); ++i) {
+    if (tabWidget->widget(i) == welcomeWidget)
+      continue;
+    if (!maybeSave(i)) {
+      event->ignore();
+      return;
     }
-    writeSettings();
-    event->accept();
+  }
+  writeSettings();
+  event->accept();
 }
 
 void TextEditor::readSettings() {
-    QSettings settings("TextEditor", "Settings");
-    recentFiles = settings.value("recentFiles").toStringList();
-    fontSize = settings.value("fontSize", 11).toInt();
-    wordWrapEnabled = settings.value("wordWrap", false).toBool();
-    wordWrapAct->setChecked(wordWrapEnabled);
+  QSettings settings("TextEditor", "Settings");
+  recentFiles = settings.value("recentFiles").toStringList();
+  fontSize = settings.value("fontSize", 11).toInt();
+  wordWrapEnabled = settings.value("wordWrap", false).toBool();
+  wordWrapAct->setChecked(wordWrapEnabled);
 }
 
 void TextEditor::writeSettings() {
-    QSettings settings("TextEditor", "Settings");
-    settings.setValue("recentFiles", recentFiles);
-    settings.setValue("fontSize", fontSize);
-    settings.setValue("wordWrap", wordWrapEnabled);
+  QSettings settings("TextEditor", "Settings");
+  settings.setValue("recentFiles", recentFiles);
+  settings.setValue("fontSize", fontSize);
+  settings.setValue("wordWrap", wordWrapEnabled);
 }
 
 bool TextEditor::maybeSave(int tabIndex) {
-    CodeEditor *editor = qobject_cast<CodeEditor*>(tabWidget->widget(tabIndex));
-    if (!editor || !editor->isModified()) return true;
-    tabWidget->setCurrentIndex(tabIndex);
-    const QMessageBox::StandardButton ret = QMessageBox::warning(this, "Jim",
-        "The document has been modified.\nDo you want to save your changes?",
-        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
-    switch (ret) {
-        case QMessageBox::Save: return saveFile();
-        case QMessageBox::Cancel: return false;
-        default: break;
-    }
+  QWidget *widget = tabWidget->widget(tabIndex);
+  CodeEditor *editor = qobject_cast<CodeEditor *>(widget);
+  HexEditor *hexEditor = qobject_cast<HexEditor *>(widget);
+
+  bool modified = false;
+  if (editor)
+    modified = editor->isModified();
+  else if (hexEditor)
+    modified = hexEditor->isModified();
+
+  if (!modified)
     return true;
+
+  tabWidget->setCurrentIndex(tabIndex);
+  const QMessageBox::StandardButton ret = QMessageBox::warning(
+      this, "Jim",
+      "The document has been modified.\nDo you want to save your changes?",
+      QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+  switch (ret) {
+  case QMessageBox::Save:
+    return saveFile();
+  case QMessageBox::Cancel:
+    return false;
+  default:
+    break;
+  }
+  return true;
 }
 
 void TextEditor::loadFile(const QString &fileName) {
-    QFile file(fileName);
-    if (!file.open(QFile::ReadOnly)) {
-        QMessageBox::warning(this, "Jim", QString("Cannot read file %1:\n%2.").arg(fileName).arg(file.errorString()));
-        return;
+  QFile file(fileName);
+  if (!file.open(QFile::ReadOnly)) {
+    QMessageBox::warning(this, "Jim",
+                         QString("Cannot read file %1:\n%2.")
+                             .arg(fileName)
+                             .arg(file.errorString()));
+    return;
+  }
+
+  // Check if file is binary
+  QByteArray fileData = file.readAll();
+  file.close();
+
+  bool isBinary = false;
+  int nullCount = 0;
+  int sampleSize = qMin(512, fileData.size());
+  for (int i = 0; i < sampleSize; ++i) {
+    if (fileData[i] == 0) {
+      nullCount++;
+      if (nullCount > 1) {
+        isBinary = true;
+        break;
+      }
     }
-    
-    // Check if file is binary
-    QByteArray fileData = file.readAll();
-    file.close();
-    
-    bool isBinary = false;
-    int nullCount = 0;
-    int sampleSize = qMin(512, fileData.size());
-    for (int i = 0; i < sampleSize; ++i) {
-        if (fileData[i] == 0) {
-            nullCount++;
-            if (nullCount > 1) {
-                isBinary = true;
-                break;
-            }
-        }
-    }
-    
-    hideWelcomeScreen();
-    QApplication::setOverrideCursor(Qt::WaitCursor);
-    
-    Language lang = Language::PlainText; // Default language
-    
-    if (isBinary) {
-        // Open in hex editor
-        HexEditor *hexEditor = new HexEditor();
-        hexEditor->setData(fileData);
-        hexEditor->setProperty("fileName", fileName);
-        
-        int index = tabWidget->addTab(hexEditor, "[HEX] " + strippedName(fileName));
-        tabWidget->setCurrentIndex(index);
-    } else {
-        // Open in text editor
-        CodeEditor *editor = new CodeEditor();
-        editor->setPlainText(QString::fromUtf8(fileData));
-        editor->setFileName(fileName);
-        editor->document()->setModified(false);
-        
-        // Auto-detect language
-        lang = detectLanguage(fileName);
-        editor->setLanguage(lang);
-        
-        SyntaxHighlighter *highlighter = new SyntaxHighlighter(editor->document());
-        highlighter->setLanguage(lang);
-        highlighters[editor] = highlighter;
-        
-        QFont font("Consolas", fontSize);
-        editor->setFont(font);
-        editor->setLineWrapMode(wordWrapEnabled ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
-        applyThemeToEditor(editor, highlighter);
-        
-        connect(editor->document(), &QTextDocument::modificationChanged, this, &TextEditor::documentWasModified);
-        connect(editor, &QPlainTextEdit::cursorPositionChanged, this, &TextEditor::updateStatusBar);
-        connect(editor, &QPlainTextEdit::cursorPositionChanged, this, &TextEditor::updateBreadcrumb);
-        
-        int index = tabWidget->addTab(editor, strippedName(fileName));
-        tabWidget->setCurrentIndex(index);
-        
-        watchFile(fileName);
-    }
-    
-    QApplication::restoreOverrideCursor();
-    updateRecentFiles(fileName);
-    
-    // Update language label
-    if (isBinary) {
-        languageLabel->setText("Binary (Hex)");
-    } else {
-        QStringList langNames = {"Plain Text","C++","Python","JavaScript","HTML","CSS","Rust","Go","JSON","YAML","Markdown"};
-        languageLabel->setText(langNames[static_cast<int>(lang)]);
-    }
-    
-    statusBar()->showMessage("File loaded", 2000);
+  }
+
+  hideWelcomeScreen();
+  QApplication::setOverrideCursor(Qt::WaitCursor);
+
+  Language lang = Language::PlainText; // Default language
+
+  if (isBinary) {
+    // Open in hex editor
+    HexEditor *hexEditor = new HexEditor();
+    hexEditor->setData(fileData);
+    hexEditor->setProperty("fileName", fileName);
+
+    connect(hexEditor, &HexEditor::modificationChanged, this,
+            &TextEditor::documentWasModified);
+
+    int index = tabWidget->addTab(hexEditor, "[HEX] " + strippedName(fileName));
+    tabWidget->setCurrentIndex(index);
+  } else {
+    // Open in text editor
+    CodeEditor *editor = new CodeEditor();
+    editor->setPlainText(QString::fromUtf8(fileData));
+    editor->setFileName(fileName);
+    editor->document()->setModified(false);
+
+    // Auto-detect language
+    lang = detectLanguage(fileName);
+    editor->setLanguage(lang);
+
+    SyntaxHighlighter *highlighter = new SyntaxHighlighter(editor->document());
+    highlighter->setLanguage(lang);
+    highlighters[editor] = highlighter;
+
+    QFont font("Consolas", fontSize);
+    editor->setFont(font);
+    editor->setLineWrapMode(wordWrapEnabled ? QPlainTextEdit::WidgetWidth
+                                            : QPlainTextEdit::NoWrap);
+    applyThemeToEditor(editor, highlighter);
+
+    connect(editor->document(), &QTextDocument::modificationChanged, this,
+            &TextEditor::documentWasModified);
+    connect(editor, &QPlainTextEdit::cursorPositionChanged, this,
+            &TextEditor::updateStatusBar);
+    connect(editor, &QPlainTextEdit::cursorPositionChanged, this,
+            &TextEditor::updateBreadcrumb);
+
+    int index = tabWidget->addTab(editor, strippedName(fileName));
+    tabWidget->setCurrentIndex(index);
+
+    watchFile(fileName);
+  }
+
+  QApplication::restoreOverrideCursor();
+  updateRecentFiles(fileName);
+
+  // Update language label
+  if (isBinary) {
+    languageLabel->setText("Binary (Hex)");
+  } else {
+    QStringList langNames = {"Plain Text", "C++",  "Python",  "JavaScript",
+                             "HTML",       "CSS",  "Rust",    "Go",
+                             "JSON",       "YAML", "Markdown"};
+    languageLabel->setText(langNames[static_cast<int>(lang)]);
+  }
+
+  statusBar()->showMessage("File loaded", 2000);
 }
 
 bool TextEditor::saveFileToPath(const QString &fileName) {
-    QGuiApplication::setOverrideCursor(Qt::WaitCursor);
-    QSaveFile file(fileName);
-    if (file.open(QFile::WriteOnly | QFile::Text)) {
-        CodeEditor *editor = currentEditor();
-        if (editor) {
-            // Trim trailing whitespace
-            QString text = editor->toPlainText();
-            QStringList lines = text.split('\n');
-            for (int i = 0; i < lines.size(); ++i) {
-                while (lines[i].endsWith(' ') || lines[i].endsWith('\t')) {
-                    lines[i].chop(1);
-                }
-            }
-            text = lines.join('\n');
-            
-            QTextStream out(&file);
-            out << text;
-            if (!file.commit()) {
-                QGuiApplication::restoreOverrideCursor();
-                QMessageBox::warning(this, "Jim", QString("Cannot write file %1:\n%2.").arg(fileName).arg(file.errorString()));
-                return false;
-            }
+  QGuiApplication::setOverrideCursor(Qt::WaitCursor);
+  QSaveFile file(fileName);
+  if (file.open(QFile::WriteOnly)) {
+    CodeEditor *editor = currentEditor();
+    HexEditor *hexEditor =
+        qobject_cast<HexEditor *>(tabWidget->currentWidget());
+    if (editor) {
+      // Trim trailing whitespace
+      QString text = editor->toPlainText();
+      QStringList lines = text.split('\n');
+      for (int i = 0; i < lines.size(); ++i) {
+        while (lines[i].endsWith(' ') || lines[i].endsWith('\t')) {
+          lines[i].chop(1);
         }
-    } else {
+      }
+      text = lines.join('\n');
+
+      QTextStream out(&file);
+      out << text;
+      if (!file.commit()) {
         QGuiApplication::restoreOverrideCursor();
-        QMessageBox::warning(this, "Jim", QString("Cannot write file %1:\n%2.").arg(fileName).arg(file.errorString()));
+        QMessageBox::warning(this, "Jim",
+                             QString("Cannot write file %1:\n%2.")
+                                 .arg(fileName)
+                                 .arg(file.errorString()));
         return false;
+      }
+    } else if (hexEditor) {
+      file.write(hexEditor->data());
+      if (!file.commit()) {
+        QGuiApplication::restoreOverrideCursor();
+        QMessageBox::warning(this, "Jim",
+                             QString("Cannot write file %1:\n%2.")
+                                 .arg(fileName)
+                                 .arg(file.errorString()));
+        return false;
+      }
+      hexEditor->setModified(false);
+      hexEditor->setProperty("fileName", fileName);
     }
-    QApplication::restoreOverrideCursor();
-    setCurrentFile(fileName);
-    updateRecentFiles(fileName);
-    statusBar()->showMessage("File saved", 2000);
-    return true;
+  } else {
+    QGuiApplication::restoreOverrideCursor();
+    QMessageBox::warning(this, "Jim",
+                         QString("Cannot write file %1:\n%2.")
+                             .arg(fileName)
+                             .arg(file.errorString()));
+    return false;
+  }
+  QApplication::restoreOverrideCursor();
+  setCurrentFile(fileName);
+  updateRecentFiles(fileName);
+  statusBar()->showMessage("File saved", 2000);
+  return true;
 }
 
 void TextEditor::setCurrentFile(const QString &fileName) {
-    CodeEditor *editor = currentEditor();
-    if (!editor) return;
-    unwatchFile(editor->getFileName());
-    editor->setFileName(fileName);
-    editor->document()->setModified(false);
-    // Re-detect language
-    Language lang = detectLanguage(fileName);
-    editor->setLanguage(lang);
-    SyntaxHighlighter *hl = highlighters.value(editor);
-    if (hl) { hl->setLanguage(lang); }
-    QString shownName = strippedName(fileName);
-    tabWidget->setTabText(tabWidget->currentIndex(), shownName);
-    setWindowTitle(shownName + " - Jim");
-    watchFile(fileName);
+  CodeEditor *editor = currentEditor();
+  if (!editor)
+    return;
+  unwatchFile(editor->getFileName());
+  editor->setFileName(fileName);
+  editor->document()->setModified(false);
+  // Re-detect language
+  Language lang = detectLanguage(fileName);
+  editor->setLanguage(lang);
+  SyntaxHighlighter *hl = highlighters.value(editor);
+  if (hl) {
+    hl->setLanguage(lang);
+  }
+  QString shownName = strippedName(fileName);
+  tabWidget->setTabText(tabWidget->currentIndex(), shownName);
+  setWindowTitle(shownName + " - Jim");
+  watchFile(fileName);
 }
 
-QString TextEditor::strippedName(const QString &fullFileName) { return QFileInfo(fullFileName).fileName(); }
+QString TextEditor::strippedName(const QString &fullFileName) {
+  return QFileInfo(fullFileName).fileName();
+}
 
 void TextEditor::updateRecentFiles(const QString &fileName) {
-    recentFiles.removeAll(fileName);
-    recentFiles.prepend(fileName);
-    while (recentFiles.size() > 10) recentFiles.removeLast();
-    updateRecentFilesMenu();
+  recentFiles.removeAll(fileName);
+  recentFiles.prepend(fileName);
+  while (recentFiles.size() > 10)
+    recentFiles.removeLast();
+  updateRecentFilesMenu();
 }
 
 void TextEditor::updateRecentFilesMenu() {
-    recentFilesMenu->clear();
-    for (const QString &file : recentFiles) {
-        QAction *action = new QAction(strippedName(file), this);
-        action->setData(file);
-        action->setStatusTip(file);
-        connect(action, &QAction::triggered, this, &TextEditor::openRecentFile);
-        recentFilesMenu->addAction(action);
-    }
-    if (recentFiles.isEmpty()) {
-        QAction *noFilesAction = new QAction("No recent files", this);
-        noFilesAction->setEnabled(false);
-        recentFilesMenu->addAction(noFilesAction);
-    }
+  recentFilesMenu->clear();
+  for (const QString &file : recentFiles) {
+    QAction *action = new QAction(strippedName(file), this);
+    action->setData(file);
+    action->setStatusTip(file);
+    connect(action, &QAction::triggered, this, &TextEditor::openRecentFile);
+    recentFilesMenu->addAction(action);
+  }
+  if (recentFiles.isEmpty()) {
+    QAction *noFilesAction = new QAction("No recent files", this);
+    noFilesAction->setEnabled(false);
+    recentFilesMenu->addAction(noFilesAction);
+  }
 }
 
-CodeEditor* TextEditor::currentEditor() { return qobject_cast<CodeEditor*>(tabWidget->currentWidget()); }
-SyntaxHighlighter* TextEditor::currentHighlighter() {
-    CodeEditor *editor = currentEditor();
-    return editor ? highlighters.value(editor) : nullptr;
+CodeEditor *TextEditor::currentEditor() {
+  return qobject_cast<CodeEditor *>(tabWidget->currentWidget());
+}
+SyntaxHighlighter *TextEditor::currentHighlighter() {
+  CodeEditor *editor = currentEditor();
+  return editor ? highlighters.value(editor) : nullptr;
 }
 
 void TextEditor::toggleSplitView() {
-    splitViewEnabled = !splitViewEnabled;
-    splitViewAct->setChecked(splitViewEnabled);
-    if (splitViewEnabled) {
-        if (!tabWidget2) {
-            tabWidget2 = new QTabWidget();
-            tabWidget2->setTabsClosable(true);
-            tabWidget2->setMovable(true);
-            mainSplitter->addWidget(tabWidget2);
-        }
-        tabWidget2->show();
-    } else {
-        if (tabWidget2) tabWidget2->hide();
+  splitViewEnabled = !splitViewEnabled;
+  splitViewAct->setChecked(splitViewEnabled);
+  if (splitViewEnabled) {
+    if (!tabWidget2) {
+      tabWidget2 = new QTabWidget();
+      tabWidget2->setTabsClosable(true);
+      tabWidget2->setMovable(true);
+      mainSplitter->addWidget(tabWidget2);
     }
+    tabWidget2->show();
+  } else {
+    if (tabWidget2)
+      tabWidget2->hide();
+  }
 }
 
 void TextEditor::changeTheme() {
-    currentThemeIndex = (currentThemeIndex + 1) % themes.size();
-    applyThemeToAllEditors();
-    statusBar()->showMessage(QString("Theme: %1").arg(themes[currentThemeIndex].name), 2000);
+  currentThemeIndex = (currentThemeIndex + 1) % themes.size();
+  applyThemeToAllEditors();
+  statusBar()->showMessage(
+      QString("Theme: %1").arg(themes[currentThemeIndex].name), 2000);
 }
 
 void TextEditor::initializeThemes() {
-    ColorTheme light;
-    light.name = "Light";
-    light.background = QColor(255, 255, 255);
-    light.foreground = QColor(0, 0, 0);
-    light.lineNumberBg = QColor(240, 240, 240);
-    light.lineNumberFg = QColor(128, 128, 128);
-    light.currentLine = QColor(255, 255, 200);
-    light.selection = QColor(0, 120, 215);
-    light.keyword = QColor(0, 0, 255);
-    light.string = QColor(0, 128, 0);
-    light.comment = QColor(128, 128, 128);
-    light.number = QColor(128, 0, 128);
-    light.function = QColor(255, 140, 0);
-    themes.append(light);
-    
-    ColorTheme dark;
-    dark.name = "Dark";
-    dark.background = QColor(30, 30, 30);
-    dark.foreground = QColor(220, 220, 220);
-    dark.lineNumberBg = QColor(40, 40, 40);
-    dark.lineNumberFg = QColor(128, 128, 128);
-    dark.currentLine = QColor(50, 50, 50);
-    dark.selection = QColor(0, 120, 215);
-    dark.keyword = QColor(86, 156, 214);
-    dark.string = QColor(206, 145, 120);
-    dark.comment = QColor(106, 153, 85);
-    dark.number = QColor(181, 206, 168);
-    dark.function = QColor(220, 220, 170);
-    themes.append(dark);
-    
-    ColorTheme monokai;
-    monokai.name = "Monokai";
-    monokai.background = QColor(39, 40, 34);
-    monokai.foreground = QColor(248, 248, 242);
-    monokai.lineNumberBg = QColor(49, 50, 44);
-    monokai.lineNumberFg = QColor(144, 144, 138);
-    monokai.currentLine = QColor(62, 63, 55);
-    monokai.selection = QColor(73, 72, 62);
-    monokai.keyword = QColor(249, 38, 114);
-    monokai.string = QColor(230, 219, 116);
-    monokai.comment = QColor(117, 113, 94);
-    monokai.number = QColor(174, 129, 255);
-    monokai.function = QColor(166, 226, 46);
-    themes.append(monokai);
-    
-    currentThemeIndex = 1; // Default to dark
+  ColorTheme light;
+  light.name = "Light";
+  light.background = QColor(255, 255, 255);
+  light.foreground = QColor(0, 0, 0);
+  light.lineNumberBg = QColor(240, 240, 240);
+  light.lineNumberFg = QColor(128, 128, 128);
+  light.currentLine = QColor(255, 255, 200);
+  light.selection = QColor(0, 120, 215);
+  light.keyword = QColor(0, 0, 255);
+  light.string = QColor(0, 128, 0);
+  light.comment = QColor(128, 128, 128);
+  light.number = QColor(128, 0, 128);
+  light.function = QColor(255, 140, 0);
+  themes.append(light);
+
+  ColorTheme dark;
+  dark.name = "Dark";
+  dark.background = QColor(30, 30, 30);
+  dark.foreground = QColor(220, 220, 220);
+  dark.lineNumberBg = QColor(40, 40, 40);
+  dark.lineNumberFg = QColor(128, 128, 128);
+  dark.currentLine = QColor(50, 50, 50);
+  dark.selection = QColor(0, 120, 215);
+  dark.keyword = QColor(86, 156, 214);
+  dark.string = QColor(206, 145, 120);
+  dark.comment = QColor(106, 153, 85);
+  dark.number = QColor(181, 206, 168);
+  dark.function = QColor(220, 220, 170);
+  themes.append(dark);
+
+  ColorTheme monokai;
+  monokai.name = "Monokai";
+  monokai.background = QColor(39, 40, 34);
+  monokai.foreground = QColor(248, 248, 242);
+  monokai.lineNumberBg = QColor(49, 50, 44);
+  monokai.lineNumberFg = QColor(144, 144, 138);
+  monokai.currentLine = QColor(62, 63, 55);
+  monokai.selection = QColor(73, 72, 62);
+  monokai.keyword = QColor(249, 38, 114);
+  monokai.string = QColor(230, 219, 116);
+  monokai.comment = QColor(117, 113, 94);
+  monokai.number = QColor(174, 129, 255);
+  monokai.function = QColor(166, 226, 46);
+  themes.append(monokai);
+
+  currentThemeIndex = 1; // Default to dark
 }
 
-void TextEditor::applyThemeToEditor(CodeEditor *editor, SyntaxHighlighter *highlighter) {
-    if (!editor) return;
-    const ColorTheme &theme = themes[currentThemeIndex];
-    editor->applyTheme(theme);
-    if (highlighter) highlighter->applyTheme(theme);
+void TextEditor::applyThemeToEditor(CodeEditor *editor,
+                                    SyntaxHighlighter *highlighter) {
+  if (!editor)
+    return;
+  const ColorTheme &theme = themes[currentThemeIndex];
+  editor->applyTheme(theme);
+  if (highlighter)
+    highlighter->applyTheme(theme);
 }
 
 void TextEditor::applyThemeToAllEditors() {
-    for (int i = 0; i < tabWidget->count(); ++i) {
-        CodeEditor *editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-        if (editor) applyThemeToEditor(editor, highlighters.value(editor));
-    }
+  for (int i = 0; i < tabWidget->count(); ++i) {
+    CodeEditor *editor = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+    if (editor)
+      applyThemeToEditor(editor, highlighters.value(editor));
+  }
 }
 
-
 void TextEditor::openFolder() {
-    QString folder = QFileDialog::getExistingDirectory(this, "Open Folder", QDir::homePath());
-    if (!folder.isEmpty()) {
-        currentFolder = folder;
-        fileSystemModel->setRootPath(folder);
-        fileTree->setRootIndex(fileSystemModel->index(folder));
-        
-        // Show file tree, hide empty state wrapper
-        if (fileTreeContainer) fileTreeContainer->setCurrentIndex(1);
-        
-        // Update terminal working directory
-        if (terminalWidget) terminalWidget->setWorkingDirectory(folder);
-        
-        statusBar()->showMessage("Opened folder: " + folder, 2000);
-    }
+  QString folder =
+      QFileDialog::getExistingDirectory(this, "Open Folder", QDir::homePath());
+  if (!folder.isEmpty()) {
+    currentFolder = folder;
+    fileSystemModel->setRootPath(folder);
+    fileTree->setRootIndex(fileSystemModel->index(folder));
+
+    // Show file tree, hide empty state wrapper
+    if (fileTreeContainer)
+      fileTreeContainer->setCurrentIndex(1);
+
+    // Update terminal working directory
+    if (terminalWidget)
+      terminalWidget->setWorkingDirectory(folder);
+
+    statusBar()->showMessage("Opened folder: " + folder, 2000);
+  }
 }
 
 void TextEditor::toggleFileTree() {
-    if (fileTreeDock->isVisible()) fileTreeDock->hide();
-    else fileTreeDock->show();
+  if (fileTreeDock->isVisible())
+    fileTreeDock->hide();
+  else
+    fileTreeDock->show();
 }
 
 void TextEditor::onFileTreeDoubleClicked(const QModelIndex &index) {
-    QString filePath = fileSystemModel->filePath(index);
-    QFileInfo fileInfo(filePath);
-    if (fileInfo.isFile()) {
-        for (int i = 0; i < tabWidget->count(); ++i) {
-            CodeEditor *editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-            if (editor && editor->getFileName() == filePath) { tabWidget->setCurrentIndex(i); return; }
-        }
-        loadFile(filePath);
+  QString filePath = fileSystemModel->filePath(index);
+  QFileInfo fileInfo(filePath);
+  if (fileInfo.isFile()) {
+    for (int i = 0; i < tabWidget->count(); ++i) {
+      CodeEditor *editor = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+      if (editor && editor->getFileName() == filePath) {
+        tabWidget->setCurrentIndex(i);
+        return;
+      }
     }
+    loadFile(filePath);
+  }
 }
 
 void TextEditor::customizeColors() {
-    CodeEditor *editor = currentEditor();
-    if (!editor) return;
-    QColor bgColor = QColorDialog::getColor(Qt::white, this, "Choose Background Color");
-    if (bgColor.isValid()) {
-        QPalette p = editor->palette();
-        p.setColor(QPalette::Base, bgColor);
-        int brightness = (bgColor.red() * 299 + bgColor.green() * 587 + bgColor.blue() * 114) / 1000;
-        QColor textColor = brightness > 128 ? Qt::black : Qt::white;
-        p.setColor(QPalette::Text, textColor);
-        editor->setPalette(p);
-        editor->update();
-    }
+  CodeEditor *editor = currentEditor();
+  if (!editor)
+    return;
+  QColor bgColor =
+      QColorDialog::getColor(Qt::white, this, "Choose Background Color");
+  if (bgColor.isValid()) {
+    QPalette p = editor->palette();
+    p.setColor(QPalette::Base, bgColor);
+    int brightness =
+        (bgColor.red() * 299 + bgColor.green() * 587 + bgColor.blue() * 114) /
+        1000;
+    QColor textColor = brightness > 128 ? Qt::black : Qt::white;
+    p.setColor(QPalette::Text, textColor);
+    editor->setPalette(p);
+    editor->update();
+  }
 }
 
 void TextEditor::openFilePath(const QString &filePath) {
-    QFileInfo fileInfo(filePath);
-    if (fileInfo.exists() && fileInfo.isFile()) loadFile(filePath);
+  QFileInfo fileInfo(filePath);
+  if (fileInfo.exists() && fileInfo.isFile())
+    loadFile(filePath);
 }
 
 void TextEditor::openFolderPath(const QString &folderPath) {
-    QFileInfo fileInfo(folderPath);
-    if (fileInfo.exists() && fileInfo.isDir()) {
-        currentFolder = folderPath;
-        fileTree->setRootIndex(fileSystemModel->index(folderPath));
-        fileTreeDock->show();
-        statusBar()->showMessage("Opened folder: " + folderPath, 2000);
-    }
+  QFileInfo fileInfo(folderPath);
+  if (fileInfo.exists() && fileInfo.isDir()) {
+    currentFolder = folderPath;
+    fileTree->setRootIndex(fileSystemModel->index(folderPath));
+    fileTreeDock->show();
+    statusBar()->showMessage("Opened folder: " + folderPath, 2000);
+  }
 }
 
 void TextEditor::toggleMiniMap() {
-    for (int i = 0; i < tabWidget->count(); ++i) {
-        CodeEditor *editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-        if (editor) {
-            MiniMap *miniMap = editor->getMiniMap();
-            if (miniMap) {
-                if (miniMapAct->isChecked()) miniMap->show();
-                else miniMap->hide();
-                QResizeEvent event(editor->size(), editor->size());
-                QApplication::sendEvent(editor, &event);
-            }
-        }
+  for (int i = 0; i < tabWidget->count(); ++i) {
+    CodeEditor *editor = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+    if (editor) {
+      MiniMap *miniMap = editor->getMiniMap();
+      if (miniMap) {
+        if (miniMapAct->isChecked())
+          miniMap->show();
+        else
+          miniMap->hide();
+        QResizeEvent event(editor->size(), editor->size());
+        QApplication::sendEvent(editor, &event);
+      }
     }
+  }
 }
 
 void TextEditor::applyModernStyle() {
-    QString style = R"(
+  QString style = R"(
         QMainWindow {
             background-color: #1e1e1e;
             border: none;
@@ -2331,5 +2884,5 @@ void TextEditor::applyModernStyle() {
             background-color: #2d2d30;
         }
     )";
-    setStyleSheet(style);
+  setStyleSheet(style);
 }
