@@ -20,9 +20,12 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPainter>
+#include <QPainterPath>
 #include <QProcessEnvironment>
 #include <QPropertyAnimation>
 #include <QPushButton>
+#include <QRandomGenerator>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QScrollBar>
 #include <QSettings>
@@ -1330,21 +1333,180 @@ void BreadcrumbBar::updatePath(const QString &filePath, const QString &symbol) {
 }
 
 // ============================================================
-// TerminalWidget Implementation
+// AnimationWidget Implementation
+// ============================================================
+AnimationWidget::AnimationWidget(QWidget *parent)
+    : QWidget(parent), currentType(None), timerId(0), frame(0) {
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    setAttribute(Qt::WA_TranslucentBackground);
+    setStyleSheet("background: transparent;");
+    initMatrix();
+    initParticles();
+}
+
+void AnimationWidget::setAnimationType(AnimationType type) {
+    if (timerId) {
+        killTimer(timerId);
+        timerId = 0;
+    }
+    
+    currentType = type;
+    frame = 0;
+    
+    if (type != None) {
+        timerId = startTimer(50); // 20 FPS
+    }
+    
+    update();
+}
+
+void AnimationWidget::cycleAnimation() {
+    int next = (static_cast<int>(currentType) + 1) % 5;
+    setAnimationType(static_cast<AnimationType>(next));
+}
+
+void AnimationWidget::initMatrix() {
+    matrixColumns.clear();
+    for (int i = 0; i < 30; i++) {
+        MatrixColumn col;
+        col.x = QRandomGenerator::global()->bounded(width());
+        col.y = -(QRandomGenerator::global()->bounded(500));
+        col.speed = 2 + QRandomGenerator::global()->bounded(5);
+        col.text = QString("01").at(QRandomGenerator::global()->bounded(2));
+        matrixColumns.append(col);
+    }
+}
+
+void AnimationWidget::initParticles() {
+    particles.clear();
+    for (int i = 0; i < 50; i++) {
+        Particle p;
+        p.x = QRandomGenerator::global()->bounded(width());
+        p.y = QRandomGenerator::global()->bounded(height());
+        p.vx = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
+        p.vy = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
+        p.life = 255;
+        particles.append(p);
+    }
+}
+
+void AnimationWidget::timerEvent(QTimerEvent *) {
+    frame++;
+    
+    // Update matrix
+    for (auto &col : matrixColumns) {
+        col.y += col.speed;
+        if (col.y > height()) {
+            col.y = -20;
+            col.x = QRandomGenerator::global()->bounded(width());
+        }
+    }
+    
+    // Update particles
+    for (auto &p : particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+        
+        if (p.life <= 0 || p.x < 0 || p.x > width() || p.y < 0 || p.y > height()) {
+            p.x = QRandomGenerator::global()->bounded(width());
+            p.y = QRandomGenerator::global()->bounded(height());
+            p.vx = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
+            p.vy = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
+            p.life = 255;
+        }
+    }
+    
+    update();
+}
+
+void AnimationWidget::paintEvent(QPaintEvent *) {
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    
+    switch (currentType) {
+        case Matrix:
+            drawMatrix(painter);
+            break;
+        case Particles:
+            drawParticles(painter);
+            break;
+        case Waves:
+            drawWaves(painter);
+            break;
+        case Pulse:
+            drawPulse(painter);
+            break;
+        default:
+            break;
+    }
+}
+
+void AnimationWidget::drawMatrix(QPainter &painter) {
+    painter.setFont(QFont("Consolas", 12));
+    for (const auto &col : matrixColumns) {
+        int alpha = 255;
+        for (int i = 0; i < 10; i++) {
+            painter.setPen(QColor(0, 255, 0, alpha));
+            painter.drawText(col.x, col.y - i * 20, col.text);
+            alpha = qMax(0, alpha - 30);
+        }
+    }
+}
+
+void AnimationWidget::drawParticles(QPainter &painter) {
+    for (const auto &p : particles) {
+        int alpha = qMin(255, p.life);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(100, 149, 237, alpha));
+        painter.drawEllipse(QPointF(p.x, p.y), 2, 2);
+    }
+}
+
+void AnimationWidget::drawWaves(QPainter &painter) {
+    painter.setPen(QPen(QColor(0, 120, 215, 100), 2));
+    
+    for (int wave = 0; wave < 3; wave++) {
+        QPainterPath path;
+        bool first = true;
+        for (int x = 0; x < width(); x += 5) {
+            float y = height() / 2 + 50 * qSin((x + frame * 2 + wave * 100) * 0.02);
+            if (first) {
+                path.moveTo(x, y);
+                first = false;
+            } else {
+                path.lineTo(x, y);
+            }
+        }
+        painter.drawPath(path);
+    }
+}
+
+void AnimationWidget::drawPulse(QPainter &painter) {
+    int centerX = width() / 2;
+    int centerY = height() / 2;
+    
+    for (int i = 0; i < 5; i++) {
+        int radius = ((frame + i * 20) % 200);
+        int alpha = 255 - (radius * 255 / 200);
+        painter.setPen(QPen(QColor(100, 149, 237, alpha), 2));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(QPoint(centerX, centerY), radius, radius);
+    }
+}
+
 // ============================================================
 // TerminalWidget Implementation
 // ============================================================
 TerminalWidget::TerminalWidget(QWidget *parent)
     : QWidget(parent), process(nullptr) {
   setupUI();
-  startShell();
 }
 
 TerminalWidget::~TerminalWidget() {
   if (process) {
-    process->write("exit\n");
-    process->waitForFinished(1000);
     process->kill();
+    process->waitForFinished(1000);
   }
 }
 
@@ -1356,32 +1518,22 @@ void TerminalWidget::setupUI() {
   QWidget *header = new QWidget();
   QHBoxLayout *headerLayout = new QHBoxLayout(header);
   headerLayout->setContentsMargins(12, 6, 12, 6);
+  
   QLabel *termLabel = new QLabel("TERMINAL");
-  termLabel->setStyleSheet("color: #cccccc; font-size: 11px; font-weight: 600; "
-                           "letter-spacing: 1px;");
+  termLabel->setStyleSheet("color: #cccccc; font-size: 11px; font-weight: 600; letter-spacing: 1px;");
   headerLayout->addWidget(termLabel);
   headerLayout->addStretch();
   
-  QPushButton *clearBtn = new QPushButton("Clear");
-  clearBtn->setStyleSheet(
-      "QPushButton { background: transparent; color: #cccccc; border: none; "
-      "padding: 4px 8px; font-size: 11px; } "
-      "QPushButton:hover { background-color: #2a2d2e; }");
-  connect(clearBtn, &QPushButton::clicked, this, [this]() { output->clear(); });
-  headerLayout->addWidget(clearBtn);
-  
-  header->setStyleSheet(
-      "background-color: #252526; border-bottom: 1px solid #3e3e42;");
+  header->setStyleSheet("background-color: #252526; border-bottom: 1px solid #3e3e42;");
   layout->addWidget(header);
 
   output = new QPlainTextEdit();
   output->setReadOnly(true);
   output->setFont(QFont("Consolas", 10));
   output->setStyleSheet(
-      "QPlainTextEdit { background-color: #1e1e1e; color: #cccccc; border: "
-      "none; padding: 8px; selection-background-color: #264f78; }");
-  output->setMaximumBlockCount(10000);
-  output->setWordWrapMode(QTextOption::WrapAnywhere);
+      "QPlainTextEdit { background-color: #1e1e1e; color: #cccccc; border: none; "
+      "padding: 8px; selection-background-color: #264f78; }");
+  output->setMaximumBlockCount(5000);
   layout->addWidget(output);
 
   input = new QLineEdit();
@@ -1402,92 +1554,43 @@ void TerminalWidget::setWorkingDirectory(const QString &dir) {
   QDir d(dir);
   if (d.exists()) {
     currentDir = d.absolutePath();
-    if (process && process->state() == QProcess::Running) {
-      // Change directory in the running shell
-#ifdef Q_OS_WIN
-      process->write(QString("cd /d \"%1\"\n").arg(currentDir).toLocal8Bit());
-#else
-      process->write(QString("cd \"%1\"\n").arg(currentDir).toLocal8Bit());
-#endif
-    }
   }
 }
 
-void TerminalWidget::startShell() {
-  if (process) {
-    process->kill();
-    process->deleteLater();
-  }
-  
-  process = new QProcess(this);
-  process->setWorkingDirectory(currentDir);
-  process->setProcessChannelMode(QProcess::MergedChannels);
-  
-  // Set environment for better shell experience
-  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-  env.insert("TERM", "xterm-256color");
-  env.insert("CLICOLOR", "1");
-  process->setProcessEnvironment(env);
-  
-  connect(process, &QProcess::readyReadStandardOutput, this, &TerminalWidget::onReadyRead);
-  connect(process, &QProcess::readyReadStandardError, this, &TerminalWidget::onReadyRead);
-  
-  connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-          this, [this](int exitCode, QProcess::ExitStatus status) {
-    if (status == QProcess::CrashExit) {
-      appendOutput("\n[Shell crashed - restarting...]\n");
-    } else {
-      appendOutput(QString("\n[Shell exited with code %1 - restarting...]\n").arg(exitCode));
-    }
-    QTimer::singleShot(500, this, &TerminalWidget::startShell);
-  });
-  
-#ifdef Q_OS_WIN
-  // Use PowerShell on Windows for better experience
-  process->start("powershell.exe", QStringList() << "-NoLogo" << "-NoExit");
-#else
-  // Use bash on Unix-like systems
-  process->start("/bin/bash", QStringList() << "-i");
-#endif
-  
-  if (!process->waitForStarted(2000)) {
-    appendOutput("[Error: Failed to start shell]\n");
-  }
-}
+void TerminalWidget::startShell() {}
 
 void TerminalWidget::executeCommand() {
-  QString cmd = input->text();
-  if (cmd.isEmpty())
-    return;
+  QString cmd = input->text().trimmed();
+  if (cmd.isEmpty()) return;
   
+  output->appendPlainText("> " + cmd);
   input->clear();
-  
-  if (process && process->state() == QProcess::Running) {
-    // Send command to the running shell
-    process->write(cmd.toLocal8Bit() + "\n");
-  } else {
-    appendOutput("[Error: Shell not running]\n");
-  }
-}
 
-void TerminalWidget::onReadyRead() {
-  if (process) {
-    QByteArray data = process->readAllStandardOutput();
-    QString text = QString::fromLocal8Bit(data);
-    
-    // Remove ANSI escape codes for cleaner output (optional)
-    // text.remove(QRegularExpression("\x1B\\[[0-9;]*[a-zA-Z]"));
-    
-    appendOutput(text);
+  if (cmd == "clear" || cmd == "cls") {
+    output->clear();
+    return;
   }
+
+  QProcess *proc = new QProcess(this);
+  proc->setWorkingDirectory(currentDir);
+  proc->setProcessChannelMode(QProcess::MergedChannels);
+  
+  connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc]() {
+    output->appendPlainText(QString::fromLocal8Bit(proc->readAllStandardOutput()));
+  });
+  
+  connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+          this, [proc]() { proc->deleteLater(); });
+  
+#ifdef Q_OS_WIN
+  proc->start("cmd.exe", QStringList() << "/c" << cmd);
+#else
+  proc->start("/bin/sh", QStringList() << "-c" << cmd);
+#endif
 }
 
 void TerminalWidget::appendOutput(const QString &text) {
-  QTextCursor cursor = output->textCursor();
-  cursor.movePosition(QTextCursor::End);
-  cursor.insertText(text);
-  output->setTextCursor(cursor);
-  output->ensureCursorVisible();
+  output->appendPlainText(text);
 }
 
 // ============================================================
@@ -1596,7 +1699,17 @@ void TextEditor::setupUI() {
   verticalSplitter->setSizes(sizes);
 
   mainLayout->addWidget(verticalSplitter, 1); // stretch to fill
+  
   setCentralWidget(mainContainer);
+
+  // Animation widget as a dockable pane
+  animationDock = new QDockWidget("Animation", this);
+  animationDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+  animationWidget = new AnimationWidget(animationDock);
+  animationDock->setWidget(animationWidget);
+  animationDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
+  addDockWidget(Qt::RightDockWidgetArea, animationDock);
+  animationDock->hide();
 
   // File tree dock
   fileTreeDock = new QDockWidget("Explorer", this);
@@ -1909,6 +2022,15 @@ void TextEditor::createActions() {
   terminalAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft));
   connect(terminalAct, &QAction::triggered, this, &TextEditor::toggleTerminal);
 
+  animationAct = new QAction("Cycle Animation", this);
+  animationAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A));
+  connect(animationAct, &QAction::triggered, this, &TextEditor::cycleAnimation);
+
+  toggleAnimationDockAct = new QAction("Toggle Animation Dock", this);
+  toggleAnimationDockAct->setCheckable(true);
+  toggleAnimationDockAct->setChecked(false);
+  connect(toggleAnimationDockAct, &QAction::triggered, this, &TextEditor::toggleAnimationDock);
+
   themeAct = new QAction("Toggle Theme", this);
   themeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
   connect(themeAct, &QAction::triggered, this, &TextEditor::changeTheme);
@@ -1954,6 +2076,8 @@ void TextEditor::createMenus() {
   viewMenu->addAction(fileTreeAct);
   viewMenu->addAction(miniMapAct);
   viewMenu->addAction(terminalAct);
+  viewMenu->addAction(toggleAnimationDockAct);
+  viewMenu->addAction(animationAct);
   viewMenu->addAction(splitViewAct);
   viewMenu->addSeparator();
   viewMenu->addAction(increaseFontAct);
@@ -2244,6 +2368,42 @@ void TextEditor::toggleTerminal() {
     }
   }
   terminalAct->setChecked(terminalWidget->isVisible());
+}
+
+void TextEditor::cycleAnimation() {
+  animationWidget->cycleAnimation();
+  
+  AnimationWidget::AnimationType currentType = animationWidget->getCurrentType();
+  if (currentType == AnimationWidget::None) {
+    animationDock->hide();
+    toggleAnimationDockAct->setChecked(false);
+  } else {
+    animationDock->show();
+    toggleAnimationDockAct->setChecked(true);
+  }
+  
+  QString animName;
+  switch (currentType) {
+    case AnimationWidget::None: animName = "None"; break;
+    case AnimationWidget::Matrix: animName = "Matrix"; break;
+    case AnimationWidget::Particles: animName = "Particles"; break;
+    case AnimationWidget::Waves: animName = "Waves"; break;
+    case AnimationWidget::Pulse: animName = "Pulse"; break;
+  }
+  statusBar()->showMessage("Animation: " + animName, 2000);
+}
+
+void TextEditor::toggleAnimationDock() {
+    if (animationDock->isVisible()) {
+        animationDock->hide();
+        animationWidget->setAnimationType(AnimationWidget::None);
+    } else {
+        animationDock->show();
+        if (animationWidget->getCurrentType() == AnimationWidget::None) {
+            animationWidget->cycleAnimation(); // Start with first animation
+        }
+    }
+    toggleAnimationDockAct->setChecked(animationDock->isVisible());
 }
 
 void TextEditor::showAbout() {

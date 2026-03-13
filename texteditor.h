@@ -32,6 +32,7 @@ class WelcomeWidget;
 class BreadcrumbBar;
 class TerminalWidget;
 class TitleBar;
+class AnimationWidget;
 
 // Language enum for syntax highlighting
 enum class Language {
@@ -46,6 +47,52 @@ enum class Language {
     JSON,
     YAML,
     Markdown
+};
+
+// Animation widget with multiple effects
+class AnimationWidget : public QWidget {
+    Q_OBJECT
+public:
+    enum AnimationType {
+        None,
+        Matrix,
+        Particles,
+        Waves,
+        Pulse
+    };
+    
+    explicit AnimationWidget(QWidget *parent = nullptr);
+    void setAnimationType(AnimationType type);
+    void cycleAnimation();
+    AnimationType getCurrentType() const { return currentType; }
+    
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void timerEvent(QTimerEvent *event) override;
+    
+private:
+    AnimationType currentType;
+    int timerId;
+    int frame;
+    
+    struct Particle {
+        float x, y, vx, vy;
+        int life;
+    };
+    QVector<Particle> particles;
+    
+    struct MatrixColumn {
+        int x, y, speed;
+        QString text;
+    };
+    QVector<MatrixColumn> matrixColumns;
+    
+    void initMatrix();
+    void initParticles();
+    void drawMatrix(QPainter &painter);
+    void drawParticles(QPainter &painter);
+    void drawWaves(QPainter &painter);
+    void drawPulse(QPainter &painter);
 };
 
 struct ColorTheme {
@@ -231,7 +278,6 @@ public:
 
 private slots:
     void executeCommand();
-    void onReadyRead();
 
 private:
     QPlainTextEdit *output;
@@ -278,6 +324,8 @@ private slots:
     void toggleFileTree();
     void toggleMiniMap();
     void toggleTerminal();
+    void cycleAnimation();
+    void toggleAnimationDock();
     void changeTheme();
     void customizeColors();
     void showAbout();
@@ -337,6 +385,8 @@ private:
     WelcomeWidget *welcomeWidget;
     BreadcrumbBar *breadcrumbBar;
     TerminalWidget *terminalWidget;
+    AnimationWidget *animationWidget;
+    QDockWidget *animationDock;
     QFileSystemWatcher *fileWatcher;
     
     QMenu *fileMenu;
@@ -387,6 +437,8 @@ private:
     QAction *fileTreeAct;
     QAction *miniMapAct;
     QAction *terminalAct;
+    QAction *animationAct;
+    QAction *toggleAnimationDockAct;
     QAction *themeAct;
     QAction *customizeColorsAct;
     QAction *aboutAct;
