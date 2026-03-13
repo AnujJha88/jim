@@ -20,5 +20,5 @@ Thumbs.db
 *.autosave
 release/
 debug/
-*.o 
-*.pro 
+*.o
+

@@ -22,9 +22,12 @@
 | `WelcomeWidget` | `QWidget` | Start screen with recent files and action buttons |
 | `BreadcrumbBar` | `QWidget` | Path + symbol navigation bar below tabs |
 | `TerminalWidget` | `QWidget` | Embedded shell with QProcess, output display, command input |
+| `AnimationWidget` | `QWidget` | Visual effects widget (Matrix, Particles, Waves, Pulse) |
+| `TitleBar` | `QWidget` | Custom frameless window title bar with controls |
 
 ### Enums
 - `Language` — `PlainText`, `CPP`, `Python`, `JavaScript`, `HTML`, `CSS`, `Rust`, `Go`, `JSON`, `YAML`, `Markdown`
+- `AnimationType` — `None`, `Matrix`, `Particles`, `Waves`, `Pulse`
 
 ## Features
 
@@ -37,6 +40,8 @@
 - File watcher with external change detection and reload prompt
 - Automatic binary file detection (null byte checking)
 - Binary files open in hex editor with `[HEX]` tab prefix
+- **Change Tracking:** Asterisk `*` in tab title for unsaved changes (both text and hex)
+- **Safe Exit:** Prompts to save modified files on close
 
 ### Editor
 - Line numbers with current-line highlight
@@ -46,6 +51,7 @@
 - Tab to spaces (4 spaces)
 - Bracket and quote auto-pairing with skip-closing
 - Undo/Redo/Cut/Copy/Paste/Select All
+- **Line Power Actions:** Duplicate (`Ctrl+D`), Move Up/Down (`Alt+Up/Down`), Delete (`Ctrl+Shift+K`), and Toggle Comments (`Ctrl+/`)
 
 ### Syntax Highlighting
 
@@ -66,8 +72,9 @@
 - Find with wraparound
 - Find next (F3)
 - Replace all
-- Go to line
+- Go to line (Ctrl+G)
 - Breadcrumb navigation (folder > file > function)
+- **Smart Home:** Jumps to first non-whitespace character, then start of line
 
 ### UI & Theming
 - 3 themes: Light, Dark, Monokai
@@ -76,6 +83,8 @@
 - Transparent scrollbars with rounded handles
 - Welcome screen with recent files
 - Language indicator in status bar
+- **Animation Cycler:** Cycle through visual backgrounds (Ctrl+A)
+- **Custom Title Bar:** Native-looking frameless UI with minimize/maximize/close
 
 ### View Options
 - File tree sidebar (toggle Ctrl+B)
@@ -85,6 +94,7 @@
 - Mini map (Ctrl+M)
 - Word wrap toggle
 - Font size adjustment
+- **Animation Dock:** Toggleable side dock for animation effects
 
 ### Hex Editor Features
 - Address column (8-digit hex addresses)
@@ -96,7 +106,8 @@
 - Tab key to switch between hex and ASCII areas
 - Selection support with visual highlighting
 - Vertical scrollbar for large files
-- Dark theme matching main editor
+- **Save Functionality:** Full support for saving modifications back to disk
+- **Undo Integration:** Basic modification tracking and restoration
 
 ## Performance
 
@@ -113,28 +124,29 @@
 
 | Platform | Status | Dependencies |
 |----------|--------|-------------|
-| Linux (Debian/Ubuntu/Kali/Arch) | Tested | qt6-base-dev, build-essential |
+| Linux (Ubuntu/Kali/Arch) | Native | qt6-base-dev, build-essential |
+| Windows 10/11 | Native | Qt6 MinGW/MSVC (via build.ps1) |
 | macOS | Supported | Homebrew Qt6 |
-| Windows | Supported | Qt6 MinGW or MSVC |
 
 ## Build Configuration
 
 - **Compiler flags:** `-std=c++17 -Wall -Wextra -O3 -march=native -fPIC`
 - **Qt modules:** QtCore, QtGui, QtWidgets
-- **Build artifacts:** `*.o`, `moc_*.cpp`, `jim` executable
+- **Build artifacts:** `*.o`, `moc_*.cpp`, `jim` (Linux) / `jim.exe` (Windows)
 
 ### File Structure
 ```
 jim/
 ├── main.cpp              # Entry point + CLI argument handling
-├── texteditor.h          # Main editor class declarations
-├── texteditor.cpp        # Main editor implementations
+├── texteditor.h          # Main editor + Animation class declarations
+├── texteditor.cpp        # Main editor + Animation implementations
 ├── hexeditor.h           # Hex editor class declaration
 ├── hexeditor.cpp         # Hex editor implementation
 ├── linenumberarea.h      # LineNumberArea + FoldingArea + MiniMap headers
 ├── linenumberarea.cpp    # Widget implementations
 ├── jim.pro               # Qt project file
-├── build.ps1             # Windows build script
+├── build.ps1             # Windows build script (PowerShell)
+├── GNUmakefile           # Cross-platform build dispatcher
 ├── Makefile              # Generated build configuration
 ├── README.md             # User documentation
 ├── SPECS.md              # This file

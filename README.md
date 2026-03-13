@@ -28,17 +28,14 @@ A lightweight, modern code editor built with C++ and Qt6. Designed for developer
 
 ### Developer Tools
 - **Integrated Terminal** — Embedded shell panel with command execution (Ctrl+`)
-- **Hex Editor** — Built-in binary file viewer/editor with hex and ASCII display
+- **Hex Editor** — Built-in binary file viewer/editor with hex and ASCII display, full save support, and change tracking
 - **File Watcher** — Detects external file changes and prompts to reload
 - **Welcome Screen** — Quick access to recent files and actions on launch
 
-### Customization
+### Visuals & Effects
+- **Animation Cycler** — Matrix, Particles, Waves, and Pulse effects to customize your workspace background (Ctrl+A)
 - **3 Themes** — Light, Dark, and Monokai with proper syntax colors (Ctrl+T)
-- **Multiple Color Themes:** Built-in Light, Dark, and Monokai themes. easily switchable.
-- **Custom Colors** — Personalize background and text colors with auto-adjusting text
-- **Font Size Control** — Zoom in/out for comfortable reading (Ctrl+/-)
-- **Status Bar** — Real-time line/column position and language indicator
-- **Custom Modern Title Bar:** A sleek, frameless window title bar with custom minimize, maximize/restore, and close buttons on Windows/Linux environments.
+- **Custom Modern Title Bar** — A sleek, frameless window title bar with custom minimize, maximize/restore, and close buttons
 
 ### Productivity
 - **Command Line Support** — Open files and folders from terminal
@@ -162,10 +159,10 @@ make
 sudo make install
 ```
 
-**Note:** The dispatcher `GNUmakefile` automatically detects Linux, runs `qmake`, and compiles the project. It then installs the binary to `/usr/local/bin` when you run `sudo make install`.
+**Note:** The dispatcher `GNUmakefile` automatically detects the environment, runs `qmake`, and compiles the project. It then installs the binary to `/usr/local/bin` when you run `sudo make install`.
 
-### Compile (Windows)
-We provide a convenient PowerShell script to automatically compile Jim on Windows natively without WSL. It produces a standalone GUI executable (`jim.exe`) that can be double-clicked directly from Explorer. Open PowerShell (as Administrator if required for Qt) and run:
+### Compile (Windows Native)
+We provide a dedicated PowerShell script to compile Jim on Windows natively. It produces a standalone GUI executable (`jim.exe`) configured for the Windows environment.
 ```powershell
 git clone https://github.com/AnujJha88/jim.git
 cd jim
@@ -185,6 +182,12 @@ Configuration is stored in `~/.config/TextEditor/Settings.conf`
 
 
 ## Recent Updates
+
+### v1.2.2
+- Added **Animation Cycler** — Cycle through Matrix, Particles, Waves, and Pulse background effects (Ctrl+A)
+- Improved **Hex Editor** — Full save support, modification tracking (asterisk in tab), and unsaved changes prompt
+- Enhanced **Build System** — Restored cross-platform support with unified `GNUmakefile` and improved Windows `build.ps1`
+- Added **Smart Home Key** — Home key now jumps to first non-whitespace character before start of line
 
 ### v1.2.1
 - Added **Hex Editor** — Automatic binary file detection with integrated hex/ASCII viewer

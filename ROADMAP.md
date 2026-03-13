@@ -39,12 +39,20 @@ Focuses on making the editor more productive for keyboard-centric developers.
 - [x] **UI Polish:** Custom Frameless Window Title Bar with matching dark aesthetics and draggable mechanics.
 
 ## v1.2.1 — Hex Editor & Binary Support (COMPLETED)
-- [x] **Hex Editor:** Integrated hex/ASCII viewer for binary files
-- [x] **Auto-Detection:** Automatic binary file detection (checks for null bytes)
-- [x] **Dual View:** Side-by-side hex and ASCII display with address column
-- [x] **Navigation:** Keyboard navigation (arrows, Page Up/Down, Home/End)
-- [x] **Editing:** Hex and ASCII editing modes with Tab to switch
-- [x] **Tab Integration:** Binary files open with `[HEX]` prefix in tabs
+- [x] **Hex Editor:** Integrated hex/ASCII viewer for binary files.
+- [x] **Auto-Detection:** Automatic binary file detection (checks for null bytes).
+- [x] **Dual View:** Side-by-side hex and ASCII display with address column.
+- [x] **Navigation:** Keyboard navigation (arrows, Page Up/Down, Home/End).
+- [x] **Editing:** Hex and ASCII editing modes with Tab to switch.
+- [x] **Tab Integration:** Binary files open with `[HEX]` prefix.
+
+## v1.2.2 — Visuals & Precision (COMPLETED)
+- [x] **Animation Cycler:** Matrix, Particles, Waves, and Pulse effects in a dedicated dockable panel (`Ctrl+A` to cycle).
+- [x] **Hex Editor Persistence:** Save modifications back to binary files with full disk writing support.
+- [x] **State Awareness:** Asterisk `*` in tab titles for unsaved changes in both text and hex editors.
+- [x] **Safe Exit:** Built-in safeguards to prevent data loss on window close.
+- [x] **Build Dispatcher:** Unified `GNUmakefile` for seamless switching between Linux/WSL and Windows environments.
+- [x] **Smart Home:** Productivity-focused Home key behavior (first non-whitespace then start of line).
 
 ## v1.3 — Search, Replace & Navigation (Planned)
 Focuses on enhancing the ability to find and move through code quickly.
