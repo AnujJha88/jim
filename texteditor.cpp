@@ -876,9 +876,6 @@ void SyntaxHighlighter::setupCppRules() {
   rule.pattern = QRegularExpression("//[^\n]*");
   rule.format = commentFormat;
   highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("#[^\n]*");
-  rule.format = commentFormat;
-  highlightingRules.append(rule);
 }
 
 void SyntaxHighlighter::setupPythonRules() {
@@ -1357,11 +1354,16 @@ void AnimationWidget::setAnimationType(AnimationType type) {
         timerId = startTimer(50); // 20 FPS
     }
     
+    if (type == Matrix) initMatrix();
+    else if (type == Particles || type == Waves || type == Pulse || type == Rain || type == Snow) initParticles();
+    else if (type == Starfield) initStarfield();
+    else if (type == Fire) initFire();
+    
     update();
 }
 
 void AnimationWidget::cycleAnimation() {
-    int next = (static_cast<int>(currentType) + 1) % 5;
+    int next = (static_cast<int>(currentType) + 1) % 9;
     setAnimationType(static_cast<AnimationType>(next));
 }
 
@@ -1369,7 +1371,7 @@ void AnimationWidget::initMatrix() {
     matrixColumns.clear();
     for (int i = 0; i < 30; i++) {
         MatrixColumn col;
-        col.x = QRandomGenerator::global()->bounded(width());
+        col.x = QRandomGenerator::global()->bounded(width() + 100);
         col.y = -(QRandomGenerator::global()->bounded(500));
         col.speed = 2 + QRandomGenerator::global()->bounded(5);
         col.text = QString("01").at(QRandomGenerator::global()->bounded(2));
@@ -1386,6 +1388,35 @@ void AnimationWidget::initParticles() {
         p.vx = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
         p.vy = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
         p.life = 255;
+        p.size = 2.0f;
+        particles.append(p);
+    }
+}
+
+void AnimationWidget::initStarfield() {
+    particles.clear();
+    for (int i = 0; i < 100; i++) {
+        Particle p;
+        p.x = QRandomGenerator::global()->bounded(width()) - width() / 2;
+        p.y = QRandomGenerator::global()->bounded(height()) - height() / 2;
+        p.vx = p.x / 50.0f;
+        p.vy = p.y / 50.0f;
+        p.life = 255;
+        p.size = 0.5f + (QRandomGenerator::global()->bounded(100) / 50.0f);
+        particles.append(p);
+    }
+}
+
+void AnimationWidget::initFire() {
+    particles.clear();
+    for (int i = 0; i < 60; i++) {
+        Particle p;
+        p.x = QRandomGenerator::global()->bounded(width());
+        p.y = height() + QRandomGenerator::global()->bounded(50);
+        p.vx = (QRandomGenerator::global()->bounded(40) - 20) / 10.0f;
+        p.vy = -(2.0f + QRandomGenerator::global()->bounded(40) / 10.0f);
+        p.life = 100 + QRandomGenerator::global()->bounded(155);
+        p.size = 5.0f + QRandomGenerator::global()->bounded(10);
         particles.append(p);
     }
 }
@@ -1404,16 +1435,53 @@ void AnimationWidget::timerEvent(QTimerEvent *) {
     
     // Update particles
     for (auto &p : particles) {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life--;
-        
-        if (p.life <= 0 || p.x < 0 || p.x > width() || p.y < 0 || p.y > height()) {
-            p.x = QRandomGenerator::global()->bounded(width());
-            p.y = QRandomGenerator::global()->bounded(height());
-            p.vx = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
-            p.vy = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
-            p.life = 255;
+        if (currentType == Starfield) {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vx *= 1.05f;
+            p.vy *= 1.05f;
+            if (qAbs(p.x) > width() / 2 || qAbs(p.y) > height() / 2) {
+                p.x = QRandomGenerator::global()->bounded(10) - 5;
+                p.y = QRandomGenerator::global()->bounded(10) - 5;
+                p.vx = p.x / 2.0f;
+                p.vy = p.y / 2.0f;
+            }
+        } else if (currentType == Rain) {
+            p.y += 15.0f;
+            if (p.y > height()) {
+                p.y = -20;
+                p.x = QRandomGenerator::global()->bounded(width());
+            }
+        } else if (currentType == Snow) {
+            p.y += 2.0f;
+            p.x += qSin(frame * 0.1f + p.life) * 1.5f;
+            if (p.y > height()) {
+                p.y = -10;
+                p.x = QRandomGenerator::global()->bounded(width());
+            }
+        } else if (currentType == Fire) {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= 5;
+            if (p.life <= 0) {
+                p.x = QRandomGenerator::global()->bounded(width());
+                p.y = height() + 10;
+                p.vx = (QRandomGenerator::global()->bounded(40) - 20) / 10.0f;
+                p.vy = -(2.0f + QRandomGenerator::global()->bounded(40) / 10.0f);
+                p.life = 255;
+            }
+        } else {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life--;
+            
+            if (p.life <= 0 || p.x < 0 || p.x > width() || p.y < 0 || p.y > height()) {
+                p.x = QRandomGenerator::global()->bounded(width());
+                p.y = QRandomGenerator::global()->bounded(height());
+                p.vx = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
+                p.vy = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
+                p.life = 255;
+            }
         }
     }
     
@@ -1437,8 +1505,54 @@ void AnimationWidget::paintEvent(QPaintEvent *) {
         case Pulse:
             drawPulse(painter);
             break;
+        case Starfield:
+            drawStarfield(painter);
+            break;
+        case Rain:
+            drawRain(painter);
+            break;
+        case Snow:
+            drawSnow(painter);
+            break;
+        case Fire:
+            drawFire(painter);
+            break;
         default:
             break;
+    }
+}
+
+void AnimationWidget::drawStarfield(QPainter &painter) {
+    painter.setPen(Qt::NoPen);
+    for (const auto &p : particles) {
+        painter.setBrush(Qt::white);
+        painter.drawEllipse(QPointF(p.x + width()/2, p.y + height()/2), p.size, p.size);
+    }
+}
+
+void AnimationWidget::drawRain(QPainter &painter) {
+    painter.setPen(QPen(QColor(100, 149, 237, 150), 2));
+    for (const auto &p : particles) {
+        painter.drawLine(QPointF(p.x, p.y), QPointF(p.x, p.y + 10));
+    }
+}
+
+void AnimationWidget::drawSnow(QPainter &painter) {
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(255, 255, 255, 200));
+    for (const auto &p : particles) {
+        painter.drawEllipse(QPointF(p.x, p.y), 3, 3);
+    }
+}
+
+void AnimationWidget::drawFire(QPainter &painter) {
+    for (const auto &p : particles) {
+        int r = 255;
+        int g = qMax(0, 255 - (255 - p.life) * 2);
+        int b = 0;
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(r, g, b, p.life));
+        painter.drawEllipse(QPointF(p.x, p.y), p.size * p.life / 255.0f, p.size * p.life / 255.0f);
     }
 }
 
@@ -1708,6 +1822,7 @@ void TextEditor::setupUI() {
   animationWidget = new AnimationWidget(animationDock);
   animationDock->setWidget(animationWidget);
   animationDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
+  animationDock->setMinimumWidth(300); // Increased initial width
   addDockWidget(Qt::RightDockWidgetArea, animationDock);
   animationDock->hide();
 
@@ -2389,6 +2504,10 @@ void TextEditor::cycleAnimation() {
     case AnimationWidget::Particles: animName = "Particles"; break;
     case AnimationWidget::Waves: animName = "Waves"; break;
     case AnimationWidget::Pulse: animName = "Pulse"; break;
+    case AnimationWidget::Starfield: animName = "Starfield"; break;
+    case AnimationWidget::Rain: animName = "Rain"; break;
+    case AnimationWidget::Snow: animName = "Snow"; break;
+    case AnimationWidget::Fire: animName = "Fire"; break;
   }
   statusBar()->showMessage("Animation: " + animName, 2000);
 }

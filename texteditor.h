@@ -58,7 +58,11 @@ public:
         Matrix,
         Particles,
         Waves,
-        Pulse
+        Pulse,
+        Starfield,
+        Rain,
+        Snow,
+        Fire
     };
     
     explicit AnimationWidget(QWidget *parent = nullptr);
@@ -78,6 +82,7 @@ private:
     struct Particle {
         float x, y, vx, vy;
         int life;
+        float size; // Added size for better effects
     };
     QVector<Particle> particles;
     
@@ -89,10 +94,17 @@ private:
     
     void initMatrix();
     void initParticles();
+    void initStarfield();
+    void initFire();
+    
     void drawMatrix(QPainter &painter);
     void drawParticles(QPainter &painter);
     void drawWaves(QPainter &painter);
     void drawPulse(QPainter &painter);
+    void drawStarfield(QPainter &painter);
+    void drawRain(QPainter &painter);
+    void drawSnow(QPainter &painter);
+    void drawFire(QPainter &painter);
 };
 
 struct ColorTheme {
