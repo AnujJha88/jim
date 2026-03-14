@@ -33,6 +33,7 @@ class BreadcrumbBar;
 class TerminalWidget;
 class TitleBar;
 class AnimationWidget;
+class AIAutocomplete;
 
 // Language enum for syntax highlighting
 enum class Language {
@@ -376,6 +377,9 @@ private slots:
     void onFileTreeDoubleClicked(const QModelIndex &index);
     void onFileChangedExternally(const QString &path);
     void updateBreadcrumb();
+    void showAISettings();
+    void toggleAIAutocomplete(bool enabled);
+    void onAISuggestion(const QString &suggestion);
 
 private:
     void createActions();
@@ -436,12 +440,14 @@ private:
     TerminalWidget *terminalWidget;
     AnimationWidget *animationWidget;
     QDockWidget *animationDock;
+    AIAutocomplete *aiAutocomplete;
     QFileSystemWatcher *fileWatcher;
     
     QMenu *fileMenu;
     QMenu *editMenu;
     QMenu *searchMenu;
     QMenu *viewMenu;
+    QMenu *pluginsMenu;
     QMenu *helpMenu;
     QMenu *recentFilesMenu;
     
@@ -490,6 +496,8 @@ private:
     QAction *toggleAnimationDockAct;
     QAction *themeAct;
     QAction *customizeColorsAct;
+    QAction *aiSettingsAct;
+    QAction *aiToggleAct;
     QAction *aboutAct;
 };
 

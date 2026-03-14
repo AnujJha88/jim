@@ -1,4 +1,4 @@
-QT += core gui widgets
+QT += core gui widgets network
 TARGET = jim
 TEMPLATE = app
 RC_ICONS = logo.ico
@@ -11,5 +11,7 @@ unix {
     DEFINES += USE_QTERMWIDGET
 }
 
-SOURCES += texteditor.cpp linenumberarea.cpp hexeditor.cpp main.cpp
-HEADERS += texteditor.h linenumberarea.h hexeditor.h
+SOURCES += texteditor.cpp linenumberarea.cpp hexeditor.cpp main.cpp \
+           aiautocomplete.cpp aisettingsdialog.cpp
+HEADERS += texteditor.h linenumberarea.h hexeditor.h \
+           aiautocomplete.h aisettingsdialog.h

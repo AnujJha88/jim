@@ -1,6 +1,8 @@
 #include "texteditor.h"
 #include "hexeditor.h"
 #include "linenumberarea.h"
+#include "aiautocomplete.h"
+#include "aisettingsdialog.h"
 #include <QApplication>
 #include <QCloseEvent>
 #include <QColorDialog>
@@ -76,6 +78,7 @@ Language TextEditor::detectLanguage(const QString &fileName) {
 CodeEditor::CodeEditor(QWidget *parent)
     : QPlainTextEdit(parent), smoothScrollEnabled(true), targetScrollValue(0),
       currentLanguage(Language::PlainText) {
+  setPlaceholderText("Start typing code...");
   lineNumberArea = new LineNumberArea(this);
   foldingArea = new FoldingArea(this);
   miniMap = new MiniMap(this);
@@ -1962,6 +1965,20 @@ void TextEditor::setupUI() {
           &TextEditor::closeTab);
   connect(tabWidget, &QTabWidget::currentChanged, this,
           &TextEditor::tabChanged);
+  
+  aiAutocomplete = new AIAutocomplete(this);
+  connect(aiAutocomplete, &AIAutocomplete::suggestionReady, this, &TextEditor::onAISuggestion);
+  
+  connect(tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
+      if (index >= 0) {
+          CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(index));
+          if (ed) {
+              connect(ed, &QPlainTextEdit::textChanged, this, [this, ed]() {
+                  aiAutocomplete->trigger(ed);
+              }, Qt::UniqueConnection);
+          }
+      }
+  });
 
   editorLayout->addWidget(mainSplitter);
   verticalSplitter->addWidget(editorContainer);
@@ -2418,7 +2435,46 @@ void TextEditor::createMenus() {
   helpMenu = customMenuBar->addMenu("&Help");
   helpMenu->addAction(aboutAct);
 
+  pluginsMenu = customMenuBar->addMenu("&Plugins");
+  aiSettingsAct = new QAction("AI Autocomplete Settings...", this);
+  connect(aiSettingsAct, &QAction::triggered, this, &TextEditor::showAISettings);
+  pluginsMenu->addAction(aiSettingsAct);
+
+  aiToggleAct = new QAction("Enable AI Autocomplete", this);
+  aiToggleAct->setCheckable(true);
+  connect(aiToggleAct, &QAction::toggled, this, &TextEditor::toggleAIAutocomplete);
+  pluginsMenu->addAction(aiToggleAct);
+
   updateRecentFilesMenu();
+}
+
+void TextEditor::showAISettings() {
+    AISettingsDialog dialog(this);
+    QSettings settings;
+    dialog.setSettings(settings.value("ai/baseUrl").toString(),
+                       settings.value("ai/apiKey").toString(),
+                       settings.value("ai/model").toString(),
+                       aiAutocomplete->isEnabled());
+    
+    if (dialog.exec() == QDialog::Accepted) {
+        settings.setValue("ai/baseUrl", dialog.getBaseUrl());
+        settings.setValue("ai/apiKey", dialog.getApiKey());
+        settings.setValue("ai/model", dialog.getModel());
+        
+        aiAutocomplete->setProvider(dialog.getBaseUrl(), dialog.getApiKey(), dialog.getModel());
+        toggleAIAutocomplete(dialog.isEnabled());
+        aiToggleAct->setChecked(dialog.isEnabled());
+    }
+}
+
+void TextEditor::toggleAIAutocomplete(bool enabled) {
+    aiAutocomplete->setEnabled(enabled);
+}
+
+void TextEditor::onAISuggestion(const QString &suggestion) {
+    if (suggestion.isEmpty()) return;
+    statusBar()->showMessage("AI Suggestion: " + suggestion, 5000);
+    qDebug() << "AI Suggestion:" << suggestion;
 }
 
 void TextEditor::createStatusBar() {
@@ -2447,6 +2503,9 @@ void TextEditor::newFile() {
           &TextEditor::updateStatusBar);
   connect(editor, &QPlainTextEdit::cursorPositionChanged, this,
           &TextEditor::updateBreadcrumb);
+  connect(editor, &QPlainTextEdit::textChanged, this, [this, editor]() {
+      aiAutocomplete->trigger(editor);
+  });
   int index = tabWidget->addTab(editor, "Untitled");
   tabWidget->setCurrentIndex(index);
   editor->setFocus();
