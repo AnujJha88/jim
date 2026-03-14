@@ -141,6 +141,28 @@ private:
     QPoint dragStartPos;
 };
 
+class FindBar : public QWidget {
+    Q_OBJECT
+public:
+    explicit FindBar(QWidget *parent = nullptr);
+    void showAndFocus(const QString &text = "");
+    void setMatchCount(int current, int total);
+    QString getSearchText() const;
+
+signals:
+    void findNextRequested(const QString &text);
+    void findPreviousRequested(const QString &text);
+    void textChanged(const QString &text);
+    void closeRequested();
+
+private:
+    QLineEdit *findInput;
+    QLabel *matchLabel;
+    QPushButton *prevBtn;
+    QPushButton *nextBtn;
+    QPushButton *closeBtn;
+};
+
 class CodeEditor : public QPlainTextEdit {
     Q_OBJECT
 
@@ -168,6 +190,9 @@ public:
     
     void setLanguage(Language lang);
     Language getLanguage() const { return currentLanguage; }
+    
+    // Search Highlighting
+    void setSearchSelections(const QList<QTextCursor> &selections);
 
 public slots:
     void duplicateLine();
@@ -199,6 +224,7 @@ private:
     QPropertyAnimation *scrollAnimation;
     int targetScrollValue;
     Language currentLanguage;
+    QList<QTextCursor> searchSelections;
     void autoIndent();
     void matchBrackets();
 };
@@ -273,11 +299,14 @@ private:
 class BreadcrumbBar : public QWidget {
     Q_OBJECT
 public:
-    BreadcrumbBar(QWidget *parent = nullptr);
+    explicit BreadcrumbBar(QWidget *parent = nullptr);
     void updatePath(const QString &filePath, const QString &symbol);
 
 private:
+    QLabel *iconLabel;
     QLabel *pathLabel;
+    QLabel *fileLabel;
+    QLabel *symbolLabel;
 };
 
 // Integrated Terminal Widget
@@ -325,6 +354,9 @@ private slots:
     void tabChanged(int index);
     void findText();
     void findNext();
+    void findPrevious();
+    void onFindTextChanged(const QString &text);
+    void closeFindBar();
     void replaceText();
     void goToLine();
     void documentWasModified();
@@ -371,6 +403,7 @@ private:
     void unwatchFile(const QString &filePath);
     static Language detectLanguage(const QString &fileName);
     QString detectCurrentSymbol(CodeEditor *editor);
+    void updateSearchHighlights();
 
     QSplitter *mainSplitter;
     QSplitter *verticalSplitter;
@@ -394,6 +427,10 @@ private:
     QVector<ColorTheme> themes;
     
     // New feature members
+    FindBar *findBar;
+    QList<QTextCursor> currentMatches;
+    int currentMatchIndex;
+    
     WelcomeWidget *welcomeWidget;
     BreadcrumbBar *breadcrumbBar;
     TerminalWidget *terminalWidget;

@@ -154,6 +154,11 @@ void CodeEditor::updateLineNumberArea(const QRect &rect, int dy) {
     updateLineNumberAreaWidth(0);
 }
 
+void CodeEditor::setSearchSelections(const QList<QTextCursor> &selections) {
+  searchSelections = selections;
+  highlightCurrentLine();
+}
+
 void CodeEditor::resizeEvent(QResizeEvent *e) {
   QPlainTextEdit::resizeEvent(e);
   QRect cr = contentsRect();
@@ -173,6 +178,15 @@ void CodeEditor::resizeEvent(QResizeEvent *e) {
 
 void CodeEditor::highlightCurrentLine() {
   QList<QTextEdit::ExtraSelection> extraSelections;
+  
+  // Search highlights
+  for (const QTextCursor &cursor : searchSelections) {
+    QTextEdit::ExtraSelection selection;
+    selection.format.setBackground(QColor(62, 62, 66)); // Subtle secondary highlight
+    selection.cursor = cursor;
+    extraSelections.append(selection);
+  }
+
   if (!isReadOnly()) {
     QTextEdit::ExtraSelection selection;
     QColor lineColor = currentTheme.currentLine.isValid()
@@ -182,6 +196,16 @@ void CodeEditor::highlightCurrentLine() {
     selection.format.setProperty(QTextFormat::FullWidthSelection, true);
     selection.cursor = textCursor();
     selection.cursor.clearSelection();
+    
+    // If the current cursor is within a search match, highlight it more prominently
+    for (int i = 0; i < searchSelections.size(); ++i) {
+        if (searchSelections[i].selectionStart() == selection.cursor.selectionStart() &&
+            searchSelections[i].selectionEnd() == selection.cursor.selectionEnd()) {
+            selection.format.setBackground(QColor(163, 115, 20, 150)); // Golden highlight for current match
+            break;
+        }
+    }
+    
     extraSelections.append(selection);
   }
   setExtraSelections(extraSelections);
@@ -838,22 +862,55 @@ void SyntaxHighlighter::setupRules() {
 
 void SyntaxHighlighter::setupCppRules() {
   HighlightingRule rule;
+
+  // Preprocessor directives
+  QTextCharFormat preprocessorFormat;
+  preprocessorFormat.setForeground(keywordFormat.foreground());
+  preprocessorFormat.setFontWeight(QFont::Bold);
+  QStringList preprocessors = {
+      "#include", "#define", "#pragma", "#if", "#ifdef", "#ifndef",
+      "#elif",    "#else",   "#endif",  "#error", "#warning", "#undef",
+      "#line",    "#using"};
+  for (const QString &p : preprocessors) {
+    rule.pattern = QRegularExpression(p + "\\b");
+    rule.format = preprocessorFormat;
+    highlightingRules.append(rule);
+  }
+
   keywordFormat.setFontWeight(QFont::Bold);
   QStringList kw = {
-      "\\bclass\\b",     "\\bconst\\b",    "\\benum\\b",     "\\bexplicit\\b",
-      "\\bfriend\\b",    "\\binline\\b",   "\\bint\\b",      "\\blong\\b",
-      "\\bnamespace\\b", "\\boperator\\b", "\\bprivate\\b",  "\\bprotected\\b",
-      "\\bpublic\\b",    "\\bshort\\b",    "\\bsignals\\b",  "\\bsigned\\b",
-      "\\bslots\\b",     "\\bstatic\\b",   "\\bstruct\\b",   "\\btemplate\\b",
-      "\\btypedef\\b",   "\\btypename\\b", "\\bunion\\b",    "\\bunsigned\\b",
-      "\\bvirtual\\b",   "\\bvoid\\b",     "\\bvolatile\\b", "\\bbool\\b",
-      "\\bchar\\b",      "\\bdouble\\b",   "\\bfloat\\b",    "\\bif\\b",
-      "\\belse\\b",      "\\bfor\\b",      "\\bwhile\\b",    "\\breturn\\b",
-      "\\bswitch\\b",    "\\bcase\\b",     "\\bbreak\\b",    "\\bcontinue\\b",
-      "\\bauto\\b",      "\\busing\\b",    "\\binclude\\b",  "\\bdefine\\b",
-      "\\bnullptr\\b",   "\\boverride\\b", "\\bfinal\\b",    "\\bconstexpr\\b",
-      "\\bnoexcept\\b",  "\\btrue\\b",     "\\bfalse\\b",    "\\bnew\\b",
-      "\\bdelete\\b",    "\\bthrow\\b",    "\\btry\\b",      "\\bcatch\\b"};
+      "\\balignas\\b",       "\\balignof\\b",       "\\band\\b",
+      "\\band_eq\\b",        "\\basm\\b",           "\\bauto\\b",
+      "\\bbitand\\b",        "\\bbitor\\b",         "\\bbool\\b",
+      "\\bbreak\\b",         "\\bcase\\b",          "\\bcatch\\b",
+      "\\bchar\\b",          "\\bchar8_t\\b",       "\\bchar16_t\\b",
+      "\\bchar32_t\\b",      "\\bclass\\b",         "\\bcompl\\b",
+      "\\bconcept\\b",       "\\bconst\\b",         "\\bconsteval\\b",
+      "\\bconstexpr\\b",      "\\bconstinit\\b",     "\\bconst_cast\\b",
+      "\\bcontinue\\b",      "\\bco_await\\b",      "\\bco_return\\b",
+      "\\bco_yield\\b",      "\\bdecltype\\b",      "\\bdefault\\b",
+      "\\bdelete\\b",        "\\bdo\\b",            "\\bdouble\\b",
+      "\\bdynamic_cast\\b",  "\\belse\\b",          "\\benum\\b",
+      "\\bexplicit\\b",      "\\bexport\\b",        "\\bextern\\b",
+      "\\bfalse\\b",         "\\bfinal\\b",         "\\bfloat\\b",
+      "\\bfor\\b",           "\\bfriend\\b",        "\\bgoto\\b",
+      "\\bif\\b",            "\\binline\\b",        "\\bint\\b",
+      "\\blong\\b",          "\\bmutable\\b",       "\\bnamespace\\b",
+      "\\bnew\\b",           "\\bnoexcept\\b",      "\\bnot\\b",
+      "\\bnot_eq\\b",        "\\bnullptr\\b",       "\\boperator\\b",
+      "\\bor\\b",            "\\bor_eq\\b",         "\\boverride\\b",
+      "\\bprivate\\b",       "\\bprotected\\b",     "\\bpublic\\b",
+      "\\breinterpret_cast\\b", "\\brequires\\b",     "\\breturn\\b",
+      "\\bshort\\b",         "\\bsignals\\b",       "\\bsigned\\b",
+      "\\bsizeof\\b",        "\\bslots\\b",         "\\bstatic\\b",
+      "\\bstatic_assert\\b", "\\bstatic_cast\\b",   "\\bstruct\\b",
+      "\\bswitch\\b",        "\\btemplate\\b",      "\\bthis\\b",
+      "\\bthread_local\\b",  "\\bthrow\\b",         "\\btrue\\b",
+      "\\btry\\b",           "\\btypedef\\b",       "\\btypeid\\b",
+      "\\btypename\\b",      "\\bunion\\b",         "\\bunsigned\\b",
+      "\\busing\\b",         "\\bvirtual\\b",       "\\bvoid\\b",
+      "\\bvolatile\\b",      "\\bwchar_t\\b",       "\\bwhile\\b",
+      "\\bxor\\b",           "\\bxor_eq\\b"};
   for (const QString &p : kw) {
     rule.pattern = QRegularExpression(p);
     rule.format = keywordFormat;
@@ -866,7 +923,7 @@ void SyntaxHighlighter::setupCppRules() {
   rule.pattern = QRegularExpression("\".*?\"|'.*?'");
   rule.format = stringFormat;
   highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.pattern = QRegularExpression("\\b0x[0-9a-fA-F]+\\b|\\b[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b");
   rule.format = numberFormat;
   highlightingRules.append(rule);
   functionFormat.setFontItalic(true);
@@ -882,24 +939,44 @@ void SyntaxHighlighter::setupPythonRules() {
   HighlightingRule rule;
   keywordFormat.setFontWeight(QFont::Bold);
   QStringList kw = {
-      "\\bdef\\b",    "\\bclass\\b",    "\\bif\\b",     "\\belif\\b",
-      "\\belse\\b",   "\\bfor\\b",      "\\bwhile\\b",  "\\breturn\\b",
-      "\\bimport\\b", "\\bfrom\\b",     "\\bas\\b",     "\\btry\\b",
-      "\\bexcept\\b", "\\bfinally\\b",  "\\braise\\b",  "\\bwith\\b",
-      "\\byield\\b",  "\\blambda\\b",   "\\band\\b",    "\\bor\\b",
-      "\\bnot\\b",    "\\bin\\b",       "\\bis\\b",     "\\bpass\\b",
-      "\\bbreak\\b",  "\\bcontinue\\b", "\\bNone\\b",   "\\bTrue\\b",
-      "\\bFalse\\b",  "\\bself\\b",     "\\bglobal\\b", "\\bnonlocal\\b",
-      "\\bassert\\b", "\\basync\\b",    "\\bawait\\b",  "\\bdel\\b"};
+      "\\band\\b",      "\\bas\\b",    "\\bassert\\b", "\\basync\\b",
+      "\\bawait\\b",    "\\bbreak\\b",  "\\bclass\\b",  "\\bcontinue\\b",
+      "\\bdef\\b",      "\\bdel\\b",    "\\belif\\b",   "\\belse\\b",
+      "\\bexcept\\b",   "\\bFalse\\b",  "\\bfinally\\b", "\\bfor\\b",
+      "\\bfrom\\b",     "\\bglobal\\b", "\\bif\\b",      "\\bimport\\b",
+      "\\bin\\b",       "\\bis\\b",     "\\blambda\\b",  "\\bNone\\b",
+      "\\bnonlocal\\b", "\\bnot\\b",    "\\bor\\b",      "\\bpass\\b",
+      "\\braise\\b",    "\\breturn\\b", "\\bTrue\\b",   "\\btry\\b",
+      "\\bwhile\\b",    "\\bwith\\b",    "\\byield\\b",   "\\bmatch\\b",
+      "\\bcase\\b"};
   for (const QString &p : kw) {
     rule.pattern = QRegularExpression(p);
     rule.format = keywordFormat;
     highlightingRules.append(rule);
   }
+
+  // Python built-ins
+  QTextCharFormat builtinFormat;
+  builtinFormat.setForeground(functionFormat.foreground());
+  builtinFormat.setFontItalic(true);
+  QStringList builtins = {
+      "\\babs\\b",   "\\ball\\b",      "\\bany\\b",    "\\bbin\\b",
+      "\\bbool\\b",  "\\bdict\\b",     "\\bdir\\b",    "\\benumerate\\b",
+      "\\beval\\b",  "\\bfloat\\b",    "\\binput\\b",  "\\bint\\b",
+      "\\blen\\b",   "\\blist\\b",     "\\bmax\\b",    "\\bmin\\b",
+      "\\bopen\\b",  "\\bprint\\b",    "\\brange\\b",  "\\bround\\b",
+      "\\bstr\\b",   "\\bsum\\b",      "\\btuple\\b",  "\\btype\\b",
+      "\\bzip\\b",   "\\bself\\b"};
+  for (const QString &p : builtins) {
+    rule.pattern = QRegularExpression(p);
+    rule.format = builtinFormat;
+    highlightingRules.append(rule);
+  }
+
   rule.pattern = QRegularExpression("\".*?\"|'.*?'");
   rule.format = stringFormat;
   highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b");
   rule.format = numberFormat;
   highlightingRules.append(rule);
   functionFormat.setFontItalic(true);
@@ -917,21 +994,20 @@ void SyntaxHighlighter::setupPythonRules() {
 void SyntaxHighlighter::setupJavaScriptRules() {
   HighlightingRule rule;
   keywordFormat.setFontWeight(QFont::Bold);
-  QStringList kw = {"\\bfunction\\b",   "\\bvar\\b",       "\\blet\\b",
-                    "\\bconst\\b",      "\\bif\\b",        "\\belse\\b",
-                    "\\bfor\\b",        "\\bwhile\\b",     "\\breturn\\b",
-                    "\\bclass\\b",      "\\bnew\\b",       "\\bthis\\b",
-                    "\\bimport\\b",     "\\bexport\\b",    "\\bdefault\\b",
-                    "\\bfrom\\b",       "\\basync\\b",     "\\bawait\\b",
-                    "\\btry\\b",        "\\bcatch\\b",     "\\bfinally\\b",
-                    "\\bthrow\\b",      "\\bswitch\\b",    "\\bcase\\b",
-                    "\\bbreak\\b",      "\\bcontinue\\b",  "\\btypeof\\b",
-                    "\\binstanceof\\b", "\\bvoid\\b",      "\\bnull\\b",
-                    "\\bundefined\\b",  "\\btrue\\b",      "\\bfalse\\b",
-                    "\\bof\\b",         "\\bin\\b",        "\\bdelete\\b",
-                    "\\byield\\b",      "\\bsuper\\b",     "\\bextends\\b",
-                    "\\bstatic\\b",     "\\binterface\\b", "\\btype\\b",
-                    "\\benum\\b"};
+  QStringList kw = {
+      "\\bbreak\\b",      "\\bcase\\b",       "\\bcatch\\b",      "\\bclass\\b",
+      "\\bconst\\b",      "\\bcontinue\\b",   "\\bdebugger\\b",   "\\bdefault\\b",
+      "\\bdelete\\b",     "\\bdo\\b",         "\\belse\\b",       "\\bexport\\b",
+      "\\bextends\\b",     "\\bfalse\\b",      "\\bfinally\\b",    "\\bfor\\b",
+      "\\bfunction\\b",    "\\bif\\b",         "\\bimport\\b",     "\\bin\\b",
+      "\\binstanceof\\b",  "\\bnew\\b",        "\\bnull\\b",       "\\breturn\\b",
+      "\\bsuper\\b",      "\\bswitch\\b",     "\\bthis\\b",       "\\bthrow\\b",
+      "\\btrue\\b",       "\\btry\\b",        "\\btypeof\\b",     "\\bvar\\b",
+      "\\bvoid\\b",       "\\bwhile\\b",      "\\bwith\\b",       "\\bawait\\b",
+      "\\blet\\b",        "\\bstatic\\b",     "\\byield\\b",      "\\benum\\b",
+      "\\bimplements\\b", "\\binterface\\b",  "\\bpackage\\b",    "\\bprivate\\b",
+      "\\bprotected\\b",  "\\bpublic\\b",     "\\basync\\b",      "\\bof\\b",
+      "\\btype\\b",       "\\bfrom\\b"};
   for (const QString &p : kw) {
     rule.pattern = QRegularExpression(p);
     rule.format = keywordFormat;
@@ -943,7 +1019,7 @@ void SyntaxHighlighter::setupJavaScriptRules() {
   rule.pattern = QRegularExpression("\".*?\"|'.*?'|`[^`]*`");
   rule.format = stringFormat;
   highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.pattern = QRegularExpression("\\b0x[0-9a-fA-F]+\\b|\\b[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b");
   rule.format = numberFormat;
   highlightingRules.append(rule);
   functionFormat.setFontItalic(true);
@@ -1006,17 +1082,19 @@ void SyntaxHighlighter::setupRustRules() {
   HighlightingRule rule;
   keywordFormat.setFontWeight(QFont::Bold);
   QStringList kw = {
-      "\\bfn\\b",     "\\blet\\b",    "\\bmut\\b",    "\\bif\\b",
-      "\\belse\\b",   "\\bfor\\b",    "\\bwhile\\b",  "\\breturn\\b",
-      "\\bstruct\\b", "\\benum\\b",   "\\bimpl\\b",   "\\btrait\\b",
-      "\\buse\\b",    "\\bmod\\b",    "\\bpub\\b",    "\\bcrate\\b",
-      "\\bself\\b",   "\\bSelf\\b",   "\\bsuper\\b",  "\\bmatch\\b",
-      "\\bloop\\b",   "\\bin\\b",     "\\bas\\b",     "\\bref\\b",
-      "\\bwhere\\b",  "\\bunsafe\\b", "\\basync\\b",  "\\bawait\\b",
-      "\\bmove\\b",   "\\btype\\b",   "\\bconst\\b",  "\\bstatic\\b",
-      "\\bdyn\\b",    "\\btrue\\b",   "\\bfalse\\b",  "\\bBox\\b",
-      "\\bVec\\b",    "\\bString\\b", "\\bOption\\b", "\\bResult\\b",
-      "\\bSome\\b",   "\\bNone\\b",   "\\bOk\\b",     "\\bErr\\b"};
+      "\\bas\\b",       "\\basync\\b",    "\\bawait\\b",    "\\bbreak\\b",
+      "\\bconst\\b",    "\\bcontinue\\b", "\\bcrate\\b",    "\\bdyn\\b",
+      "\\belse\\b",     "\\benum\\b",     "\\bextern\\b",   "\\bfalse\\b",
+      "\\bfn\\b",       "\\bfor\\b",      "\\bif\\b",       "\\bimpl\\b",
+      "\\bin\\b",       "\\blet\\b",      "\\bloop\\b",     "\\bmatch\\b",
+      "\\bmod\\b",      "\\bmove\\b",     "\\bmut\\b",      "\\bpub\\b",
+      "\\bref\\b",      "\\breturn\\b",   "\\bself\\b",     "\\bSelf\\b",
+      "\\bstatic\\b",   "\\bstruct\\b",   "\\bsuper\\b",    "\\btrait\\b",
+      "\\btrue\\b",     "\\btype\\b",     "\\bunion\\b",    "\\bunsafe\\b",
+      "\\buse\\b",      "\\bwhere\\b",    "\\bwhile\\b",    "\\babstract\\b",
+      "\\bbecome\\b",   "\\bbox\\b",      "\\bdo\\b",       "\\bfinal\\b",
+      "\\boverride\\b", "\\bpriv\\b",     "\\bvirtual\\b",  "\\byield\\b",
+      "\\btry\\b"};
   for (const QString &p : kw) {
     rule.pattern = QRegularExpression(p);
     rule.format = keywordFormat;
@@ -1025,7 +1103,7 @@ void SyntaxHighlighter::setupRustRules() {
   rule.pattern = QRegularExpression("\".*?\"|'.'");
   rule.format = stringFormat;
   highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.pattern = QRegularExpression("\\b0x[0-9a-fA-F]+\\b|\\b[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b");
   rule.format = numberFormat;
   highlightingRules.append(rule);
   functionFormat.setFontItalic(true);
@@ -1045,25 +1123,43 @@ void SyntaxHighlighter::setupGoRules() {
   HighlightingRule rule;
   keywordFormat.setFontWeight(QFont::Bold);
   QStringList kw = {
-      "\\bfunc\\b",   "\\bpackage\\b", "\\bimport\\b",  "\\bvar\\b",
-      "\\bconst\\b",  "\\btype\\b",    "\\bstruct\\b",  "\\binterface\\b",
-      "\\bmap\\b",    "\\bchan\\b",    "\\bif\\b",      "\\belse\\b",
-      "\\bfor\\b",    "\\brange\\b",   "\\breturn\\b",  "\\bswitch\\b",
-      "\\bcase\\b",   "\\bdefault\\b", "\\bbreak\\b",   "\\bcontinue\\b",
-      "\\bgo\\b",     "\\bdefer\\b",   "\\bselect\\b",  "\\bfallthrough\\b",
-      "\\bgoto\\b",   "\\bnil\\b",     "\\btrue\\b",    "\\bfalse\\b",
-      "\\bmake\\b",   "\\bappend\\b",  "\\blen\\b",     "\\bcap\\b",
-      "\\bstring\\b", "\\bint\\b",     "\\bfloat64\\b", "\\bbool\\b",
-      "\\bbyte\\b",   "\\berror\\b",   "\\bfmt\\b"};
+      "\\bbreak\\b",    "\\bcase\\b",       "\\bchan\\b",      "\\bconst\\b",
+      "\\bcontinue\\b", "\\bdefault\\b",    "\\bdefer\\b",     "\\belse\\b",
+      "\\bfallthrough\\b", "\\bfor\\b",      "\\bfunc\\b",      "\\bgo\\b",
+      "\\bgoto\\b",     "\\bif\\b",         "\\bimport\\b",    "\\binterface\\b",
+      "\\bmap\\b",      "\\bpackage\\b",    "\\brange\\b",     "\\breturn\\b",
+      "\\bselect\\b",   "\\bstruct\\b",     "\\bswitch\\b",    "\\btype\\b",
+      "\\bvar\\b",      "\\bnil\\b",        "\\btrue\\b",      "\\bfalse\\b"};
   for (const QString &p : kw) {
     rule.pattern = QRegularExpression(p);
     rule.format = keywordFormat;
     highlightingRules.append(rule);
   }
-  rule.pattern = QRegularExpression("\".*?\"|`[^`]*`");
+
+  // Go built-in types and functions
+  QTextCharFormat builtinFormat;
+  builtinFormat.setForeground(functionFormat.foreground());
+  builtinFormat.setFontItalic(true);
+  QStringList builtins = {
+      "\\bappend\\b", "\\bcap\\b",   "\\bclose\\b",  "\\bcomplex\\b",
+      "\\bcopy\\b",   "\\bdelete\\b", "\\bimag\\b",   "\\blen\\b",
+      "\\bmake\\b",   "\\bnew\\b",    "\\bpanic\\b",  "\\bprint\\b",
+      "\\bprintln\\b", "\\breal\\b",   "\\brecover\\b", "\\bbool\\b",
+      "\\bbyte\\b",   "\\bcomplex64\\b", "\\bcomplex128\\b", "\\berror\\b",
+      "\\bfloat32\\b", "\\bfloat64\\b", "\\bint\\b",    "\\bint8\\b",
+      "\\bint16\\b",  "\\bint32\\b",  "\\bint64\\b",  "\\brune\\b",
+      "\\bstring\\b", "\\buint\\b",   "\\buint8\\b",  "\\buint16\\b",
+      "\\buint32\\b", "\\buint64\\b", "\\buintptr\\b"};
+  for (const QString &p : builtins) {
+    rule.pattern = QRegularExpression(p);
+    rule.format = builtinFormat;
+    highlightingRules.append(rule);
+  }
+
+  rule.pattern = QRegularExpression("\".*?\"|`[^`]*`|'.*?'");
   rule.format = stringFormat;
   highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
+  rule.pattern = QRegularExpression("\\b0[xX][0-9a-fA-F]+\\b|\\b[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b");
   rule.format = numberFormat;
   highlightingRules.append(rule);
   functionFormat.setFontItalic(true);
@@ -1301,32 +1397,111 @@ void WelcomeWidget::setRecentFiles(const QStringList &files) {
 // ============================================================
 BreadcrumbBar::BreadcrumbBar(QWidget *parent) : QWidget(parent) {
   QHBoxLayout *layout = new QHBoxLayout(this);
-  layout->setContentsMargins(12, 4, 12, 4);
-  layout->setSpacing(0);
+  layout->setContentsMargins(12, 0, 12, 0);
+  layout->setSpacing(8);
+
+  iconLabel = new QLabel("\xF0\x9F\x93\x84"); // File icon
+  iconLabel->setStyleSheet("color: #999999; font-size: 14px;");
+  layout->addWidget(iconLabel);
+
   pathLabel = new QLabel("");
   pathLabel->setStyleSheet(
-      "color: #999999; font-size: 12px; font-family: 'Segoe UI', sans-serif;");
+      "color: #808080; font-size: 12px; font-family: 'Segoe UI', sans-serif;");
   layout->addWidget(pathLabel);
+
+  fileLabel = new QLabel("");
+  fileLabel->setStyleSheet(
+      "color: #cccccc; font-size: 12px; font-family: 'Segoe UI', sans-serif; font-weight: 500;");
+  layout->addWidget(fileLabel);
+
+  symbolLabel = new QLabel("");
+  symbolLabel->setStyleSheet(
+      "color: #dcdcaa; font-size: 12px; font-family: 'Consolas', monospace;");
+  layout->addWidget(symbolLabel);
+
   layout->addStretch();
-  setFixedHeight(28);
+  setFixedHeight(30);
   setStyleSheet("QWidget { background-color: #252526; border-bottom: 1px solid "
                 "#3e3e42; }");
 }
 
 void BreadcrumbBar::updatePath(const QString &filePath, const QString &symbol) {
   if (filePath.isEmpty()) {
-    pathLabel->setText("Untitled");
+    pathLabel->setText("");
+    fileLabel->setText("Untitled");
+    symbolLabel->setText("");
     return;
   }
   QFileInfo info(filePath);
-  QString display = "<span style='color:#808080;'>" + info.absolutePath() +
-                    " &gt; </span>" + "<span style='color:#cccccc;'>" +
-                    info.fileName() + "</span>";
-  if (!symbol.isEmpty())
-    display += "<span style='color:#808080;'> &gt; </span><span "
-               "style='color:#dcdcaa;'>" +
-               symbol + "</span>";
-  pathLabel->setText(display);
+  pathLabel->setText(info.absolutePath() + " > ");
+  fileLabel->setText(info.fileName());
+  
+  if (!symbol.isEmpty()) {
+    symbolLabel->setText(" > " + symbol);
+    symbolLabel->show();
+  } else {
+    symbolLabel->setText("");
+    symbolLabel->hide();
+  }
+}
+
+// ============================================================
+// FindBar Implementation
+// ============================================================
+FindBar::FindBar(QWidget *parent) : QWidget(parent) {
+  QHBoxLayout *layout = new QHBoxLayout(this);
+  layout->setContentsMargins(10, 2, 10, 2);
+  layout->setSpacing(10);
+
+  findInput = new QLineEdit(this);
+  findInput->setPlaceholderText("Find...");
+  findInput->setStyleSheet("QLineEdit { background-color: #3c3c3c; color: #cccccc; border: 1px solid #555555; padding: 2px 5px; border-radius: 2px; }");
+  layout->addWidget(findInput);
+
+  matchLabel = new QLabel("0/0", this);
+  matchLabel->setStyleSheet("color: #999999; font-size: 11px;");
+  layout->addWidget(matchLabel);
+
+  prevBtn = new QPushButton("\xE2\x86\x91", this); // Up arrow
+  nextBtn = new QPushButton("\xE2\x86\x93", this); // Down arrow
+  closeBtn = new QPushButton("\xE2\x9C\x95", this); // Close icon
+
+  QString btnStyle = "QPushButton { background-color: transparent; color: #cccccc; border: none; padding: 2px 8px; font-size: 14px; } "
+                      "QPushButton:hover { background-color: #4a4a4a; border-radius: 2px; }";
+  prevBtn->setStyleSheet(btnStyle);
+  nextBtn->setStyleSheet(btnStyle);
+  closeBtn->setStyleSheet(btnStyle + " QPushButton:hover { background-color: #e81123; color: white; }");
+
+  layout->addWidget(prevBtn);
+  layout->addWidget(nextBtn);
+  layout->addWidget(closeBtn);
+
+  setFixedHeight(34);
+  setStyleSheet("QWidget { background-color: #2d2d2d; border-bottom: 1px solid #3e3e42; border-left: 1px solid #3e3e42; }");
+
+  connect(findInput, &QLineEdit::textChanged, this, &FindBar::textChanged);
+  connect(findInput, &QLineEdit::returnPressed, this, [this]() { emit findNextRequested(findInput->text()); });
+  connect(prevBtn, &QPushButton::clicked, this, [this]() { emit findPreviousRequested(findInput->text()); });
+  connect(nextBtn, &QPushButton::clicked, this, [this]() { emit findNextRequested(findInput->text()); });
+  connect(closeBtn, &QPushButton::clicked, this, &FindBar::closeRequested);
+  
+  hide();
+}
+
+void FindBar::showAndFocus(const QString &text) {
+  if (!text.isEmpty()) findInput->setText(text);
+  show();
+  findInput->setFocus();
+  findInput->selectAll();
+}
+
+void FindBar::setMatchCount(int current, int total) {
+  if (total == 0) matchLabel->setText("No results");
+  else matchLabel->setText(QString("%1/%2").arg(current).arg(total));
+}
+
+QString FindBar::getSearchText() const {
+  return findInput->text();
 }
 
 // ============================================================
@@ -1712,7 +1887,7 @@ void TerminalWidget::appendOutput(const QString &text) {
 // ============================================================
 TextEditor::TextEditor(QWidget *parent)
     : QMainWindow(parent), wordWrapEnabled(false), splitViewEnabled(false),
-      fontSize(11), currentThemeIndex(0) {
+      fontSize(11), currentThemeIndex(0), currentMatchIndex(-1) {
   fileWatcher = new QFileSystemWatcher(this);
   connect(fileWatcher, &QFileSystemWatcher::fileChanged, this,
           &TextEditor::onFileChangedExternally);
@@ -1769,6 +1944,10 @@ void TextEditor::setupUI() {
   // Breadcrumb bar
   breadcrumbBar = new BreadcrumbBar();
   editorLayout->addWidget(breadcrumbBar);
+
+  // Find bar (overlay/top of editor)
+  findBar = new FindBar(this);
+  editorLayout->addWidget(findBar);
 
   // Main horizontal splitter for editor tabs
   mainSplitter = new QSplitter(Qt::Horizontal);
@@ -1936,20 +2115,48 @@ QString TextEditor::detectCurrentSymbol(CodeEditor *editor) {
   if (!editor)
     return "";
   QTextBlock block = editor->textCursor().block();
-  // Walk upward to find function/class definition
+  
+  // For C++, walk up to find the closest scopes
+  Language lang = editor->getLanguage();
+  
+  QRegularExpression funcRe;
+  QRegularExpression classRe("(?:class|struct|enum|interface|trait|impl|namespace)\\s+([A-Za-z_][A-Za-z0-9_]*)");
+
+  if (lang == Language::CPP) {
+      // Improved C++ regex: captures return type (optional), scope (optional), and function name
+      // Handles: void Class::Func(), int* ptr(), std::vector<int> some_func(), etc.
+      funcRe = QRegularExpression("(?xi)"
+                                  "(?: [A-Za-z_][A-Za-z0-9_<>:\\*&\\s]* \\s+ )?" // Return type (optional)
+                                  " ( [A-Za-z_][A-Za-z0-9_\\s]* :: )? "           // Class/Namespace scope (optional)
+                                  " ( [A-Za-z_][A-Za-z0-9_]* ) "                  // Function name
+                                  " \\s* \\( [^\\)]* \\) "                       // Parameters
+                                  " \\s* (?: const )? \\s* [{;] ");               // End of signature
+  } else if (lang == Language::Python) {
+      funcRe = QRegularExpression("^\\s*def\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(");
+      classRe = QRegularExpression("^\\s*class\\s+([A-Za-z_][A-Za-z0-9_]*)");
+  } else {
+      funcRe = QRegularExpression("(?:fn|func|def|function)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(");
+  }
+
   while (block.isValid()) {
-    QString text = block.text().trimmed();
-    QRegularExpression funcRe("(?:void|int|bool|auto|QString|float|double|char|"
-                              "string|fn|func|def|function|pub\\s+fn|async\\s+"
-                              "function)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(");
-    QRegularExpressionMatch m = funcRe.match(text);
-    if (m.hasMatch())
-      return m.captured(1) + "()";
-    QRegularExpression classRe("(?:class|struct|enum|interface|trait|impl)\\s+("
-                               "[A-Za-z_][A-Za-z0-9_]*)");
+    QString text = block.text();
+    QRegularExpressionMatch m;
+    
+    if (lang == Language::CPP) {
+        m = funcRe.match(text);
+        if (m.hasMatch()) {
+            QString scope = m.captured(1);
+            QString name = m.captured(2);
+            return (scope.isEmpty() ? "" : scope) + name + "()";
+        }
+    } else {
+        m = funcRe.match(text);
+        if (m.hasMatch()) return m.captured(1) + "()";
+    }
+    
     m = classRe.match(text);
-    if (m.hasMatch())
-      return m.captured(1);
+    if (m.hasMatch()) return m.captured(1);
+    
     block = block.previous();
   }
   return "";
@@ -2044,6 +2251,11 @@ void TextEditor::createActions() {
   findNextAct = new QAction("Find &Next", this);
   findNextAct->setShortcut(QKeySequence(Qt::Key_F3));
   connect(findNextAct, &QAction::triggered, this, &TextEditor::findNext);
+
+  connect(findBar, &FindBar::textChanged, this, &TextEditor::onFindTextChanged);
+  connect(findBar, &FindBar::findNextRequested, this, &TextEditor::findNext);
+  connect(findBar, &FindBar::findPreviousRequested, this, &TextEditor::findPrevious);
+  connect(findBar, &FindBar::closeRequested, this, &TextEditor::closeFindBar);
 
   replaceAct = new QAction("&Replace...", this);
   replaceAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_H));
@@ -2363,25 +2575,98 @@ void TextEditor::tabChanged(int) {
 }
 
 void TextEditor::findText() {
-  bool ok;
-  QString text = QInputDialog::getText(
-      this, "Find", "Find what:", QLineEdit::Normal, lastSearchText, &ok);
-  if (ok && !text.isEmpty()) {
+    CodeEditor *editor = currentEditor();
+    if (!editor) return;
+    
+    QString selected = editor->textCursor().selectedText();
+    if (selected.isEmpty()) selected = lastSearchText;
+    
+    findBar->showAndFocus(selected);
+    onFindTextChanged(findBar->getSearchText());
+}
+
+void TextEditor::onFindTextChanged(const QString &text) {
     lastSearchText = text;
-    findNext();
-  }
+    currentMatches.clear();
+    currentMatchIndex = -1;
+    
+    CodeEditor *editor = currentEditor();
+    if (!editor || text.isEmpty()) {
+        updateSearchHighlights();
+        findBar->setMatchCount(0, 0);
+        return;
+    }
+
+    QString content = editor->toPlainText();
+    QRegularExpression re(QRegularExpression::escape(text), QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator i = re.globalMatch(content);
+    
+    int currentPos = editor->textCursor().position();
+    
+    while (i.hasNext()) {
+        QRegularExpressionMatch match = i.next();
+        QTextCursor cursor(editor->document());
+        cursor.setPosition(match.capturedStart());
+        cursor.setPosition(match.capturedEnd(), QTextCursor::KeepAnchor);
+        currentMatches.append(cursor);
+        
+        if (currentMatchIndex == -1 && match.capturedStart() >= currentPos) {
+            currentMatchIndex = currentMatches.size() - 1;
+        }
+    }
+
+    if (currentMatchIndex == -1 && !currentMatches.isEmpty()) {
+        currentMatchIndex = 0;
+    }
+
+    updateSearchHighlights();
+    findBar->setMatchCount(currentMatchIndex + 1, currentMatches.size());
+    
+    if (currentMatchIndex != -1) {
+        editor->setTextCursor(currentMatches[currentMatchIndex]);
+        editor->ensureCursorVisible();
+    }
 }
 
 void TextEditor::findNext() {
-  CodeEditor *editor = currentEditor();
-  if (!editor || lastSearchText.isEmpty())
-    return;
-  if (!editor->find(lastSearchText)) {
-    QTextCursor cursor = editor->textCursor();
-    cursor.movePosition(QTextCursor::Start);
-    editor->setTextCursor(cursor);
-    editor->find(lastSearchText);
-  }
+    if (currentMatches.isEmpty()) return;
+    currentMatchIndex = (currentMatchIndex + 1) % currentMatches.size();
+    CodeEditor *editor = currentEditor();
+    if (editor) {
+        editor->setTextCursor(currentMatches[currentMatchIndex]);
+        editor->ensureCursorVisible();
+        updateSearchHighlights();
+        findBar->setMatchCount(currentMatchIndex + 1, currentMatches.size());
+    }
+}
+
+void TextEditor::findPrevious() {
+    if (currentMatches.isEmpty()) return;
+    currentMatchIndex = (currentMatchIndex - 1 + currentMatches.size()) % currentMatches.size();
+    CodeEditor *editor = currentEditor();
+    if (editor) {
+        editor->setTextCursor(currentMatches[currentMatchIndex]);
+        editor->ensureCursorVisible();
+        updateSearchHighlights();
+        findBar->setMatchCount(currentMatchIndex + 1, currentMatches.size());
+    }
+}
+
+void TextEditor::closeFindBar() {
+    findBar->hide();
+    currentMatches.clear();
+    currentMatchIndex = -1;
+    updateSearchHighlights();
+    if (CodeEditor *editor = currentEditor()) {
+        editor->setFocus();
+    }
+}
+
+void TextEditor::updateSearchHighlights() {
+    CodeEditor *editor = currentEditor();
+    if (editor) {
+        editor->setSearchSelections(currentMatches);
+    }
 }
 
 void TextEditor::replaceText() {
