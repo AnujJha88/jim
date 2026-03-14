@@ -4,6 +4,26 @@ A lightweight, modern code editor built with C++ and Qt6. Designed for developer
 
 **Note:** This project was vibecoded — built through natural conversation and iteration with AI assistance.
 
+## Screenshots
+
+<p align="center">
+  <img src="Screenshot 2026-03-14 205007.png" width="800" alt="Welcome Screen">
+  <br>
+  <em>Welcome Screen</em>
+</p>
+
+<p align="center">
+  <img src="Screenshot 2026-03-14 205023.png" width="800" alt="File Editor and Tree">
+  <br>
+  <em>File Editor and Tree</em>
+</p>
+
+<p align="center">
+  <img src="Screenshot 2026-03-14 205031.png" width="800" alt="Animation dock and file explorer">
+  <br>
+  <em>Animation dock and file explorer</em>
+</p>
+
 ## Features
 
 ### Core Editing
