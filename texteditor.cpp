@@ -2142,12 +2142,13 @@ QString TextEditor::detectCurrentSymbol(CodeEditor *editor) {
   if (lang == Language::CPP) {
       // Improved C++ regex: captures return type (optional), scope (optional), and function name
       // Handles: void Class::Func(), int* ptr(), std::vector<int> some_func(), etc.
+      // We make the trailing brace optional to handle "brace on next line"
       funcRe = QRegularExpression("(?xi)"
                                   "(?: [A-Za-z_][A-Za-z0-9_<>:\\*&\\s]* \\s+ )?" // Return type (optional)
                                   " ( [A-Za-z_][A-Za-z0-9_\\s]* :: )? "           // Class/Namespace scope (optional)
                                   " ( [A-Za-z_][A-Za-z0-9_]* ) "                  // Function name
                                   " \\s* \\( [^\\)]* \\) "                       // Parameters
-                                  " \\s* (?: const )? \\s* [{;] ");               // End of signature
+                                  " \\s* (?: const )? \\s* (?: [{;]|$) ");        // End of signature (brace, semi, or EOL)
   } else if (lang == Language::Python) {
       funcRe = QRegularExpression("^\\s*def\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(");
       classRe = QRegularExpression("^\\s*class\\s+([A-Za-z_][A-Za-z0-9_]*)");
@@ -2155,16 +2156,27 @@ QString TextEditor::detectCurrentSymbol(CodeEditor *editor) {
       funcRe = QRegularExpression("(?:fn|func|def|function)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(");
   }
 
+  // Keywords to exclude in C++
+  static const QStringList cppKeywords = {"if", "while", "for", "switch", "catch", "else", "foreach"};
+
   while (block.isValid()) {
-    QString text = block.text();
+    QString text = block.text().trimmed();
+    if (text.isEmpty()) {
+        block = block.previous();
+        continue;
+    }
+
     QRegularExpressionMatch m;
     
     if (lang == Language::CPP) {
         m = funcRe.match(text);
         if (m.hasMatch()) {
-            QString scope = m.captured(1);
             QString name = m.captured(2);
-            return (scope.isEmpty() ? "" : scope) + name + "()";
+            // Verify it's not a control flow keyword
+            if (!cppKeywords.contains(name)) {
+                QString scope = m.captured(1);
+                return (scope.isEmpty() ? "" : scope) + name + "()";
+            }
         }
     } else {
         m = funcRe.match(text);
