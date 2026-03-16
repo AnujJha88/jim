@@ -1,6 +1,6 @@
 # Jim
 
-A lightweight, modern code editor built with C++ and Qt6. Designed for developers who want a fast, distraction-free editing experience with powerful features.
+A lightweight, native code editor built with C++ and Qt6. Fast, distraction-free, and genuinely useful for developers and researchers who live in their editor.
 
 **Note:** This project was vibecoded — built through natural conversation and iteration with AI assistance.
 
@@ -27,47 +27,65 @@ A lightweight, modern code editor built with C++ and Qt6. Designed for developer
 ## Features
 
 ### Core Editing
-- **Syntax Highlighting** — 11 languages: C/C++, Python, JavaScript/TypeScript, HTML, CSS, Rust, Go, JSON, YAML, Markdown
+- **Syntax Highlighting** — 11 languages with advanced rules: C/C++ (C++20 & Qt), Python, JavaScript/TypeScript (ES2024), HTML5, CSS3, Rust, Go, JSON, YAML, Markdown, Assembly
 - **Language Auto-Detection** — Automatically applies correct highlighting based on file extension
 - **Code Folding** — Collapse/expand functions, classes, and blocks with gutter indicators
 - **Line Numbers** — Always visible with auto-sizing and current-line highlight
 - **Auto-Indentation** — Context-aware smart indenting
-- **Auto-Pairing** — Automatic bracket (), [], {} and quote "", '' pairing with smart closing
-- **Multiple Tabs** — Work on several files simultaneously
-- **Split View** — View two files side by side
+- **Auto-Pairing** — Automatic bracket `()`, `[]`, `{}` and quote `""`, `''` pairing with smart closing
+- **Multiple Tabs** — Work on several files simultaneously with modification tracking
+- **Split View** — View two files side by side (`Ctrl+\`)
 - **Word Wrap** — Toggle line wrapping on demand
-- **Mini Map** — Code overview for quick navigation (Ctrl+M)
+- **Mini Map** — Code overview with viewport indicator (`Ctrl+M`)
+- **Smart Home Key** — Jumps to first non-whitespace character, then start of line
 
 ### Navigation
-- **File Tree** — Browse and open files from a sidebar (Ctrl+B)
+- **File Tree** — Browse and open files from a sidebar (`Ctrl+B`)
 - **Breadcrumb Navigation** — Shows `folder > file > function` context below the tab bar
-- **Go to Line** — Jump to any line instantly (Ctrl+G)
-- **Find & Replace** — Quick text search with wraparound
-- **Recent Files** — Access recently opened files
-- **Mini Map Navigation** — Click to jump to any part of your code
+- **Go to Line** — Jump to any line instantly (`Ctrl+G`)
+- **Find & Replace** — Inline find bar with "Find All Matches" (simultaneous highlighting), match count, and golden-accent current selection
+- **Recent Files** — Access recently opened files from the File menu
+- **Mini Map Navigation** — Click anywhere to jump to that part of your code
 
 ### Developer Tools
-- **Integrated Terminal** — Embedded shell panel with command execution (Ctrl+`)
-- **Hex Editor** — Built-in binary file viewer/editor with hex and ASCII display, full save support, and change tracking
+- **Integrated Terminal** — Embedded shell panel with animated slide-in/out (`Ctrl+\``)
+- **Hex Editor** — Built-in binary file viewer/editor: hex + ASCII display, keyboard navigation, full save support, modification tracking
+- **Disassembler** — Native disassembly via `objdump`/`llvm-objdump` with a parsed function list; click any function to jump to it (`Ctrl+Shift+D`)
+- **Binary Inspector** — Pure native ELF and PE parser: headers, sections, imports/symbols, MD5 hashing, and string extraction — no external tools required (`Ctrl+Shift+I`)
+- **Markdown Preview** — Live split-panel rendered preview with full dark theme, tables, code blocks, images, and task lists (`Ctrl+Shift+M`)
 - **File Watcher** — Detects external file changes and prompts to reload
-- **Welcome Screen** — Quick access to recent files and actions on launch
+- **AI Autocomplete** — Configurable AI-powered completions via any OpenAI-compatible API; explicit support for Groq, OpenRouter, and Together AI (Plugins menu)
+
+### Binary Analysis Suite
+Jim has a native binary analysis workflow requiring no external tools:
+
+| Tool | Trigger | What it does |
+|------|---------|--------------|
+| Hex Editor | Auto on binary open | View/edit raw bytes |
+| Disassembler | `Ctrl+Shift+D` | Disassemble via objdump, parsed function list |
+| Binary Inspector | `Ctrl+Shift+I` | ELF/PE headers, sections, imports, strings |
+
+Right-click any file in the Explorer to access all three tools directly.
 
 ### Visuals & Effects
-- **Animation Cycler** — Matrix, Particles, Waves, and Pulse effects to customize your workspace background (Ctrl+A)
-- **3 Themes** — Light, Dark, and Monokai with proper syntax colors (Ctrl+T)
-- **Custom Modern Title Bar** — A sleek, frameless window title bar with custom minimize, maximize/restore, and close buttons
+- **Animation Cycler** — Matrix, Particles, Waves, Pulse, Starfield, Rain, Snow, Fire (`Ctrl+Shift+A`)
+- **3 Themes** — Light, Dark, and Monokai (`Ctrl+T`)
+- **Animated Panels** — Smooth slide animations for terminal, fade for welcome screen, flash on tab open
+- **Custom Title Bar** — Frameless window with minimize, maximize/restore, and close
 
 ### Productivity
+- **Line Manipulation** — Duplicate (`Ctrl+D`), Move Up/Down (`Alt+↑/↓`), Delete (`Ctrl+Shift+K`), Toggle Comment (`Ctrl+/`)
+- **Trailing Whitespace** — Automatically trimmed on save
 - **Command Line Support** — Open files and folders from terminal
-- **Keyboard Shortcuts** — Comprehensive shortcut system
-- **Modern UI** — VS Code-inspired dark interface with transparent scrollbars
-- **Performance Optimized** — Fast syntax highlighting and responsive editing
+- **Comprehensive Shortcuts** — All common operations keyboard-accessible
+
+---
 
 ## Installation
 
 ### Prerequisites
 
-**Debian/Ubuntu/Kali:**
+**Debian / Ubuntu / Kali:**
 ```bash
 sudo apt update
 sudo apt install qt6-base-dev qt6-tools-dev-tools build-essential
@@ -75,7 +93,7 @@ sudo apt install qt6-base-dev qt6-tools-dev-tools build-essential
 
 **Arch Linux:**
 ```bash
-sudo pacman -S qt6-base
+sudo pacman -S qt6-base qt6-tools
 ```
 
 **Fedora:**
@@ -88,51 +106,67 @@ sudo dnf install qt6-qtbase-devel gcc-c++ make
 brew install qt@6
 ```
 
-### Build and Install
+**Windows:**
+No prerequisites beyond Qt6 — use the PowerShell build script below. The build script auto-locates Qt6 and MinGW.
+
+> **Note:** The integrated terminal on Linux/macOS uses a simple QProcess-based shell. There is no dependency on `qtermwidget` or any external terminal library — the terminal works out of the box on all platforms.
+
+---
+
+## Build and Run
+
+### Linux / macOS / WSL
 
 ```bash
+git clone https://github.com/AnujJha88/jim.git
+cd jim
 make
-sudo make install
+sudo make install   # installs to /usr/local/bin
 ```
 
-### Uninstall
-
+To uninstall:
 ```bash
 sudo make uninstall
 ```
 
+### Windows (Native)
+
+```powershell
+git clone https://github.com/AnujJha88/jim.git
+cd jim
+.\build.ps1
+.\release\jim.exe
+```
+
+The `build.ps1` script automatically:
+1. Locates Qt6 and MinGW under `C:\Qt\`
+2. Runs `qmake` to generate the Makefile
+3. Compiles with `mingw32-make`
+4. Runs `windeployqt` to bundle all Qt DLLs alongside the executable
+
+---
+
 ## Usage
 
-Launch the editor:
 ```bash
-jim
+jim                        # open editor (welcome screen)
+jim myfile.cpp             # open a specific file
+jim .                      # open current directory as project
+jim /path/to/project       # open a specific folder
 ```
 
-Open a specific file:
-```bash
-jim myfile.cpp
-```
-
-Open current directory:
-```bash
-jim .
-```
-
-Open a specific folder:
-```bash
-jim /path/to/project
-```
+---
 
 ## Keyboard Shortcuts
 
-### File Operations
+### File
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+N` | New file |
 | `Ctrl+O` | Open file |
 | `Ctrl+Shift+O` | Open folder |
-| `Ctrl+S` | Save file |
-| `Ctrl+Shift+S` | Save as |
+| `Ctrl+S` | Save |
+| `Ctrl+Shift+S` | Save As |
 | `Ctrl+W` | Close tab |
 | `Ctrl+Q` | Quit |
 
@@ -145,110 +179,110 @@ jim /path/to/project
 | `Ctrl+C` | Copy |
 | `Ctrl+V` | Paste |
 | `Ctrl+A` | Select all |
+| `Ctrl+D` | Duplicate line |
+| `Alt+↑` | Move line up |
+| `Alt+↓` | Move line down |
+| `Ctrl+Shift+K` | Delete line |
+| `Ctrl+/` | Toggle line comment |
+| `Home` | Smart home (first non-whitespace → start of line) |
 
 ### Search
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+F` | Find |
+| `Ctrl+F` | Find (inline bar) |
 | `F3` | Find next |
+| `Shift+F3` | Find previous |
 | `Ctrl+H` | Replace |
 | `Ctrl+G` | Go to line |
 
 ### View
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+B` | Toggle file tree |
-| `Ctrl+M` | Toggle minimap |
+| `Ctrl+B` | Toggle file explorer |
+| `Ctrl+M` | Toggle mini map |
 | `` Ctrl+` `` | Toggle terminal |
 | `Ctrl+\` | Toggle split view |
 | `Ctrl+T` | Cycle themes |
 | `Ctrl++` | Increase font size |
 | `Ctrl+-` | Decrease font size |
+| `Ctrl+Shift+M` | Toggle Markdown preview |
 
-## Building from Source
+### Tools
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Shift+H` | Open current file in Hex Editor |
+| `Ctrl+Shift+D` | Disassemble file |
+| `Ctrl+Shift+I` | Open Binary Inspector |
 
-### Requirements
-- **Linux/macOS**: Qt6 (Core, Gui, Widgets), C++17 Compiler (GCC/Clang), Make
-- **Windows**: Qt6 (MSVC or MinGW), CMake or Make, PowerShell
-
-### Compile and Install (Linux / macOS / WSL)
-```bash
-git clone https://github.com/AnujJha88/jim.git
-cd jim
-make
-sudo make install
-```
-
-**Note:** The dispatcher `GNUmakefile` automatically detects the environment, runs `qmake`, and compiles the project. It then installs the binary to `/usr/local/bin` when you run `sudo make install`.
-
-### Compile (Windows Native)
-We provide a dedicated PowerShell script to compile Jim on Windows natively. It produces a standalone GUI executable (`jim.exe`) configured for the Windows environment.
-```powershell
-git clone https://github.com/AnujJha88/jim.git
-cd jim
-.\build.ps1
-.\release\jim.exe
-```
+---
 
 ## Configuration
 
-Settings are automatically saved and include:
-- Recent files list
-- Font size preference
-- Word wrap state
-- Window geometry
+Settings are automatically persisted across sessions:
 
-Configuration is stored in `~/.config/TextEditor/Settings.conf`
+| Setting | Default |
+|---------|---------|
+| Font size | 11pt |
+| Word wrap | Off |
+| Recent files | Last 10 |
+| Window geometry | Restored |
 
+Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the registry (Windows via QSettings).
+
+---
 
 ## Recent Updates
 
+### v1.5.0 (Current)
+- Added **Find All Matches** — simultaneous highlighting of all search matches with a golden accent for the current choice; updates in real-time as you navigate.
+- Added **Enhanced Syntax Highlighting** — significantly expanded keyword sets for C++20, Python 3.12 (built-ins and decorators), JavaScript/TypeScript (arrow functions and templates), Rust, and Go.
+- Added **Breadcrumb Symbol Detection** — Real-time regex-based function and class detection in the breadcrumb bar.
+- Added **Tool Access Expansion** — Direct access to Hex Editor, Disassembler, and Binary Inspector via right-click on the file tree.
+- Added **Reveal in Explorer** — Quickly open the current file's location in the system file manager via the context menu.
+- Added **AI Provider Flexibility** — Full support for Groq, OpenRouter, and Together AI via custom base URL configuration.
+
+### v1.4.0
+- Added **Markdown Preview** — live split-panel rendered preview (`Ctrl+Shift+M`). Supports headers, tables, code blocks with language labels, images, task lists, blockquotes, strikethrough, highlights, and raw HTML passthrough. Updates with 400 ms debounce as you type. No external libraries.
+- Added **Disassembler** — wraps `objdump`/`llvm-objdump`, displays assembly with full syntax highlighting, parsed function list with click-to-jump (`Ctrl+Shift+D`)
+- Added **Binary Inspector** — pure native ELF and PE parser (`Ctrl+Shift+I`): headers, sections, imports, MD5 hash, extracted strings. Handles ELF32/64 LE/BE and PE32/PE32+
+- Added **Tools menu** with all binary analysis actions
+- Added **right-click context menu** on file tree: Open, Hex Editor, Disassemble, Binary Inspector, Reveal in Explorer
+- Added **animated terminal** — smooth slide up/down with easing curve (replaces instant show/hide)
+- Added **welcome screen fade** — opacity animation on show/hide
+- Added **tab flash** — accent colour flash when a new tab opens
+
+### v1.3.0
+- Added **AI Autocomplete** — configurable via any OpenAI-compatible API (Plugins menu)
+- Added **inline Find bar** — shows match count, previous/next navigation, live highlight
+- Added **Animation Cycler** expanded — Starfield, Rain, Snow, Fire added to Matrix/Particles/Waves/Pulse
+
 ### v1.2.2
-- Added **Animation Cycler** — Cycle through Matrix, Particles, Waves, and Pulse background effects (Ctrl+A)
-- Improved **Hex Editor** — Full save support, modification tracking (asterisk in tab), and unsaved changes prompt
-- Enhanced **Build System** — Restored cross-platform support with unified `GNUmakefile` and improved Windows `build.ps1`
-- Added **Smart Home Key** — Home key now jumps to first non-whitespace character before start of line
+- Added **Animation Cycler** (`Ctrl+Shift+A`)
+- Improved **Hex Editor** — full save support, modification tracking (asterisk in tab)
+- Enhanced **build system** — unified `GNUmakefile`, improved `build.ps1`
+- Added **Smart Home Key**
 
 ### v1.2.1
-- Added **Hex Editor** — Automatic binary file detection with integrated hex/ASCII viewer
-- Binary files open in dedicated hex editor tab with `[HEX]` prefix
-- Hex editor features: address column, hex/ASCII dual view, keyboard navigation, editing support
-- Fixed build system to properly include hex editor compilation
+- Added **Hex Editor** — automatic binary detection, integrated hex/ASCII viewer
 
-### v1.2
-- Added **Line Editing Power**: Duplicate (`Ctrl+D`), Move Up/Down (`Alt+Up/Down`), Delete (`Ctrl+Shift+K`), and Toggle Comments (`Ctrl+/`).
-- Configured a Smart Home Key to navigate to the first non-whitespace block.
-- Added automatic Trailing Whitespace removal upon saving files.
-- Replaced standard OS window decorations with a custom Frameless Title Bar (minimize, maximize, close).
-- Added a VS Code-style "Open Folder" Empty State to the File Explorer when initialized without arguments.
-- Fixed layout to allow `QMenuBar` rendering below the custom Title Bar.
+### v1.2.0
+- Added **Line Editing Power**: Duplicate, Move Up/Down, Delete, Toggle Comment
+- Added **Trailing Whitespace** removal on save
+- Added **custom frameless title bar**
 
+### v1.1.0
+- Welcome screen, Breadcrumb navigation, Integrated terminal
+- Code folding, 11-language syntax highlighting, Language auto-detection
+- File watcher, Monokai theme, modernised VS Code-inspired UI
 
-### v1.1
-- Added Welcome Screen with recent files and quick-action buttons
-- Added Breadcrumb Navigation (folder > file > function)
-- Added Integrated Terminal panel (Ctrl+`)
-- Added Code Folding with clickable gutter indicators
-- Added syntax highlighting for 9 new languages: JavaScript/TypeScript, HTML, CSS, Rust, Go, JSON, YAML, Markdown
-- Added Language Auto-Detection from file extension
-- Added File Watcher — detects external changes and prompts to reload
-- Added Monokai theme (3 themes total)
-- Modernized UI — VS Code-inspired styling, transparent scrollbars, rounded menus
-- Language indicator in status bar
+### v1.0.0
+- Multi-tab editor, syntax highlighting, auto-pairing, minimap, split view
 
-### v1.0
-- Added multi-line comment support (/* */)
-- Implemented auto-pairing for brackets and quotes
-- Added minimap for code overview
-- Improved tab close button visibility (red on hover)
-- Fixed theme switching to properly update syntax highlighting colors
-- Performance optimizations for faster editing
-- Reduced input latency
-- Optimized syntax highlighting and minimap rendering
+---
 
 ## Contributing
 
-Contributions are welcome. See the [ROADMAP](ROADMAP.md) for planned features. Please ensure code follows the existing style and test thoroughly before submitting pull requests.
+Contributions welcome. See [ROADMAP.md](ROADMAP.md) for planned features. Keep PRs focused and match the existing code style.
 
 ## License
 

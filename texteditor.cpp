@@ -1,5 +1,8 @@
 #include "texteditor.h"
 #include "hexeditor.h"
+#include "disassembler.h"
+#include "binaryinspector.h"
+#include "markdownviewer.h"
 #include "linenumberarea.h"
 #include "aiautocomplete.h"
 #include "aisettingsdialog.h"
@@ -35,9 +38,14 @@
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QTextBlock>
+#include <QDesktopServices>
 #include <QTextStream>
 #include <QTimer>
 #include <QToolBar>
+#include <QVariantAnimation>
+#include <QGraphicsOpacityEffect>
+#include <QEasingCurve>
+#include <QTabBar>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QWheelEvent>
@@ -2061,8 +2069,11 @@ void TextEditor::setupUI() {
   fileTree->setSortingEnabled(true);
   for (int i = 1; i < fileSystemModel->columnCount(); ++i)
     fileTree->hideColumn(i);
+  fileTree->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(fileTree, &QTreeView::doubleClicked, this,
           &TextEditor::onFileTreeDoubleClicked);
+  connect(fileTree, &QTreeView::customContextMenuRequested, this,
+          &TextEditor::onFileTreeContextMenu);
   fileTreeContainer->addWidget(fileTree);
 
   // Set default state to Empty (0)
@@ -2074,16 +2085,51 @@ void TextEditor::setupUI() {
 
 void TextEditor::showWelcomeScreen() {
   welcomeWidget->setRecentFiles(recentFiles);
-  // Add as a tab
-  int idx = tabWidget->addTab(welcomeWidget, "Welcome");
+  int idx = tabWidget->indexOf(welcomeWidget);
+  if (idx == -1)
+    idx = tabWidget->addTab(welcomeWidget, "Welcome");
   tabWidget->setCurrentIndex(idx);
+
+  // Fade in
+  if (!welcomeOpacity) {
+    welcomeOpacity = new QGraphicsOpacityEffect(welcomeWidget);
+    welcomeWidget->setGraphicsEffect(welcomeOpacity);
+  }
+  welcomeOpacity->setOpacity(0.0);
+  auto *anim = new QPropertyAnimation(welcomeOpacity, "opacity", this);
+  anim->setDuration(350);
+  anim->setStartValue(0.0);
+  anim->setEndValue(1.0);
+  anim->setEasingCurve(QEasingCurve::OutCubic);
+  anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void TextEditor::hideWelcomeScreen() {
   for (int i = 0; i < tabWidget->count(); ++i) {
     if (tabWidget->widget(i) == welcomeWidget) {
-      tabWidget->removeTab(i);
-      break;
+      // Quick fade out then remove
+      if (!welcomeOpacity) {
+        welcomeOpacity = new QGraphicsOpacityEffect(welcomeWidget);
+        welcomeWidget->setGraphicsEffect(welcomeOpacity);
+      }
+      auto *anim = new QPropertyAnimation(welcomeOpacity, "opacity", this);
+      anim->setDuration(180);
+      anim->setStartValue(1.0);
+      anim->setEndValue(0.0);
+      anim->setEasingCurve(QEasingCurve::InCubic);
+      int capturedIndex = i;
+      connect(anim, &QPropertyAnimation::finished, this, [this, capturedIndex]() {
+        // Re-check the index in case tabs changed during animation
+        for (int j = 0; j < tabWidget->count(); ++j) {
+          if (tabWidget->widget(j) == welcomeWidget) {
+            tabWidget->removeTab(j);
+            break;
+          }
+        }
+        Q_UNUSED(capturedIndex)
+      });
+      anim->start(QAbstractAnimation::DeleteWhenStopped);
+      return;
     }
   }
 }
@@ -2397,6 +2443,46 @@ void TextEditor::createActions() {
 
   aboutAct = new QAction("&About", this);
   connect(aboutAct, &QAction::triggered, this, &TextEditor::showAbout);
+
+  // ── Markdown preview action ───────────────────────────────────────────────
+  markdownPreviewAct = new QAction("📄 Markdown Preview", this);
+  markdownPreviewAct->setCheckable(true);
+  markdownPreviewAct->setChecked(false);
+  markdownPreviewAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M));
+  markdownPreviewAct->setStatusTip("Toggle split Markdown preview panel");
+  connect(markdownPreviewAct, &QAction::triggered, this, &TextEditor::toggleMarkdownPreview);
+
+  // ── Tools actions ────────────────────────────────────────────────────────
+  disassembleAct = new QAction("⚙ &Disassemble File...", this);
+  disassembleAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
+  disassembleAct->setStatusTip("Disassemble a binary using objdump");
+  connect(disassembleAct, &QAction::triggered, this, &TextEditor::openDisassembler);
+
+  binaryInspectAct = new QAction("🔍 &Binary Inspector...", this);
+  binaryInspectAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I));
+  binaryInspectAct->setStatusTip("Inspect ELF/PE headers, sections and imports");
+  connect(binaryInspectAct, &QAction::triggered, this, &TextEditor::openBinaryInspector);
+
+  openHexAct = new QAction("🗂 Open in &Hex Editor", this);
+  openHexAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H));
+  openHexAct->setStatusTip("Re-open the current file in the built-in hex editor");
+  connect(openHexAct, &QAction::triggered, this, [this]() {
+      CodeEditor *ed = currentEditor();
+      if (ed && !ed->getFileName().isEmpty()) {
+          QFile f(ed->getFileName());
+          if (f.open(QIODevice::ReadOnly)) {
+              QByteArray bytes = f.readAll();
+              HexEditor *hex = new HexEditor();
+              hex->setData(bytes);
+              hex->setProperty("fileName", ed->getFileName());
+              connect(hex, &HexEditor::modificationChanged,
+                      this, &TextEditor::documentWasModified);
+              int idx = tabWidget->addTab(hex, "[HEX] " + strippedName(ed->getFileName()));
+              tabWidget->setCurrentIndex(idx);
+              flashTabLabel(idx);
+          }
+      }
+  });
 }
 
 void TextEditor::createMenus() {
@@ -2441,8 +2527,20 @@ void TextEditor::createMenus() {
   viewMenu->addSeparator();
   viewMenu->addAction(wordWrapAct);
   viewMenu->addSeparator();
+  viewMenu->addAction(markdownPreviewAct);
+  viewMenu->addSeparator();
   viewMenu->addAction(themeAct);
   viewMenu->addAction(customizeColorsAct);
+
+  toolsMenu = customMenuBar->addMenu("&Tools");
+  toolsMenu->addAction(openHexAct);
+  toolsMenu->addAction(disassembleAct);
+  toolsMenu->addAction(binaryInspectAct);
+  toolsMenu->addSeparator();
+  toolsMenu->setStyleSheet(
+      "QMenu { background-color: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; }"
+      "QMenu::item:selected { background-color: #094771; }"
+      "QMenu::separator { background: #3c3c3c; height: 1px; margin: 2px 8px; }");
 
   helpMenu = customMenuBar->addMenu("&Help");
   helpMenu->addAction(aboutAct);
@@ -2600,6 +2698,17 @@ void TextEditor::closeTab(int index) {
 void TextEditor::tabChanged(int) {
   updateStatusBar();
   updateBreadcrumb();
+
+  // Keep markdown preview in sync when switching tabs
+  if (markdownPreview && markdownPreview->isVisible()) {
+      CodeEditor *ed = currentEditor();
+      if (ed && ed != markdownEditor)
+          connectMarkdownPreview(ed);
+      // Trigger a refresh (debounced)
+      if (markdownTimer)
+          markdownTimer->start();
+  }
+
   CodeEditor *editor = currentEditor();
   HexEditor *hexEditor = qobject_cast<HexEditor *>(tabWidget->currentWidget());
   if (editor) {
@@ -2824,21 +2933,74 @@ void TextEditor::toggleWordWrap() {
   }
 }
 
-void TextEditor::toggleTerminal() {
-  if (terminalWidget->isVisible()) {
-    terminalWidget->hide();
-  } else {
-    terminalWidget->show();
-    // Ensure proper sizing when showing terminal
-    QList<int> sizes = verticalSplitter->sizes();
-    int total = sizes[0] + sizes[1];
-    if (total > 0) {
-      sizes[0] = total * 0.7;
-      sizes[1] = total * 0.3;
-      verticalSplitter->setSizes(sizes);
-    }
+void TextEditor::animateTerminalShow() {
+  terminalWidget->show();
+  if (!terminalAnim) {
+    terminalAnim = new QVariantAnimation(this);
+    terminalAnim->setEasingCurve(QEasingCurve::OutCubic);
+    connect(terminalAnim, &QVariantAnimation::valueChanged, this,
+            [this](const QVariant &val) {
+              QList<int> sizes = verticalSplitter->sizes();
+              int total = sizes[0] + sizes[1];
+              int newBottom = val.toInt();
+              sizes[1] = newBottom;
+              sizes[0] = qMax(50, total - newBottom);
+              verticalSplitter->setSizes(sizes);
+            });
   }
-  terminalAct->setChecked(terminalWidget->isVisible());
+  if (terminalAnim->state() == QAbstractAnimation::Running)
+    terminalAnim->stop();
+
+  QList<int> sizes = verticalSplitter->sizes();
+  int current = sizes.value(1, 0);
+  terminalAnim->setDuration(260);
+  terminalAnim->setStartValue(current);
+  terminalAnim->setEndValue(terminalTargetH);
+  terminalAnim->start();
+}
+
+void TextEditor::animateTerminalHide() {
+  if (!terminalAnim) {
+    terminalAnim = new QVariantAnimation(this);
+    terminalAnim->setEasingCurve(QEasingCurve::OutCubic);
+    connect(terminalAnim, &QVariantAnimation::valueChanged, this,
+            [this](const QVariant &val) {
+              QList<int> sizes = verticalSplitter->sizes();
+              int total = sizes[0] + sizes[1];
+              int newBottom = val.toInt();
+              sizes[1] = newBottom;
+              sizes[0] = qMax(50, total - newBottom);
+              verticalSplitter->setSizes(sizes);
+            });
+  }
+  if (terminalAnim->state() == QAbstractAnimation::Running)
+    terminalAnim->stop();
+
+  // Remember the current height before collapsing
+  QList<int> sizes = verticalSplitter->sizes();
+  if (sizes.value(1, 0) > 10)
+    terminalTargetH = sizes[1];
+
+  terminalAnim->setDuration(220);
+  terminalAnim->setStartValue(sizes.value(1, 0));
+  terminalAnim->setEndValue(0);
+  connect(terminalAnim, &QVariantAnimation::finished, this, [this]() {
+    terminalWidget->hide();
+    disconnect(terminalAnim, &QVariantAnimation::finished, this, nullptr);
+  });
+  terminalAnim->start();
+}
+
+void TextEditor::toggleTerminal() {
+  bool currentlyVisible = terminalWidget->isVisible() &&
+                          verticalSplitter->sizes().value(1, 0) > 5;
+  if (currentlyVisible) {
+    animateTerminalHide();
+    terminalAct->setChecked(false);
+  } else {
+    animateTerminalShow();
+    terminalAct->setChecked(true);
+  }
 }
 
 void TextEditor::cycleAnimation() {
@@ -3352,6 +3514,290 @@ void TextEditor::toggleMiniMap() {
       }
     }
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Markdown Preview
+// ─────────────────────────────────────────────────────────────────────────────
+
+void TextEditor::toggleMarkdownPreview()
+{
+    if (markdownPreview && markdownPreview->isVisible()) {
+        // Hide: collapse and remove from splitter
+        disconnectMarkdownPreview();
+        markdownPreview->hide();
+        markdownPreviewAct->setChecked(false);
+        return;
+    }
+
+    // Only makes sense for text editors (Markdown or any file)
+    CodeEditor *editor = currentEditor();
+    if (!editor) {
+        markdownPreviewAct->setChecked(false);
+        return;
+    }
+
+    // Create preview widget on first use
+    if (!markdownPreview) {
+        markdownPreview = new MarkdownPreviewWidget();
+        markdownPreview->setMinimumWidth(280);
+    }
+
+    // Set up debounce timer
+    if (!markdownTimer) {
+        markdownTimer = new QTimer(this);
+        markdownTimer->setSingleShot(true);
+        markdownTimer->setInterval(400);
+        connect(markdownTimer, &QTimer::timeout, this, &TextEditor::updateMarkdownPreview);
+    }
+
+    // Add to the horizontal splitter alongside the tab widget
+    mainSplitter->addWidget(markdownPreview);
+    mainSplitter->setStretchFactor(0, 3);
+    mainSplitter->setStretchFactor(mainSplitter->count() - 1, 2);
+
+    // Animate the preview in with a width animation
+    markdownPreview->show();
+    {
+        auto *eff = new QGraphicsOpacityEffect(markdownPreview);
+        markdownPreview->setGraphicsEffect(eff);
+        auto *anim = new QPropertyAnimation(eff, "opacity", this);
+        anim->setDuration(250);
+        anim->setStartValue(0.0);
+        anim->setEndValue(1.0);
+        anim->setEasingCurve(QEasingCurve::OutCubic);
+        anim->start(QAbstractAnimation::DeleteWhenStopped);
+    }
+
+    connectMarkdownPreview(editor);
+    updateMarkdownPreview();
+    markdownPreviewAct->setChecked(true);
+}
+
+void TextEditor::connectMarkdownPreview(CodeEditor *editor)
+{
+    // Disconnect previous editor if any
+    disconnectMarkdownPreview();
+    markdownEditor = editor;
+    if (editor) {
+        connect(editor->document(), &QTextDocument::contentsChanged,
+                markdownTimer,       qOverload<>(&QTimer::start));
+    }
+}
+
+void TextEditor::disconnectMarkdownPreview()
+{
+    if (markdownEditor) {
+        disconnect(markdownEditor->document(), &QTextDocument::contentsChanged,
+                   markdownTimer, qOverload<>(&QTimer::start));
+        markdownEditor = nullptr;
+    }
+}
+
+void TextEditor::updateMarkdownPreview()
+{
+    if (!markdownPreview || !markdownPreview->isVisible()) return;
+
+    CodeEditor *editor = currentEditor();
+    if (!editor) {
+        markdownPreview->setContent("*No markdown file open.*");
+        return;
+    }
+
+    // Re-connect if the tab changed
+    if (editor != markdownEditor)
+        connectMarkdownPreview(editor);
+
+    QString baseDir;
+    if (!editor->getFileName().isEmpty())
+        baseDir = QFileInfo(editor->getFileName()).absolutePath();
+
+    markdownPreview->setContent(editor->toPlainText(), baseDir);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Animation helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+void TextEditor::flashTabLabel(int tabIndex) {
+    if (tabIndex < 0 || tabIndex >= tabWidget->count()) return;
+    // Briefly change the tab text colour to accent blue then fade back via timer
+    QTabBar *bar = tabWidget->tabBar();
+    bar->setTabTextColor(tabIndex, QColor("#569cd6"));
+    QTimer::singleShot(600, this, [bar, tabIndex]() {
+        bar->setTabTextColor(tabIndex, QColor()); // reset to stylesheet default
+    });
+}
+
+void TextEditor::flashStatusMessage(const QString &msg, const QColor &color, int ms) {
+    statusBar()->showMessage(msg, ms);
+    QString prev = statusLabel->styleSheet();
+    statusLabel->setStyleSheet(
+        QString("color: %1; font-weight: bold;").arg(color.name()));
+    QTimer::singleShot(ms, this, [this, prev]() {
+        statusLabel->setStyleSheet(prev);
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Tools – open in disassembler / binary inspector
+// ─────────────────────────────────────────────────────────────────────────────
+
+void TextEditor::openInDisassembler(const QString &filePath) {
+    if (filePath.isEmpty()) return;
+
+    // Check if a disassembler tab for this file is already open
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        DisassemblerWidget *w = qobject_cast<DisassemblerWidget *>(tabWidget->widget(i));
+        if (w && w->getFilePath() == filePath) {
+            tabWidget->setCurrentIndex(i);
+            return;
+        }
+    }
+
+    hideWelcomeScreen();
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    auto *dw = new DisassemblerWidget();
+    dw->loadFile(filePath);
+
+    QString label = "[ASM] " + strippedName(filePath);
+    int idx = tabWidget->addTab(dw, label);
+    tabWidget->setCurrentIndex(idx);
+    flashTabLabel(idx);
+
+    QApplication::restoreOverrideCursor();
+    flashStatusMessage("Disassembling " + strippedName(filePath) + "…",
+                       QColor("#4ec9b0"), 3000);
+}
+
+void TextEditor::openInBinaryInspector(const QString &filePath) {
+    if (filePath.isEmpty()) return;
+
+    // Check if an inspector tab for this file is already open
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        BinaryInspectorWidget *w =
+            qobject_cast<BinaryInspectorWidget *>(tabWidget->widget(i));
+        if (w && w->getFilePath() == filePath) {
+            tabWidget->setCurrentIndex(i);
+            return;
+        }
+    }
+
+    hideWelcomeScreen();
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    auto *bw = new BinaryInspectorWidget();
+    bw->loadFile(filePath);
+
+    QString label = "[BIN] " + strippedName(filePath);
+    int idx = tabWidget->addTab(bw, label);
+    tabWidget->setCurrentIndex(idx);
+    flashTabLabel(idx);
+
+    QApplication::restoreOverrideCursor();
+    flashStatusMessage("Inspected " + strippedName(filePath),
+                       QColor("#4ec9b0"), 2500);
+}
+
+// ── Public slots called by menu actions ──────────────────────────────────────
+
+void TextEditor::openDisassembler() {
+    // Try to use the current tab's file; otherwise show a file picker
+    QString path;
+    CodeEditor *ed = currentEditor();
+    if (ed && !ed->getFileName().isEmpty()) {
+        path = ed->getFileName();
+    } else {
+        HexEditor *hex = qobject_cast<HexEditor *>(tabWidget->currentWidget());
+        if (hex)
+            path = hex->property("fileName").toString();
+    }
+
+    if (path.isEmpty()) {
+        path = QFileDialog::getOpenFileName(
+            this, "Select Binary to Disassemble", "",
+            "Executables & Libraries (*.exe *.dll *.so *.o *.out *.elf);;"
+            "All Files (*)");
+    }
+    if (!path.isEmpty())
+        openInDisassembler(path);
+}
+
+void TextEditor::openBinaryInspector() {
+    QString path;
+    CodeEditor *ed = currentEditor();
+    if (ed && !ed->getFileName().isEmpty()) {
+        path = ed->getFileName();
+    } else {
+        HexEditor *hex = qobject_cast<HexEditor *>(tabWidget->currentWidget());
+        if (hex)
+            path = hex->property("fileName").toString();
+    }
+
+    if (path.isEmpty()) {
+        path = QFileDialog::getOpenFileName(
+            this, "Select Binary to Inspect", "",
+            "Executables & Libraries (*.exe *.dll *.so *.o *.out *.elf);;"
+            "All Files (*)");
+    }
+    if (!path.isEmpty())
+        openInBinaryInspector(path);
+}
+
+// ── File-tree context menu ────────────────────────────────────────────────────
+
+void TextEditor::onFileTreeContextMenu(const QPoint &pos) {
+    QModelIndex idx = fileTree->indexAt(pos);
+    if (!idx.isValid()) return;
+
+    QString filePath = fileSystemModel->filePath(idx);
+    QFileInfo fi(filePath);
+    if (!fi.isFile()) return;
+
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background:#2d2d30; color:#cccccc; border:1px solid #454545; "
+        "        border-radius:6px; padding:4px; }"
+        "QMenu::item { padding:6px 24px 6px 12px; border-radius:3px; }"
+        "QMenu::item:selected { background:#094771; }"
+        "QMenu::separator { height:1px; background:#3e3e42; margin:3px 8px; }");
+
+    QAction *openAct       = menu.addAction("Open");
+    QAction *openHexMenuAct   = menu.addAction("⬡  Open in Hex Editor");
+    menu.addSeparator();
+    QAction *disasmAct     = menu.addAction("⚙  Disassemble");
+    QAction *inspectAct    = menu.addAction("🔍 Binary Inspector");
+    menu.addSeparator();
+    QAction *revealAct     = menu.addAction("Reveal in Explorer");
+
+    QAction *chosen = menu.exec(fileTree->viewport()->mapToGlobal(pos));
+    if (!chosen) return;
+
+    if (chosen == openAct) {
+        loadFile(filePath);
+    } else if (chosen == openHexMenuAct) {
+        QFile f(filePath);
+        if (f.open(QIODevice::ReadOnly)) {
+            QByteArray bytes = f.readAll();
+            HexEditor *hex = new HexEditor();
+            hex->setData(bytes);
+            hex->setProperty("fileName", filePath);
+            connect(hex, &HexEditor::modificationChanged,
+                    this, &TextEditor::documentWasModified);
+            hideWelcomeScreen();
+            int tabIdx = tabWidget->addTab(hex, "[HEX] " + fi.fileName());
+            tabWidget->setCurrentIndex(tabIdx);
+            flashTabLabel(tabIdx);
+        }
+    } else if (chosen == disasmAct) {
+        openInDisassembler(filePath);
+    } else if (chosen == inspectAct) {
+        openInBinaryInspector(filePath);
+    } else if (chosen == revealAct) {
+        QDesktopServices::openUrl(
+            QUrl::fromLocalFile(fi.absolutePath()));
+    }
 }
 
 void TextEditor::applyModernStyle() {

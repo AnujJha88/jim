@@ -22,12 +22,18 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QMouseEvent>
+#include <QVariantAnimation>
+#include <QGraphicsOpacityEffect>
+#include <QSplitter>
 
 class LineNumberArea;
 class FoldingArea;
 class MiniMap;
 class QPropertyAnimation;
 class HexEditor;
+class DisassemblerWidget;
+class BinaryInspectorWidget;
+class MarkdownPreviewWidget;
 class WelcomeWidget;
 class BreadcrumbBar;
 class TerminalWidget;
@@ -375,11 +381,17 @@ private slots:
     void customizeColors();
     void showAbout();
     void onFileTreeDoubleClicked(const QModelIndex &index);
+    void onFileTreeContextMenu(const QPoint &pos);
+    void toggleMarkdownPreview();
+    void updateMarkdownPreview();
     void onFileChangedExternally(const QString &path);
     void updateBreadcrumb();
     void showAISettings();
     void toggleAIAutocomplete(bool enabled);
     void onAISuggestion(const QString &suggestion);
+    // Tools
+    void openDisassembler();
+    void openBinaryInspector();
 
 private:
     void createActions();
@@ -408,6 +420,20 @@ private:
     static Language detectLanguage(const QString &fileName);
     QString detectCurrentSymbol(CodeEditor *editor);
     void updateSearchHighlights();
+
+    // Binary tools – open a file path in the respective viewer tab
+    void openInDisassembler   (const QString &filePath);
+    void openInBinaryInspector(const QString &filePath);
+
+    // Animated panel helpers
+    void animateTerminalShow();
+    void animateTerminalHide();
+    void flashTabLabel(int tabIndex);
+    void flashStatusMessage(const QString &msg, const QColor &color, int ms = 2500);
+
+    // Markdown preview helpers
+    void connectMarkdownPreview(CodeEditor *editor);
+    void disconnectMarkdownPreview();
 
     QSplitter *mainSplitter;
     QSplitter *verticalSplitter;
@@ -442,11 +468,23 @@ private:
     QDockWidget *animationDock;
     AIAutocomplete *aiAutocomplete;
     QFileSystemWatcher *fileWatcher;
+
+    // Animation state
+    QVariantAnimation *terminalAnim   = nullptr;
+    int                terminalTargetH = 250;      // pixel height to restore
+    QGraphicsOpacityEffect *welcomeOpacity = nullptr;
+
+    // Markdown preview
+    MarkdownPreviewWidget *markdownPreview  = nullptr;
+    QTimer                *markdownTimer    = nullptr;
+    CodeEditor            *markdownEditor   = nullptr; // editor currently connected
     
     QMenu *fileMenu;
+    QMenu *markdownMenu;
     QMenu *editMenu;
     QMenu *searchMenu;
     QMenu *viewMenu;
+    QMenu *toolsMenu;
     QMenu *pluginsMenu;
     QMenu *helpMenu;
     QMenu *recentFilesMenu;
@@ -499,6 +537,14 @@ private:
     QAction *aiSettingsAct;
     QAction *aiToggleAct;
     QAction *aboutAct;
+
+    // Tools actions
+    QAction *disassembleAct;
+    QAction *binaryInspectAct;
+    QAction *openHexAct;
+
+    // Markdown preview action
+    QAction *markdownPreviewAct;
 };
 
 #endif
