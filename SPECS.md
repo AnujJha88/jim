@@ -64,7 +64,7 @@
 
 | Class | Base | Role |
 |-------|------|------|
-| `AIAutocomplete` | `QObject` | Sends context to any OpenAI-compatible API over `QNetworkAccessManager`, emits suggestion signal |
+| `AIAutocomplete` | `QObject` | Sends context to any OpenAI-compatible API (Groq, OpenRouter, etc.) via custom base URL configuration, emits suggestion signal |
 | `AISettingsDialog` | `QDialog` | Configuration dialog for base URL, API key, model name, enable toggle |
 
 ---

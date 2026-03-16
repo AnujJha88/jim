@@ -533,15 +533,18 @@ QString MarkdownConverter::toHtml(const QString &markdown)
                 // Task list checkbox
                 QString li;
                 if (item.startsWith("[ ] ")) {
-                    li = "<input type=\"checkbox\" disabled> "
+                    body += "<li class=\"task-list-item\">";
+                    li = "<span style=\"color:#569cd6; font-family:monospace; margin-right:4px;\">☐</span> "
                          + processInline(item.mid(4));
                 } else if (item.startsWith("[x] ") || item.startsWith("[X] ")) {
-                    li = "<input type=\"checkbox\" disabled checked> "
+                    body += "<li class=\"task-list-item\">";
+                    li = "<span style=\"color:#569cd6; font-family:monospace; margin-right:4px;\">☑</span> "
                          + processInline(item.mid(4));
                 } else {
+                    body += "<li>";
                     li = processInline(item);
                 }
-                body += "<li>" + li + "</li>\n";
+                body += li + "</li>\n";
                 continue;
             }
         }

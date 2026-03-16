@@ -8,7 +8,7 @@
 
 ---
 
-## v1.1 — Current Release
+## v1.1
 
 ### Implemented
 - [x] Welcome Screen with recent files and quick actions
@@ -22,11 +22,11 @@
 - [x] Modernized VS Code-inspired UI
 
 ### Remaining for v1.1
-- [ ] Regex search with toggle
-- [ ] Case-sensitive / whole-word search toggles
-- [ ] Highlight all search matches
-- [ ] Replace with confirmation (one-by-one)
-- [ ] Search in selection
+- [x] Regex search with toggle
+- [x] Case-sensitive / whole-word search toggles
+- [x] Highlight all search matches
+- [x] Replace with confirmation (one-by-one)
+- [x] Search in selection
 
 ---
 
@@ -54,14 +54,36 @@ Focuses on making the editor more productive for keyboard-centric developers.
 - [x] **Build Dispatcher:** Unified `GNUmakefile` for seamless switching between Linux/WSL and Windows environments.
 - [x] **Smart Home:** Productivity-focused Home key behavior (first non-whitespace then start of line).
 
-## v1.3 — Search, Replace & Navigation (Planned)
-Focuses on enhancing the ability to find and move through code quickly.
-- [ ] **Advanced Search:** Regex support, match case, match whole word in Find/Replace.
-- [ ] **Find in Files:** Workspace-wide search (`Ctrl+Shift+F`) with an interactive results panel.
-- [ ] **Go to Symbol:** Quick navigation to classes/functions within the current file (`Ctrl+Shift+O`).
-- [ ] **Command Palette:** Centralized palette to execute any editor action (`Ctrl+Shift+P`).
+---
 
-## v1.4 — Multi-Cursor & Intelligence
+## v1.3 — Search, Replace & Navigation (COMPLETED)
+Focuses on enhancing the ability to find and move through code quickly.
+- [x] **Advanced Search:** Regex support, match case, match whole word in Find/Replace.
+- [x] **AI Autocomplete:** Configurable AI-powered completions via OpenAI-compatible APIs.
+- [x] **Inline Find Bar:** Match count, previous/next navigation, live highlight.
+- [x] **Animation Cycler Expansion:** Starfield, Rain, Snow, Fire added.
+
+---
+
+## v1.4 — Heavy Tools & Visuals (COMPLETED)
+- [x] **Markdown Preview:** Live split-panel rendered preview (`Ctrl+Shift+M`).
+- [x] **Disassembler:** Integrated assembly view via `objdump`/`llvm-objdump` (`Ctrl+Shift+D`).
+- [x] **Binary Inspector:** ELF/PE parser for headers, sections, imports (`Ctrl+Shift+I`).
+- [x] **Animated Panels:** Smooth slide animations for terminal and UI elements.
+- [x] **Context Menu:** File tree right-click actions for all binary tools.
+
+---
+
+## v1.5 — Precision & Intelligence (COMPLETED)
+- [x] **Find All Matches:** Simultaneous highlighting with golden-accent current selection.
+- [x] **Enhanced Syntax Highlighting:** Expanded rules for C++20, Python 3.12, ES2024.
+- [x] **Breadcrumb Symbol Detection:** Real-time function/class detection in breadcrumbs.
+- [x] **AI Provider Flexibility:** Support for Groq, OpenRouter, Together AI.
+- [x] **Reveal in Explorer:** System file manager integration.
+
+---
+
+## v2.0 — Multi-Cursor & Intelligence
 - [ ] Snippet support (user-defined templates)
 - [ ] Bracket completion for multi-line blocks
 - [ ] Emmet abbreviation expansion (HTML/CSS)
