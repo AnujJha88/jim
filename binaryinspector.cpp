@@ -595,7 +595,10 @@ bool BinaryInspectorWidget::parsePE(const QByteArray &data)
 
         // ── Data directory: locate Import Table RVA ────────────────────────
         // DataDirectory[1] = Import Table
-        int ddBase = optBase + (pe32plus ? 120 : 96);
+        // Offset is from beginning of Optional Header.
+        // PE32  (32-bit): DataDirectory starts at offset 96
+        // PE32+ (64-bit): DataDirectory starts at offset 112
+        int ddBase = optBase + (pe32plus ? 112 : 96);
         quint32 importRVA  = (ddBase + 8 <= data.size()) ? u32(ddBase + 8)  : 0;
 
         // ── Section headers ────────────────────────────────────────────────
@@ -661,16 +664,16 @@ void BinaryInspectorWidget::parsePESections(const QByteArray &data,
 
 void BinaryInspectorWidget::parsePEImports(const QByteArray &data,
                                             quint32 importRVA,
-                                            bool /*pe32plus*/)
+                                            bool pe32plus)
 {
     auto u32 = [&](int off) -> quint32 {
         if (off < 0 || off + 4 > data.size()) return 0;
         quint32 v; memcpy(&v, data.constData() + off, 4);
         return qFromLittleEndian(v);
     };
-    auto u16 = [&](int off) -> quint16 {
-        if (off < 0 || off + 2 > data.size()) return 0;
-        quint16 v; memcpy(&v, data.constData() + off, 2);
+    auto u64 = [&](int off) -> quint64 {
+        if (off < 0 || off + 8 > data.size()) return 0;
+        quint64 v; memcpy(&v, data.constData() + off, 8);
         return qFromLittleEndian(v);
     };
     auto readCStr = [&](int off) -> QString {
@@ -712,19 +715,23 @@ void BinaryInspectorWidget::parsePEImports(const QByteArray &data,
         int thunkOff = rvaToOffset(thunkRVA);
         if (thunkOff < 0) { addImportRow(dllName, "(unresolvable thunks)"); continue; }
 
+        int entrySize = pe32plus ? 8 : 4;
         int symCount = 0;
-        while (thunkOff + 4 <= data.size() && symCount < kMaxSymsPerDll) {
-            quint32 thunkVal = u32(thunkOff);
-            thunkOff += 4;
+        while (thunkOff + entrySize <= data.size() && symCount < kMaxSymsPerDll) {
+            quint64 thunkVal = pe32plus ? u64(thunkOff) : u32(thunkOff);
+            thunkOff += entrySize;
 
             if (thunkVal == 0) break;
 
-            if (thunkVal & 0x80000000) {
+            bool importByOrdinal = pe32plus ? (thunkVal & 0x8000000000000000ULL) 
+                                            : (thunkVal & 0x80000000);
+
+            if (importByOrdinal) {
                 // Import by ordinal
                 addImportRow(dllName, QString("Ordinal #%1").arg(thunkVal & 0xFFFF));
             } else {
                 // Import by name: thunkVal is RVA to IMAGE_IMPORT_BY_NAME
-                int ibnOff = rvaToOffset(thunkVal);
+                int ibnOff = rvaToOffset((quint32)thunkVal);
                 if (ibnOff >= 0 && ibnOff + 2 < data.size()) {
                     // Skip the 2-byte Hint field
                     QString sym = readCStr(ibnOff + 2);
