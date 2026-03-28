@@ -39,7 +39,10 @@ class BreadcrumbBar;
 class TerminalWidget;
 class TitleBar;
 class AnimationWidget;
+class DJVisualizerWindow;
 class AIAutocomplete;
+class QSoundEffect;
+class AudioMonitor;
 
 // Language enum for syntax highlighting
 enum class Language {
@@ -69,7 +72,8 @@ public:
         Starfield,
         Rain,
         Snow,
-        Fire
+        Fire,
+        DJMode
     };
     
     explicit AnimationWidget(QWidget *parent = nullptr);
@@ -81,7 +85,11 @@ protected:
     void paintEvent(QPaintEvent *event) override;
     void timerEvent(QTimerEvent *event) override;
     
+public:
+    void setAudioMonitor(AudioMonitor* monitor) { audioMonitor = monitor; }
+
 private:
+    AudioMonitor* audioMonitor = nullptr;
     AnimationType currentType;
     int timerId;
     int frame;
@@ -112,6 +120,21 @@ private:
     void drawRain(QPainter &painter);
     void drawSnow(QPainter &painter);
     void drawFire(QPainter &painter);
+    void drawDJMode(QPainter &painter);
+};
+
+// Dedicated DJ Visualizer Panel
+class DJVisualizerWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit DJVisualizerWidget(QWidget *parent = nullptr);
+    ~DJVisualizerWidget();
+    
+    void setAudioMonitor(AudioMonitor* monitor);
+    AnimationWidget* visualizerWidget; // Make public for access
+
+private:
+    QVBoxLayout* layout;
 };
 
 struct ColorTheme {
@@ -201,6 +224,14 @@ public:
     // Search Highlighting
     void setSearchSelections(const QList<QTextCursor> &selections);
 
+    // Multi-cursor
+    void addExtraCursor(const QTextCursor &c);
+    void clearExtraCursors();
+    void selectNextOccurrence();
+
+signals:
+    void characterTyped();
+
 public slots:
     void duplicateLine();
     void moveLineUp();
@@ -213,6 +244,8 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
 
 private slots:
     void updateLineNumberAreaWidth(int newBlockCount);
@@ -232,6 +265,7 @@ private:
     int targetScrollValue;
     Language currentLanguage;
     QList<QTextCursor> searchSelections;
+    QList<QTextCursor> extraCursors;
     void autoIndent();
     void matchBrackets();
 };
@@ -346,6 +380,9 @@ public:
     
     void openFilePath(const QString &filePath);
     void openFolderPath(const QString &folderPath);
+    
+    QAction *djModeAct = nullptr; // Make public for DJVisualizerWindow access
+    void toggleDJMode(); // Make public for DJVisualizerWindow access
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -377,6 +414,8 @@ private slots:
     void toggleTerminal();
     void cycleAnimation();
     void toggleAnimationDock();
+    void toggleZenMode();
+    void toggleTypingSound();
     void changeTheme();
     void customizeColors();
     void showAbout();
@@ -456,6 +495,14 @@ private:
     int currentThemeIndex;
     QVector<ColorTheme> themes;
     
+    // Session Time Tracker
+    QLabel *sessionTimeLabel;
+    QTimer *sessionTimer;
+    QDateTime sessionStart;
+    int sessionSecondsAccumulated = 0;
+    QString sessionDateString;
+    bool zenModeActive = false;
+    
     // New feature members
     FindBar *findBar;
     QList<QTextCursor> currentMatches;
@@ -466,8 +513,18 @@ private:
     TerminalWidget *terminalWidget;
     AnimationWidget *animationWidget;
     QDockWidget *animationDock;
+    DJVisualizerWidget *djVisualizerWidget = nullptr;
+    QDockWidget *djVisualizerDock = nullptr;
     AIAutocomplete *aiAutocomplete;
     QFileSystemWatcher *fileWatcher;
+
+    QAction *zenModeAct = nullptr;
+    QAction *typingSoundAct = nullptr;
+    
+    QSoundEffect *typingSound = nullptr;
+    bool typingSoundEnabled = false;
+
+    AudioMonitor* audioMonitor = nullptr;
 
     // Animation state
     QVariantAnimation *terminalAnim   = nullptr;

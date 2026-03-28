@@ -25,6 +25,8 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPainter>
+#include <QSoundEffect>
+#include "audiomonitor.h"
 #include <QPainterPath>
 #include <QProcessEnvironment>
 #include <QPropertyAnimation>
@@ -78,6 +80,39 @@ Language TextEditor::detectLanguage(const QString &fileName) {
   if (ext == "md" || ext == "markdown" || ext == "mkd")
     return Language::Markdown;
   return Language::PlainText;
+}
+
+// ============================================================
+// DJ Visualizer Widget Implementation
+// ============================================================
+DJVisualizerWidget::DJVisualizerWidget(QWidget *parent)
+    : QWidget(parent) {
+    layout = new QVBoxLayout(this);
+    layout->setContentsMargins(5, 5, 5, 5);
+    
+    // Create the visualizer widget
+    visualizerWidget = new AnimationWidget(this);
+    visualizerWidget->setMinimumHeight(180);
+    visualizerWidget->setMaximumHeight(250);
+    layout->addWidget(visualizerWidget);
+    
+    // Style the panel
+    setStyleSheet(R"(
+        QWidget {
+            background-color: #0a0a0f;
+            color: #ffffff;
+        }
+    )");
+}
+
+DJVisualizerWidget::~DJVisualizerWidget() {
+    // Widget cleanup is handled by Qt
+}
+
+void DJVisualizerWidget::setAudioMonitor(AudioMonitor* monitor) {
+    visualizerWidget->setAudioMonitor(monitor);
+    visualizerWidget->setAnimationType(AnimationWidget::DJMode);
+    visualizerWidget->update(); // Force initial update
 }
 
 // ============================================================
@@ -220,6 +255,57 @@ void CodeEditor::highlightCurrentLine() {
     extraSelections.append(selection);
   }
   setExtraSelections(extraSelections);
+}
+
+void CodeEditor::paintEvent(QPaintEvent *e) {
+  QPlainTextEdit::paintEvent(e);
+
+  QPainter painter(viewport());
+  painter.setRenderHint(QPainter::Antialiasing);
+
+  QTextBlock block = firstVisibleBlock();
+  QPointF offset = contentOffset();
+  QRegularExpression hexRegex("#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})\\b");
+
+  while (block.isValid()) {
+    QRectF blockRect = blockBoundingGeometry(block).translated(offset);
+    if (blockRect.top() > e->rect().bottom()) break;
+    
+    if (block.isVisible() && blockRect.bottom() >= e->rect().top()) {
+      QString text = block.text();
+      QRegularExpressionMatchIterator i = hexRegex.globalMatch(text);
+      while (i.hasNext()) {
+        QRegularExpressionMatch match = i.next();
+        int startPos = match.capturedStart();
+        QColor color(match.captured(0));
+        
+        if (color.isValid()) {
+          int swatchSize = 10;
+          QTextCursor endCursor(block);
+          endCursor.setPosition(block.position() + startPos + match.capturedLength());
+          QRect endRect = cursorRect(endCursor);
+          QRect square(endRect.right() + 4, endRect.top() + (endRect.height() - swatchSize)/2, swatchSize, swatchSize);
+          
+          painter.setPen(Qt::NoPen);
+          painter.setBrush(color);
+          painter.drawRoundedRect(square, 2, 2);
+          painter.setPen(QColor(100, 100, 100, 150));
+          painter.drawRoundedRect(square, 2, 2);
+        }
+      }
+    }
+    block = block.next();
+  }
+
+  if (!extraCursors.isEmpty()) {
+      QColor cColor = currentTheme.foreground.isValid() ? currentTheme.foreground : Qt::black;
+      painter.setPen(cColor);
+      for (const QTextCursor &c : extraCursors) {
+          QRect rect = cursorRect(c);
+          painter.drawLine(rect.topLeft(), rect.bottomLeft());
+          painter.drawLine(rect.topLeft() + QPoint(1,0), rect.bottomLeft() + QPoint(1,0));
+      }
+  }
 }
 
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event) {
@@ -365,8 +451,49 @@ void CodeEditor::foldingAreaPaintEvent(QPaintEvent *event) {
   }
 }
 
+void CodeEditor::addExtraCursor(const QTextCursor &c) {
+    extraCursors.append(c);
+    viewport()->update();
+}
+
+void CodeEditor::clearExtraCursors() {
+    extraCursors.clear();
+    viewport()->update();
+}
+
+void CodeEditor::selectNextOccurrence() {
+    QTextCursor mainC = textCursor();
+    if (!mainC.hasSelection()) {
+        mainC.select(QTextCursor::WordUnderCursor);
+        setTextCursor(mainC);
+        return;
+    }
+    QString text = mainC.selectedText();
+    QTextCursor searchStart = extraCursors.isEmpty() ? mainC : extraCursors.last();
+    QTextCursor nextC = document()->find(text, searchStart);
+    if (!nextC.isNull()) {
+        addExtraCursor(nextC);
+    }
+}
+
+void CodeEditor::mousePressEvent(QMouseEvent *event) {
+    if (event->modifiers() & Qt::AltModifier) {
+        QTextCursor c = cursorForPosition(event->pos());
+        addExtraCursor(c);
+        return;
+    }
+    clearExtraCursors();
+    QPlainTextEdit::mousePressEvent(event);
+}
+
 void CodeEditor::keyPressEvent(QKeyEvent *event) {
+  if (event->key() == Qt::Key_Escape && !extraCursors.isEmpty()) {
+      clearExtraCursors();
+      return;
+  }
+
   if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+    emit characterTyped();
     autoIndent();
     return;
   }
@@ -385,6 +512,21 @@ void CodeEditor::keyPressEvent(QKeyEvent *event) {
   if (text.isEmpty()) {
     QPlainTextEdit::keyPressEvent(event);
     return;
+  }
+
+  emit characterTyped();
+
+  if (!extraCursors.isEmpty()) {
+      QTextCursor mainCursor = textCursor();
+      mainCursor.beginEditBlock();
+      int key = event->key();
+      for (int i=0; i<extraCursors.size(); i++) {
+          QTextCursor &c = extraCursors[i];
+          if (key == Qt::Key_Backspace) c.deletePreviousChar();
+          else if (key == Qt::Key_Delete) c.deleteChar();
+          else if (text[0].isPrint()) c.insertText(text);
+      }
+      mainCursor.endEditBlock();
   }
 
   QTextCursor cursor = textCursor();
@@ -424,6 +566,42 @@ void CodeEditor::keyPressEvent(QKeyEvent *event) {
       cursor.movePosition(QTextCursor::Right);
       setTextCursor(cursor);
       return;
+    }
+  }
+
+  // Auto-close HTML/XML tags
+  if (ch == '/') {
+    QTextCursor c = textCursor();
+    c.movePosition(QTextCursor::Left, QTextCursor::KeepAnchor, 1);
+    if (c.selectedText() == "<") {
+        QString textBefore = document()->toPlainText().left(textCursor().position() - 1);
+        QStringList openTags;
+        QRegularExpression tagRegex("<(/?)(\\w+)[^>]*>");
+        QRegularExpressionMatchIterator i = tagRegex.globalMatch(textBefore);
+        while (i.hasNext()) {
+            QRegularExpressionMatch match = i.next();
+            bool isClosing = !match.captured(1).isEmpty();
+            QString tagName = match.captured(2);
+            if (isClosing) {
+                if (!openTags.isEmpty() && openTags.last() == tagName) {
+                    openTags.removeLast();
+                }
+            } else {
+                if (!match.captured(0).endsWith("/>") && 
+                    tagName.toLower() != "br" && tagName.toLower() != "hr" && 
+                    tagName.toLower() != "img" && tagName.toLower() != "meta" && 
+                    tagName.toLower() != "link" && tagName.toLower() != "input") {
+                    openTags.append(tagName);
+                }
+            }
+        }
+        if (!openTags.isEmpty()) {
+            QString tagToClose = openTags.last();
+            QPlainTextEdit::keyPressEvent(event);
+            QTextCursor insertC = textCursor();
+            insertC.insertText(tagToClose + ">");
+            return;
+        }
     }
   }
 
@@ -1537,7 +1715,7 @@ void AnimationWidget::setAnimationType(AnimationType type) {
     frame = 0;
     
     if (type != None) {
-        timerId = startTimer(50); // 20 FPS
+        timerId = startTimer(33); // ~30 FPS for smoother animation
     }
     
     if (type == Matrix) initMatrix();
@@ -1703,6 +1881,9 @@ void AnimationWidget::paintEvent(QPaintEvent *) {
         case Fire:
             drawFire(painter);
             break;
+        case DJMode:
+            drawDJMode(painter);
+            break;
         default:
             break;
     }
@@ -1740,6 +1921,75 @@ void AnimationWidget::drawFire(QPainter &painter) {
         painter.setBrush(QColor(r, g, b, p.life));
         painter.drawEllipse(QPointF(p.x, p.y), p.size * p.life / 255.0f, p.size * p.life / 255.0f);
     }
+}
+
+void AnimationWidget::drawDJMode(QPainter &painter) {
+    if (!audioMonitor) {
+        // Draw a placeholder when no audio monitor is available
+        painter.fillRect(rect(), QColor(10, 10, 15));
+        painter.setPen(QColor(100, 100, 100));
+        painter.drawText(rect(), Qt::AlignCenter, "DJ Mode - No Audio Monitor");
+        return;
+    }
+    
+    QVector<float> levels = audioMonitor->getLevels();
+    if (levels.isEmpty()) {
+        painter.fillRect(rect(), QColor(10, 10, 15));
+        painter.setPen(QColor(100, 100, 100));
+        painter.drawText(rect(), Qt::AlignCenter, "DJ Mode - No Audio Levels");
+        return;
+    }
+
+    int numBars = levels.size();
+    float barWidth = static_cast<float>(width()) / numBars;
+    
+    // Dark background
+    painter.fillRect(rect(), QColor(10, 10, 15));
+    
+    // Draw frequency bars with smoothing
+    for (int i = 0; i < numBars; ++i) {
+        float level = levels[i];
+        if (level < 0.01f) level = 0.01f; // Higher minimum visibility
+        
+        float h = level * height() * 0.9f; // Increased to 90% of widget height for better visibility
+        if (h < 5.0f) h = 5.0f; // Minimum 5 pixels height so bars are always visible
+        
+        // Make bars wider by reducing gaps
+        float barGap = 0.5f; // Smaller gap between bars
+        QRectF barRect(i * barWidth + barGap/2, height() - h, barWidth - barGap, h);
+        
+        // Create smoother gradient from bottom to top
+        QLinearGradient grad(barRect.bottomLeft(), barRect.topLeft());
+        
+        // More subtle color range - blue to purple
+        float hue = 200.0f + (i / float(numBars)) * 60.0f; // Blue to purple range
+        grad.setColorAt(0, QColor::fromHsvF(hue / 360.0f, 0.7f, 0.6f)); // Less saturated
+        grad.setColorAt(0.7f, QColor::fromHsvF(hue / 360.0f, 0.8f, 0.8f));
+        grad.setColorAt(1.0f, QColor::fromHsvF((hue + 30) / 360.0f, 0.9f, 0.9f));
+        
+        painter.fillRect(barRect, grad);
+        
+        // Subtle glow only for very high levels
+        if (level > 0.8f) {
+            painter.setPen(QPen(QColor::fromHsvF(hue / 360.0f, 0.3f, 1.0f, 0.3f), 1)); // Less intense glow
+            painter.drawRect(barRect);
+        }
+    }
+    
+    // Gentle reflection at bottom
+    painter.setOpacity(0.2f); // Reduced opacity for subtler reflection
+    for (int i = 0; i < numBars; ++i) {
+        float level = levels[i];
+        if (level < 0.01f) continue;
+        
+        float h = level * height() * 0.2f; // Smaller reflection
+        float barGap = 0.5f; // Same gap as main bars
+        QRectF barRect(i * barWidth + barGap/2, 0, barWidth - barGap, h);
+        
+        float hue = 200.0f + (i / float(numBars)) * 60.0f;
+        painter.fillRect(barRect, QColor::fromHsvF(hue / 360.0f, 0.6f, 0.5f));
+    }
+    painter.setOpacity(1.0f);
 }
 
 void AnimationWidget::drawMatrix(QPainter &painter) {
@@ -2342,10 +2592,17 @@ void TextEditor::createActions() {
 
   // Line editing actions
   duplicateLineAct = new QAction("Duplicate Line", this);
-  duplicateLineAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
+  duplicateLineAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
   connect(duplicateLineAct, &QAction::triggered, this, [this]() {
     if (currentEditor())
       currentEditor()->duplicateLine();
+  });
+
+  QAction *selectNextAct = new QAction("Select Next Occurrence", this);
+  selectNextAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
+  connect(selectNextAct, &QAction::triggered, this, [this]() {
+    if (currentEditor())
+      currentEditor()->selectNextOccurrence();
   });
 
   moveLineUpAct = new QAction("Move Line Up", this);
@@ -2424,6 +2681,11 @@ void TextEditor::createActions() {
   terminalAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft));
   connect(terminalAct, &QAction::triggered, this, &TextEditor::toggleTerminal);
 
+  djModeAct = new QAction("\U0001F3B5 DJ Mode", this);
+  djModeAct->setCheckable(true);
+  djModeAct->setShortcut(QKeySequence("Ctrl+Shift+J"));
+  connect(djModeAct, &QAction::triggered, this, &TextEditor::toggleDJMode);
+
   animationAct = new QAction("Cycle Animation", this);
   animationAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A));
   connect(animationAct, &QAction::triggered, this, &TextEditor::cycleAnimation);
@@ -2436,6 +2698,16 @@ void TextEditor::createActions() {
   themeAct = new QAction("Toggle Theme", this);
   themeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
   connect(themeAct, &QAction::triggered, this, &TextEditor::changeTheme);
+
+  zenModeAct = new QAction("\U0001F9D8 Zen Mode", this);
+  zenModeAct->setShortcut(QKeySequence("Ctrl+Shift+Z"));
+  zenModeAct->setCheckable(true);
+  connect(zenModeAct, &QAction::triggered, this, &TextEditor::toggleZenMode);
+
+  typingSoundAct = new QAction("Typing Sounds", this);
+  typingSoundAct->setCheckable(true);
+  typingSoundAct->setChecked(typingSoundEnabled);
+  connect(typingSoundAct, &QAction::triggered, this, &TextEditor::toggleTypingSound);
 
   customizeColorsAct = new QAction("Customize Colors...", this);
   connect(customizeColorsAct, &QAction::triggered, this,
@@ -2528,9 +2800,13 @@ void TextEditor::createMenus() {
   viewMenu->addAction(wordWrapAct);
   viewMenu->addSeparator();
   viewMenu->addAction(markdownPreviewAct);
+  viewMenu->addAction(djModeAct);
   viewMenu->addSeparator();
   viewMenu->addAction(themeAct);
   viewMenu->addAction(customizeColorsAct);
+  viewMenu->addSeparator();
+  viewMenu->addAction(zenModeAct);
+  viewMenu->addAction(typingSoundAct);
 
   toolsMenu = customMenuBar->addMenu("&Tools");
   toolsMenu->addAction(openHexAct);
@@ -2593,6 +2869,11 @@ void TextEditor::createStatusBar() {
   languageLabel->setStyleSheet(
       "padding: 2px 12px; color: #ffffff; background-color: transparent;");
   statusBar()->addPermanentWidget(languageLabel);
+  
+  sessionTimeLabel = new QLabel("⏱ 0m", this);
+  sessionTimeLabel->setStyleSheet("color: #888; padding: 0 10px;");
+  statusBar()->addPermanentWidget(sessionTimeLabel);
+  
   statusBar()->addPermanentWidget(statusLabel);
   statusBar()->showMessage("Ready");
 }
@@ -2616,6 +2897,9 @@ void TextEditor::newFile() {
   connect(editor, &QPlainTextEdit::textChanged, this, [this, editor]() {
       aiAutocomplete->trigger(editor);
   });
+  if (typingSoundEnabled && typingSound) {
+      connect(editor, &CodeEditor::characterTyped, typingSound, &QSoundEffect::play);
+  }
   int index = tabWidget->addTab(editor, "Untitled");
   tabWidget->setCurrentIndex(index);
   editor->setFocus();
@@ -3026,6 +3310,7 @@ void TextEditor::cycleAnimation() {
     case AnimationWidget::Rain: animName = "Rain"; break;
     case AnimationWidget::Snow: animName = "Snow"; break;
     case AnimationWidget::Fire: animName = "Fire"; break;
+    case AnimationWidget::DJMode: animName = "DJ Mode"; break;
   }
   statusBar()->showMessage("Animation: " + animName, 2000);
 }
@@ -3041,6 +3326,104 @@ void TextEditor::toggleAnimationDock() {
         }
     }
     toggleAnimationDockAct->setChecked(animationDock->isVisible());
+}
+
+void TextEditor::toggleZenMode() {
+    zenModeActive = !zenModeActive;
+    if (zenModeAct) zenModeAct->setChecked(zenModeActive);
+    
+    auto applyZen = [&](QWidget *w, bool hide) {
+        if (w) w->setVisible(!hide);
+    };
+
+    applyZen(menuBar(), zenModeActive);
+    applyZen(statusBar(), zenModeActive);
+    applyZen(breadcrumbBar, zenModeActive);
+    
+    if (zenModeActive) {
+        if (terminalWidget->isVisible()) terminalWidget->hide();
+        if (animationDock->isVisible()) animationDock->hide();
+        if (fileTreeDock->isVisible()) fileTreeDock->hide();
+        // Don't hide DJ visualizer dock - keep it visible in fullscreen
+        setWindowState(windowState() | Qt::WindowFullScreen);
+    } else {
+        setWindowState(windowState() & ~Qt::WindowFullScreen);
+    }
+}
+
+void TextEditor::toggleTypingSound() {
+    typingSoundEnabled = !typingSoundEnabled;
+    if (typingSoundAct) typingSoundAct->setChecked(typingSoundEnabled);
+    
+    if (typingSoundEnabled && !typingSound) {
+        typingSound = new QSoundEffect(this);
+        QString tempPath = QDir::tempPath() + "/jim_click.wav";
+        if (!QFile::exists(tempPath)) {
+            QFile f(tempPath);
+            if (f.open(QIODevice::WriteOnly)) {
+                QByteArray wav = QByteArray::fromHex(
+                    "524946463A00000057415645666D74201000000001000100112B0000112B0000010008006461746116000000809a80b380bf80b3809a807f8065804c8040804c8065807f809a80b380bf80b3809a807f8065804c804080"
+                );
+                f.write(wav);
+                f.close();
+            }
+        }
+        typingSound->setSource(QUrl::fromLocalFile(tempPath));
+        typingSound->setVolume(0.5f);
+        
+        for (int i=0; i<tabWidget->count(); i++) {
+            CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+            if (ed) connect(ed, &CodeEditor::characterTyped, typingSound, &QSoundEffect::play);
+        }
+    } else if (!typingSoundEnabled && typingSound) {
+        for (int i=0; i<tabWidget->count(); i++) {
+            CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+            if (ed) disconnect(ed, &CodeEditor::characterTyped, typingSound, &QSoundEffect::play);
+        }
+    }
+}
+
+void TextEditor::toggleDJMode() {
+    bool active = djModeAct->isChecked();
+    if (active) {
+        if (!audioMonitor) {
+            audioMonitor = new AudioMonitor(this);
+        }
+        audioMonitor->start();
+        
+        // Create and show the DJ visualizer dock
+        if (!djVisualizerWidget) {
+            djVisualizerWidget = new DJVisualizerWidget(this);
+            djVisualizerDock = new QDockWidget("🎵 DJ Mode Visualizer", this);
+            djVisualizerDock->setWidget(djVisualizerWidget);
+            djVisualizerDock->setAllowedAreas(Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
+            djVisualizerDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+            // Make the dock more persistent in fullscreen
+            djVisualizerDock->setProperty("fullscreen", true);
+            addDockWidget(Qt::BottomDockWidgetArea, djVisualizerDock);
+            
+            // Connect audio updates to the visualizer
+            connect(audioMonitor, &AudioMonitor::levelsUpdated, 
+                    djVisualizerWidget->visualizerWidget, qOverload<>(&QWidget::update));
+        }
+        djVisualizerWidget->setAudioMonitor(audioMonitor);
+        djVisualizerDock->setVisible(true);
+        djVisualizerDock->raise();
+        
+        // Make sure the audio monitor is running
+        if (!audioMonitor->isRunning()) {
+            audioMonitor->start();
+        }
+    } else {
+        if (audioMonitor) {
+            audioMonitor->stop();
+        }
+        if (djVisualizerDock) {
+            djVisualizerDock->setVisible(false);
+        }
+        // Reset the dock animation widget to Matrix mode
+        animationWidget->setAnimationType(AnimationWidget::Matrix);
+    }
 }
 
 void TextEditor::showAbout() {
@@ -3066,6 +3449,13 @@ void TextEditor::closeEvent(QCloseEvent *event) {
       return;
     }
   }
+  
+  // Save session time
+  QSettings settings("Jim", "JimEditor");
+  int secs = sessionSecondsAccumulated + sessionStart.secsTo(QDateTime::currentDateTime());
+  settings.setValue("sessionDate", sessionDateString);
+  settings.setValue("sessionSeconds", secs);
+  
   writeSettings();
   event->accept();
 }
@@ -3400,6 +3790,21 @@ void TextEditor::initializeThemes() {
   monokai.number = QColor(174, 129, 255);
   monokai.function = QColor(166, 226, 46);
   themes.append(monokai);
+
+  ColorTheme noir;
+  noir.name = "Noir Edition";
+  noir.background = QColor("#0a0a0a");
+  noir.foreground = QColor("#c0c0c0");
+  noir.selection = QColor("#333333");
+  noir.lineNumberBg = QColor("#111111");
+  noir.lineNumberFg = QColor("#555555");
+  noir.currentLine = QColor("#1a1a1a");
+  noir.keyword = QColor("#ff4444");
+  noir.string = QColor("#999999");
+  noir.comment = QColor("#666666");
+  noir.number = QColor("#bbbbbb");
+  noir.function = QColor("#e0e0e0");
+  themes.append(noir);
 
   currentThemeIndex = 1; // Default to dark
 }

@@ -13,7 +13,7 @@
 | Linux / macOS / WSL | GCC or Clang + GNU Make | `GNUmakefile` → `qmake` → `make` |
 | Windows | MinGW-w64 + Qt6 | `build.ps1` → `qmake` → `mingw32-make` |
 
-**Qt modules used:** `QtCore`, `QtGui`, `QtWidgets`, `QtNetwork`
+**Qt modules used:** `QtCore`, `QtGui`, `QtWidgets`, `QtNetwork`, `QtMultimedia`
 **Minimum Qt version:** 6.0
 **C++ standard:** C++17
 
@@ -42,7 +42,8 @@
 | `WelcomeWidget` | `QWidget` | Start screen — recent files list and quick-action buttons, fade in/out animated |
 | `BreadcrumbBar` | `QWidget` | Path + current symbol navigation bar below the tab bar |
 | `TerminalWidget` | `QWidget` | Embedded shell using `QProcess`, output display, command input, animated slide |
-| `AnimationWidget` | `QWidget` | Visual effects widget — Matrix, Particles, Waves, Pulse, Starfield, Rain, Snow, Fire |
+| `AnimationWidget` | `QWidget` | Visual effects widget — Matrix, Particles, Waves, Pulse, Starfield, Rain, Snow, Fire, DJ Mode |
+| `AudioMonitor` | `QThread` | WASAPI loopback audio capture for real-time visualization |
 
 ### Binary Tools
 
@@ -80,7 +81,7 @@ enum class Language {
 
 enum class AnimationType {
     None, Matrix, Particles, Waves, Pulse,
-    Starfield, Rain, Snow, Fire
+    Starfield, Rain, Snow, Fire, DJMode
 };
 ```
 
@@ -106,6 +107,8 @@ enum class AnimationType {
 - Auto-indentation (mirrors previous line's leading whitespace)
 - Tab → 4 spaces
 - Bracket and quote auto-pairing with skip-over-closing behaviour
+- **Auto-close tags** — automatic `</tag>` completion for HTML/XML
+- **Multi-cursor** — `Alt+Click` to place arbitrary cursors, `Ctrl+D` for next occurrence selection
 - Undo / Redo / Cut / Copy / Paste / Select All
 - Smooth scroll via `QPropertyAnimation` on vertical scrollbar
 - Search highlights — all matches shown simultaneously via `QTextEdit::ExtraSelection`
@@ -119,6 +122,8 @@ enum class AnimationType {
 | Delete line | `Ctrl+Shift+K` |
 | Toggle comment | `Ctrl+/` |
 | Smart Home | `Home` |
+| Zen Mode | `Ctrl+Shift+Z` |
+| DJ Mode | `Ctrl+Shift+J` |
 
 - Trailing whitespace auto-trimmed on save
 

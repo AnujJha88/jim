@@ -83,14 +83,23 @@ Focuses on enhancing the ability to find and move through code quickly.
 
 ---
 
-## v2.0 — Multi-Cursor & Intelligence
+## v1.6 — The "Edgy" Feature Pack (COMPLETED)
+- [x] **Multi-Cursor Editing:** `Alt+Click` to place multiple cursors and `Ctrl+D` to select next occurrence.
+- [x] **Zen Mode:** Distraction-free writing with `Ctrl+Shift+Z`.
+- [x] **Secret DJ Mode:** System-audio reactive visualizer in the animation dock (`Ctrl+Shift+J`).
+- [x] **Typing Sounds:** Low-latency mechanical click sounds.
+- [x] **Auto-Close Tags:** Smart HTML/XML tag completion.
+- [x] **Inline Color Previews:** Real-time hex code swatches.
+- [x] **Session Tracker:** Persisted coding time tracking in the status bar.
+- [x] **Noir Edition Theme:** High-contrast grayscale theme with a lethal red accent.
+
+---
+
+## v2.0 — Intelligence & Ecosystem
 - [ ] Snippet support (user-defined templates)
 - [ ] Bracket completion for multi-line blocks
 - [ ] Emmet abbreviation expansion (HTML/CSS)
-- [ ] Multi-cursor selection (`Alt+Click`)
-- [ ] Select next occurrence (`Ctrl+D` mapping update)
 - [ ] Column selection mode (`Shift+Alt+Drag`)
-- [ ] Smart auto-closing tags (HTML/XML)
 
 ### Typography & Fonts
 - [ ] Configurable font family and fallback fonts
@@ -121,7 +130,7 @@ Since Jim is a dynamically compiled native C++ application (unlike memory-heavy 
 - [ ] Split-view mode (hex + text editor side-by-side)
 
 ### 2. Hyper-Minimalist "Zen Mode"
-- [ ] Press `F11` to hide *all* UI elements (explorer, terminal, tabs, titlebar)
+- [x] Hide *all* UI elements (explorer, terminal, tabs, titlebar) via `Ctrl+Shift+Z`
 - [ ] Seamless edge-fading of text for pure distraction-free algorithmic thinking
 - [ ] Subtle, non-intrusive block cursor
 

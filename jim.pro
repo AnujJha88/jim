@@ -1,4 +1,4 @@
-QT += core gui widgets network
+QT += core gui widgets network multimedia
 TARGET = jim
 TEMPLATE = app
 RC_ICONS = logo.ico
@@ -16,11 +16,16 @@ unix {
     }
 }
 
+win32 {
+    LIBS += -lole32 -luuid
+}
+
 SOURCES += texteditor.cpp linenumberarea.cpp hexeditor.cpp main.cpp \
            aiautocomplete.cpp aisettingsdialog.cpp \
            disassembler.cpp binaryinspector.cpp \
-           markdownviewer.cpp
+           markdownviewer.cpp audiomonitor.cpp
 HEADERS += texteditor.h linenumberarea.h hexeditor.h \
            aiautocomplete.h aisettingsdialog.h \
            disassembler.h binaryinspector.h \
-           markdownviewer.h
+           markdownviewer.h audiomonitor.h
+

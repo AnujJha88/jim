@@ -38,6 +38,9 @@ A lightweight, native code editor built with C++ and Qt6. Fast, distraction-free
 - **Word Wrap** — Toggle line wrapping on demand
 - **Mini Map** — Code overview with viewport indicator (`Ctrl+M`)
 - **Smart Home Key** — Jumps to first non-whitespace character, then start of line
+- **Multi-cursor editing** — `Alt+Click` to place arbitrary cursors, `Ctrl+D` to select next occurrence (`v1.6.0`)
+- **Auto-close HTML/XML tags** — Detects `</` and auto-completes the closing tag (`v1.6.0`)
+- **Color preview** — Show a small color swatch next to hex color codes (`#FF5733`) inline (`v1.6.0`)
 
 ### Navigation
 - **File Tree** — Browse and open files from a sidebar (`Ctrl+B`)
@@ -68,8 +71,9 @@ Jim has a native binary analysis workflow requiring no external tools:
 Right-click any file in the Explorer to access all three tools directly.
 
 ### Visuals & Effects
-- **Animation Cycler** — Matrix, Particles, Waves, Pulse, Starfield, Rain, Snow, Fire (`Ctrl+Shift+A`)
-- **3 Themes** — Light, Dark, and Monokai (`Ctrl+T`)
+- **Animation Cycler** — Matrix, Particles, Waves, Pulse, Starfield, Rain, Snow, Fire, **DJ Mode** (`Ctrl+Shift+A` / `Ctrl+Shift+J`)
+- **Themes** — Light, Dark, Monokai, and **Noir Edition** (high-contrast grayscale)
+- **Typing Sounds** — Satisfying mechanical keyboard click sounds on each keystroke (Toggle in View menu)
 - **Animated Panels** — Smooth slide animations for terminal, fade for welcome screen, flash on tab open
 - **Custom Title Bar** — Frameless window with minimize, maximize/restore, and close
 
@@ -88,7 +92,7 @@ Right-click any file in the Explorer to access all three tools directly.
 **Debian / Ubuntu / Kali:**
 ```bash
 sudo apt update
-sudo apt install qt6-base-dev qt6-tools-dev-tools build-essential
+sudo apt install qt6-base-dev qt6-tools-dev-tools qt6-multimedia-dev build-essential
 ```
 
 **Arch Linux:**
@@ -202,10 +206,12 @@ jim /path/to/project       # open a specific folder
 | `Ctrl+M` | Toggle mini map |
 | `` Ctrl+` `` | Toggle terminal |
 | `Ctrl+\` | Toggle split view |
-| `Ctrl+T` | Cycle themes |
+| `Ctrl+T` | Cycle themes (Light, Dark, Monokai, Noir Edition) |
 | `Ctrl++` | Increase font size |
 | `Ctrl+-` | Decrease font size |
 | `Ctrl+Shift+M` | Toggle Markdown preview |
+| `Ctrl+Shift+Z` | **Zen Mode** (Hide all UI chrome) |
+| `Ctrl+Shift+J` | **DJ Mode** (Audio Visualizer) |
 
 ### Tools
 | Shortcut | Action |
@@ -233,13 +239,20 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 
 ## Recent Updates
 
-### v1.5.0 (Current)
+### v1.6.0 (Current)
+- Added **Multi-cursor Editing** — `Alt+Click` to place multiple cursors; `Ctrl+D` now selects the next occurrence of the current word for simultaneous editing.
+- Added **Secret DJ Mode** — An edgy system-audio reactive visualizer built into the animation dock (`Ctrl+Shift+J`).
+- Added **Zen Mode** — Pure distraction-free writing: hides the explorer, terminal, tabs, and status bar instantly (`Ctrl+Shift+Z`).
+- Added **Typing Sounds** — satisfying, low-latency mechanical click sounds as you type (Toggle via View menu).
+- Added **Noir Edition** — A lethal high-contrast grayscale theme with a single red accent for the cursor.
+- Added **Auto-close Tags** — Smart detection of `</` triggers automatic closing of HTML/XML tags.
+- Added **Inline Color Previews** — Real-time color swatches rendered next to hex codes (`#RRGGBB`).
+- Added **Session Time Tracker** — Status bar shows total coding time, persisted across sessions.
+
+### v1.5.0
 - Added **Find All Matches** — simultaneous highlighting of all search matches with a golden accent for the current choice; updates in real-time as you navigate.
-- Added **Enhanced Syntax Highlighting** — significantly expanded keyword sets for C++20, Python 3.12 (built-ins and decorators), JavaScript/TypeScript (arrow functions and templates), Rust, and Go.
+- Added **Enhanced Syntax Highlighting** — significantly expanded keyword sets for C++20, Python 3.12, JavaScript/TypeScript, Rust, and Go.
 - Added **Breadcrumb Symbol Detection** — Real-time regex-based function and class detection in the breadcrumb bar.
-- Added **Tool Access Expansion** — Direct access to Hex Editor, Disassembler, and Binary Inspector via right-click on the file tree.
-- Added **Reveal in Explorer** — Quickly open the current file's location in the system file manager via the context menu.
-- Added **AI Provider Flexibility** — Full support for Groq, OpenRouter, and Together AI via custom base URL configuration.
 
 ### v1.4.0
 - Added **Markdown Preview** — live split-panel rendered preview (`Ctrl+Shift+M`). Supports headers, tables, code blocks with language labels, images, task lists, blockquotes, strikethrough, highlights, and raw HTML passthrough. Updates with 400 ms debounce as you type. No external libraries.
