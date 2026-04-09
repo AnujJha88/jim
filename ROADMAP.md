@@ -95,6 +95,29 @@ Focuses on enhancing the ability to find and move through code quickly.
 
 ---
 
+## v1.7 — The "Cyberpunk" Pack (COMPLETED)
+- [x] **CRT & Cyberpunk Post-Processing:** Scanlines, vignette, chromatic aberration (red/cyan edge fringe), and phosphor bloom overlay toggled via View menu.
+- [x] **The Code Graveyard:** Dockable panel that automatically catches deleted code blocks (>3 lines via cut/delete/backspace) with timestamps and one-click resurrection.
+- [x] **Audio-Reactive Syntax Highlighting:** Keyword and function colours pulse and brighten to the bass of system audio when DJ Mode is active.
+- [x] **"Data Waterfall" Minimap:** Matrix-style digital rain permanently animated as the minimap background with code overview overlay on top.
+- [x] **Cybernetic HUD Status Bar:** Telemetry widget with rolling hex address counter and real-time CPU/Memory sparklines (Linux: `/proc/stat` + `/proc/meminfo`).
+- [x] **Kinetic / Laser Editing Mechanics:** Red laser slash + dissolving spark particles animate on the deleted line whenever `Ctrl+Shift+K` is used.
+- [x] **The Neural Code Graph:** Force-directed graph visualising `#include` dependencies across the workspace (`Ctrl+Shift+N`).
+- [x] **"Ghost" Replay Mode:** Watches a replay of every edit made since the file was opened, re-typing the session at 150ms/event (`Ctrl+Shift+G`).
+
+---
+
+## v1.8 — The "Hacker" Pack (COMPLETED)
+- [x] **Bracket Pair Colorization:** Opening and closing `()`, `[]`, `{}` are coloured in three rotating neon colours (cyan/magenta/yellow) with depth-tracking — painted directly in `paintEvent` for zero-lag rendering.
+- [x] **Vim Mode:** Full modal editing with Normal/Insert/Visual parity — `hjkl`, `w/b`, `0/$`, `G/gg`, `dd`, `yy`, `i/a/A/I/o/O/s/C`, `u`, `Ctrl+R`, `p/P`, `Ctrl+D/U`. Status-bar pill updates on every mode transition. (`Ctrl+Alt+V`)
+- [x] **Keystroke Heatmap Overlay:** QWERTY keyboard rendered as a floating overlay, each key tinted from dark-grey (cold) through blue/teal/yellow to red (hot) by typing frequency. Click to dismiss. (`Ctrl+Alt+K`)
+- [x] **Time-of-Day Ambient Theme:** Background tint drifts automatically every 10 minutes: dawn (warm amber) → daytime (neutral) → dusk (dusty rose) → midnight (deep indigo).
+- [x] **Edit Heatmap Strip:** A 3 px wide heat strip on the left edge of the line-number gutter colour-codes every line blue→red by how many edits it has received since file open.
+- [x] **Live WPM Counter:** Real-time words-per-minute counter in the Cybernetic HUD, calculated from keystrokes in a rolling 60-second window.
+- [x] **Major Refactor:** `texteditor.cpp` split into `codeeditor.cpp`, `animationwidget.cpp`, `uiwidgets.cpp`, and `overlays.cpp` — each containing a focused set of classes. `SyntaxHighlighter` extracted to its own `syntaxhighlighter.cpp/.h`. `VimMode` and `KeyHeatmapOverlay` each live in their own file pairs.
+
+---
+
 ## v2.0 — Intelligence & Ecosystem
 - [ ] Snippet support (user-defined templates)
 - [ ] Bracket completion for multi-line blocks

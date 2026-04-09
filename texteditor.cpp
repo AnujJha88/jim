@@ -1,4 +1,7 @@
 #include "texteditor.h"
+#include "syntaxhighlighter.h"
+#include "keyheatmap.h"
+#include "vimmode.h"
 #include "hexeditor.h"
 #include "disassembler.h"
 #include "binaryinspector.h"
@@ -6,6 +9,7 @@
 #include "linenumberarea.h"
 #include "aiautocomplete.h"
 #include "aisettingsdialog.h"
+#include "codegraph.h"
 #include <QApplication>
 #include <QCloseEvent>
 #include <QColorDialog>
@@ -51,6 +55,11 @@
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QWheelEvent>
+#include <QListWidget>
+#include <QListWidgetItem>
+#include <QRadialGradient>
+#include <cmath>
+#include <algorithm>
 
 // ============================================================
 // Language Auto-Detection
@@ -82,2066 +91,18 @@ Language TextEditor::detectLanguage(const QString &fileName) {
   return Language::PlainText;
 }
 
-// ============================================================
-// DJ Visualizer Widget Implementation
-// ============================================================
-DJVisualizerWidget::DJVisualizerWidget(QWidget *parent)
-    : QWidget(parent) {
-    layout = new QVBoxLayout(this);
-    layout->setContentsMargins(5, 5, 5, 5);
-    
-    // Create the visualizer widget
-    visualizerWidget = new AnimationWidget(this);
-    visualizerWidget->setMinimumHeight(180);
-    visualizerWidget->setMaximumHeight(250);
-    layout->addWidget(visualizerWidget);
-    
-    // Style the panel
-    setStyleSheet(R"(
-        QWidget {
-            background-color: #0a0a0f;
-            color: #ffffff;
-        }
-    )");
-}
+// DJVisualizerWidget implementation → animationwidget.cpp
 
-DJVisualizerWidget::~DJVisualizerWidget() {
-    // Widget cleanup is handled by Qt
-}
+// CodeEditor implementation → codeeditor.cpp
 
-void DJVisualizerWidget::setAudioMonitor(AudioMonitor* monitor) {
-    visualizerWidget->setAudioMonitor(monitor);
-    visualizerWidget->setAnimationType(AnimationWidget::DJMode);
-    visualizerWidget->update(); // Force initial update
-}
+// TitleBar / WelcomeWidget / BreadcrumbBar / FindBar implementation → uiwidgets.cpp
 
-// ============================================================
-// CodeEditor Implementation
-// ============================================================
-CodeEditor::CodeEditor(QWidget *parent)
-    : QPlainTextEdit(parent), smoothScrollEnabled(true), targetScrollValue(0),
-      currentLanguage(Language::PlainText) {
-  setPlaceholderText("Start typing code...");
-  lineNumberArea = new LineNumberArea(this);
-  foldingArea = new FoldingArea(this);
-  miniMap = new MiniMap(this);
-  miniMap->hide();
+// AnimationWidget implementation → animationwidget.cpp
 
-  scrollAnimation = new QPropertyAnimation(verticalScrollBar(), "value", this);
-  scrollAnimation->setDuration(40);
-  scrollAnimation->setEasingCurve(QEasingCurve::OutQuad);
+// GraveyardWidget / CRTOverlay / LaserParticleOverlay / HUDWidget implementation → overlays.cpp
 
-  connect(this, &CodeEditor::blockCountChanged, this,
-          &CodeEditor::updateLineNumberAreaWidth);
-  connect(this, &CodeEditor::updateRequest, this,
-          &CodeEditor::updateLineNumberArea);
-  connect(this, &CodeEditor::cursorPositionChanged, this,
-          &CodeEditor::highlightCurrentLine);
 
-  QTimer *minimapUpdateTimer = new QTimer(this);
-  minimapUpdateTimer->setSingleShot(true);
-  minimapUpdateTimer->setInterval(50);
-  connect(minimapUpdateTimer, &QTimer::timeout, this, [this]() {
-    if (miniMap->isVisible())
-      miniMap->update();
-  });
-  connect(this, &CodeEditor::updateRequest, this,
-          [minimapUpdateTimer]() { minimapUpdateTimer->start(); });
-
-  updateLineNumberAreaWidth(0);
-  highlightCurrentLine();
-  setTabStopDistance(fontMetrics().horizontalAdvance(' ') * 4);
-}
-
-void CodeEditor::setLanguage(Language lang) { currentLanguage = lang; }
-
-void CodeEditor::applyTheme(const ColorTheme &theme) {
-  currentTheme = theme;
-  QPalette p = palette();
-  p.setColor(QPalette::Base, theme.background);
-  p.setColor(QPalette::Text, theme.foreground);
-  setPalette(p);
-
-  QString style = QString("QPlainTextEdit { background-color: %1; color: %2; "
-                          "selection-background-color: %3; border: none; }")
-                      .arg(theme.background.name())
-                      .arg(theme.foreground.name())
-                      .arg(theme.selection.name());
-  setStyleSheet(style);
-  highlightCurrentLine();
-}
-
-int CodeEditor::lineNumberAreaWidth() {
-  int digits = 1;
-  int max = qMax(1, blockCount());
-  while (max >= 10) {
-    max /= 10;
-    ++digits;
-  }
-  int space = 10 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits;
-  return space;
-}
-
-void CodeEditor::updateLineNumberAreaWidth(int) {
-  int rightMargin = miniMap->isVisible() ? miniMapWidth() : 0;
-  setViewportMargins(lineNumberAreaWidth() + foldingAreaWidth(), 0, rightMargin,
-                     0);
-}
-
-void CodeEditor::updateLineNumberArea(const QRect &rect, int dy) {
-  if (dy) {
-    lineNumberArea->scroll(0, dy);
-    foldingArea->scroll(0, dy);
-  } else {
-    lineNumberArea->update(0, rect.y(), lineNumberArea->width(), rect.height());
-    foldingArea->update(0, rect.y(), foldingArea->width(), rect.height());
-  }
-  if (rect.contains(viewport()->rect()))
-    updateLineNumberAreaWidth(0);
-}
-
-void CodeEditor::setSearchSelections(const QList<QTextCursor> &selections) {
-  searchSelections = selections;
-  highlightCurrentLine();
-}
-
-void CodeEditor::resizeEvent(QResizeEvent *e) {
-  QPlainTextEdit::resizeEvent(e);
-  QRect cr = contentsRect();
-  int lnw = lineNumberAreaWidth();
-  int fw = foldingAreaWidth();
-  lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), lnw, cr.height()));
-  foldingArea->setGeometry(QRect(cr.left() + lnw, cr.top(), fw, cr.height()));
-
-  if (miniMap->isVisible()) {
-    miniMap->setGeometry(QRect(cr.right() - miniMapWidth(), cr.top(),
-                               miniMapWidth(), cr.height()));
-    setViewportMargins(lnw + fw, 0, miniMapWidth(), 0);
-  } else {
-    setViewportMargins(lnw + fw, 0, 0, 0);
-  }
-}
-
-void CodeEditor::highlightCurrentLine() {
-  QList<QTextEdit::ExtraSelection> extraSelections;
-  
-  // Search highlights
-  for (const QTextCursor &cursor : searchSelections) {
-    QTextEdit::ExtraSelection selection;
-    selection.format.setBackground(QColor(62, 62, 66)); // Subtle secondary highlight
-    selection.cursor = cursor;
-    extraSelections.append(selection);
-  }
-
-  if (!isReadOnly()) {
-    QTextEdit::ExtraSelection selection;
-    QColor lineColor = currentTheme.currentLine.isValid()
-                           ? currentTheme.currentLine
-                           : QColor(Qt::yellow).lighter(160);
-    selection.format.setBackground(lineColor);
-    selection.format.setProperty(QTextFormat::FullWidthSelection, true);
-    selection.cursor = textCursor();
-    selection.cursor.clearSelection();
-    
-    // If the current cursor is within a search match, highlight it more prominently
-    for (int i = 0; i < searchSelections.size(); ++i) {
-        if (searchSelections[i].selectionStart() == selection.cursor.selectionStart() &&
-            searchSelections[i].selectionEnd() == selection.cursor.selectionEnd()) {
-            selection.format.setBackground(QColor(163, 115, 20, 150)); // Golden highlight for current match
-            break;
-        }
-    }
-    
-    extraSelections.append(selection);
-  }
-  setExtraSelections(extraSelections);
-}
-
-void CodeEditor::paintEvent(QPaintEvent *e) {
-  QPlainTextEdit::paintEvent(e);
-
-  QPainter painter(viewport());
-  painter.setRenderHint(QPainter::Antialiasing);
-
-  QTextBlock block = firstVisibleBlock();
-  QPointF offset = contentOffset();
-  QRegularExpression hexRegex("#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})\\b");
-
-  while (block.isValid()) {
-    QRectF blockRect = blockBoundingGeometry(block).translated(offset);
-    if (blockRect.top() > e->rect().bottom()) break;
-    
-    if (block.isVisible() && blockRect.bottom() >= e->rect().top()) {
-      QString text = block.text();
-      QRegularExpressionMatchIterator i = hexRegex.globalMatch(text);
-      while (i.hasNext()) {
-        QRegularExpressionMatch match = i.next();
-        int startPos = match.capturedStart();
-        QColor color(match.captured(0));
-        
-        if (color.isValid()) {
-          int swatchSize = 10;
-          QTextCursor endCursor(block);
-          endCursor.setPosition(block.position() + startPos + match.capturedLength());
-          QRect endRect = cursorRect(endCursor);
-          QRect square(endRect.right() + 4, endRect.top() + (endRect.height() - swatchSize)/2, swatchSize, swatchSize);
-          
-          painter.setPen(Qt::NoPen);
-          painter.setBrush(color);
-          painter.drawRoundedRect(square, 2, 2);
-          painter.setPen(QColor(100, 100, 100, 150));
-          painter.drawRoundedRect(square, 2, 2);
-        }
-      }
-    }
-    block = block.next();
-  }
-
-  if (!extraCursors.isEmpty()) {
-      QColor cColor = currentTheme.foreground.isValid() ? currentTheme.foreground : Qt::black;
-      painter.setPen(cColor);
-      for (const QTextCursor &c : extraCursors) {
-          QRect rect = cursorRect(c);
-          painter.drawLine(rect.topLeft(), rect.bottomLeft());
-          painter.drawLine(rect.topLeft() + QPoint(1,0), rect.bottomLeft() + QPoint(1,0));
-      }
-  }
-}
-
-void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event) {
-  QPainter painter(lineNumberArea);
-  painter.setRenderHint(QPainter::TextAntialiasing, false);
-  QColor bgColor = currentTheme.lineNumberBg.isValid()
-                       ? currentTheme.lineNumberBg
-                       : QColor(240, 240, 240);
-  QColor fgColor = currentTheme.lineNumberFg.isValid()
-                       ? currentTheme.lineNumberFg
-                       : Qt::gray;
-  painter.fillRect(event->rect(), bgColor);
-  painter.setPen(fgColor);
-
-  QTextBlock block = firstVisibleBlock();
-  int blockNumber = block.blockNumber();
-  int top =
-      qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
-  int bottom = top + qRound(blockBoundingRect(block).height());
-  int lineHeight = fontMetrics().height();
-  int width = lineNumberArea->width() - 5;
-  int currentLine = textCursor().blockNumber();
-
-  while (block.isValid() && top <= event->rect().bottom()) {
-    if (block.isVisible() && bottom >= event->rect().top()) {
-      if (blockNumber == currentLine)
-        painter.setPen(QColor(255, 255, 255));
-      else
-        painter.setPen(fgColor);
-      painter.drawText(0, top, width, lineHeight, Qt::AlignRight,
-                       QString::number(blockNumber + 1));
-    }
-    block = block.next();
-    top = bottom;
-    bottom = top + qRound(blockBoundingRect(block).height());
-    ++blockNumber;
-  }
-}
-
-// ============================================================
-// Code Folding
-// ============================================================
-bool CodeEditor::isFoldable(const QTextBlock &block) const {
-  QString text = block.text().trimmed();
-  return text.endsWith('{') ||
-         (text.endsWith('(') && text.contains("class ")) ||
-         text.startsWith("def ") || text.startsWith("function ") ||
-         text.startsWith("class ") || text.endsWith(":");
-}
-
-bool CodeEditor::isFolded(const QTextBlock &block) const {
-  QTextBlock next = block.next();
-  return next.isValid() && !next.isVisible();
-}
-
-int CodeEditor::findMatchingBrace(const QTextBlock &block) const {
-  QString text = block.text();
-  int depth = 0;
-  for (const QChar &c : text) {
-    if (c == '{')
-      depth++;
-    if (c == '}')
-      depth--;
-  }
-  if (depth <= 0)
-    return block.blockNumber();
-
-  QTextBlock b = block.next();
-  while (b.isValid()) {
-    QString t = b.text();
-    for (const QChar &c : t) {
-      if (c == '{')
-        depth++;
-      if (c == '}')
-        depth--;
-    }
-    if (depth <= 0)
-      return b.blockNumber();
-    b = b.next();
-  }
-  return document()->blockCount() - 1;
-}
-
-void CodeEditor::toggleFoldAt(int blockNumber) {
-  QTextBlock block = document()->findBlockByNumber(blockNumber);
-  if (!block.isValid() || !isFoldable(block))
-    return;
-
-  bool fold = !isFolded(block);
-  int endBlock = findMatchingBrace(block);
-
-  QTextBlock b = block.next();
-  while (b.isValid() && b.blockNumber() <= endBlock) {
-    b.setVisible(!fold);
-    b = b.next();
-  }
-  document()->markContentsDirty(block.position(), document()->characterCount() -
-                                                      block.position());
-  updateLineNumberAreaWidth(0);
-  viewport()->update();
-}
-
-void CodeEditor::foldingAreaPaintEvent(QPaintEvent *event) {
-  QPainter painter(foldingArea);
-  QColor bgColor = currentTheme.lineNumberBg.isValid()
-                       ? currentTheme.lineNumberBg
-                       : QColor(240, 240, 240);
-  painter.fillRect(event->rect(), bgColor);
-
-  QTextBlock block = firstVisibleBlock();
-  int top =
-      qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
-  int bottom = top + qRound(blockBoundingRect(block).height());
-
-  while (block.isValid() && top <= event->rect().bottom()) {
-    if (block.isVisible() && bottom >= event->rect().top() &&
-        isFoldable(block)) {
-      int yCenter = top + (bottom - top) / 2;
-      int xCenter = foldingAreaWidth() / 2;
-
-      painter.setPen(QColor(180, 180, 180));
-      painter.setBrush(Qt::NoBrush);
-
-      if (isFolded(block)) {
-        // Draw right-pointing triangle ▶
-        QPolygon tri;
-        tri << QPoint(xCenter - 3, yCenter - 4) << QPoint(xCenter + 4, yCenter)
-            << QPoint(xCenter - 3, yCenter + 4);
-        painter.setBrush(QColor(180, 180, 180));
-        painter.drawPolygon(tri);
-      } else {
-        // Draw down-pointing triangle ▼
-        QPolygon tri;
-        tri << QPoint(xCenter - 4, yCenter - 3)
-            << QPoint(xCenter + 4, yCenter - 3) << QPoint(xCenter, yCenter + 4);
-        painter.setBrush(QColor(180, 180, 180));
-        painter.drawPolygon(tri);
-      }
-    }
-    block = block.next();
-    top = bottom;
-    bottom = top + qRound(blockBoundingRect(block).height());
-  }
-}
-
-void CodeEditor::addExtraCursor(const QTextCursor &c) {
-    extraCursors.append(c);
-    viewport()->update();
-}
-
-void CodeEditor::clearExtraCursors() {
-    extraCursors.clear();
-    viewport()->update();
-}
-
-void CodeEditor::selectNextOccurrence() {
-    QTextCursor mainC = textCursor();
-    if (!mainC.hasSelection()) {
-        mainC.select(QTextCursor::WordUnderCursor);
-        setTextCursor(mainC);
-        return;
-    }
-    QString text = mainC.selectedText();
-    QTextCursor searchStart = extraCursors.isEmpty() ? mainC : extraCursors.last();
-    QTextCursor nextC = document()->find(text, searchStart);
-    if (!nextC.isNull()) {
-        addExtraCursor(nextC);
-    }
-}
-
-void CodeEditor::mousePressEvent(QMouseEvent *event) {
-    if (event->modifiers() & Qt::AltModifier) {
-        QTextCursor c = cursorForPosition(event->pos());
-        addExtraCursor(c);
-        return;
-    }
-    clearExtraCursors();
-    QPlainTextEdit::mousePressEvent(event);
-}
-
-void CodeEditor::keyPressEvent(QKeyEvent *event) {
-  if (event->key() == Qt::Key_Escape && !extraCursors.isEmpty()) {
-      clearExtraCursors();
-      return;
-  }
-
-  if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
-    emit characterTyped();
-    autoIndent();
-    return;
-  }
-
-  if (event->key() == Qt::Key_Home) {
-    if (event->modifiers() == Qt::NoModifier ||
-        event->modifiers() == Qt::ShiftModifier) {
-      smartHome();
-      // To handle Shift+Home selection, we could enhance smartHome to take a
-      // KeepAnchor flag, but simple smartHome on Home press is a good start.
-      return;
-    }
-  }
-
-  QString text = event->text();
-  if (text.isEmpty()) {
-    QPlainTextEdit::keyPressEvent(event);
-    return;
-  }
-
-  emit characterTyped();
-
-  if (!extraCursors.isEmpty()) {
-      QTextCursor mainCursor = textCursor();
-      mainCursor.beginEditBlock();
-      int key = event->key();
-      for (int i=0; i<extraCursors.size(); i++) {
-          QTextCursor &c = extraCursors[i];
-          if (key == Qt::Key_Backspace) c.deletePreviousChar();
-          else if (key == Qt::Key_Delete) c.deleteChar();
-          else if (text[0].isPrint()) c.insertText(text);
-      }
-      mainCursor.endEditBlock();
-  }
-
-  QTextCursor cursor = textCursor();
-  QChar ch = text[0];
-
-  if (ch == '(' || ch == '[' || ch == '{') {
-    QChar closing = ch == '(' ? ')' : ch == '[' ? ']' : '}';
-    cursor.beginEditBlock();
-    cursor.insertText(QString(ch) + QString(closing));
-    cursor.movePosition(QTextCursor::Left);
-    cursor.endEditBlock();
-    setTextCursor(cursor);
-    return;
-  }
-
-  if (ch == '"' || ch == '\'') {
-    QChar nextChar =
-        cursor.atEnd() ? QChar() : document()->characterAt(cursor.position());
-    if (nextChar == ch) {
-      cursor.movePosition(QTextCursor::Right);
-      setTextCursor(cursor);
-      return;
-    } else {
-      cursor.beginEditBlock();
-      cursor.insertText(QString(ch) + QString(ch));
-      cursor.movePosition(QTextCursor::Left);
-      cursor.endEditBlock();
-      setTextCursor(cursor);
-      return;
-    }
-  }
-
-  if (ch == ')' || ch == ']' || ch == '}') {
-    QChar nextChar =
-        cursor.atEnd() ? QChar() : document()->characterAt(cursor.position());
-    if (nextChar == ch) {
-      cursor.movePosition(QTextCursor::Right);
-      setTextCursor(cursor);
-      return;
-    }
-  }
-
-  // Auto-close HTML/XML tags
-  if (ch == '/') {
-    QTextCursor c = textCursor();
-    c.movePosition(QTextCursor::Left, QTextCursor::KeepAnchor, 1);
-    if (c.selectedText() == "<") {
-        QString textBefore = document()->toPlainText().left(textCursor().position() - 1);
-        QStringList openTags;
-        QRegularExpression tagRegex("<(/?)(\\w+)[^>]*>");
-        QRegularExpressionMatchIterator i = tagRegex.globalMatch(textBefore);
-        while (i.hasNext()) {
-            QRegularExpressionMatch match = i.next();
-            bool isClosing = !match.captured(1).isEmpty();
-            QString tagName = match.captured(2);
-            if (isClosing) {
-                if (!openTags.isEmpty() && openTags.last() == tagName) {
-                    openTags.removeLast();
-                }
-            } else {
-                if (!match.captured(0).endsWith("/>") && 
-                    tagName.toLower() != "br" && tagName.toLower() != "hr" && 
-                    tagName.toLower() != "img" && tagName.toLower() != "meta" && 
-                    tagName.toLower() != "link" && tagName.toLower() != "input") {
-                    openTags.append(tagName);
-                }
-            }
-        }
-        if (!openTags.isEmpty()) {
-            QString tagToClose = openTags.last();
-            QPlainTextEdit::keyPressEvent(event);
-            QTextCursor insertC = textCursor();
-            insertC.insertText(tagToClose + ">");
-            return;
-        }
-    }
-  }
-
-  QPlainTextEdit::keyPressEvent(event);
-}
-
-void CodeEditor::autoIndent() {
-  QTextCursor cursor = textCursor();
-  QString previousLine = cursor.block().text();
-  int indent = 0;
-  for (QChar c : previousLine) {
-    if (c == ' ')
-      indent++;
-    else if (c == '\t')
-      indent += 4;
-    else
-      break;
-  }
-  if (previousLine.trimmed().endsWith('{') ||
-      previousLine.trimmed().endsWith(':'))
-    indent += 4;
-  cursor.insertText("\n" + QString(" ").repeated(indent));
-  setTextCursor(cursor);
-}
-
-void CodeEditor::matchBrackets() {}
-
-void CodeEditor::miniMapPaintEvent(QPaintEvent *event) {
-  QPainter painter(miniMap);
-  painter.fillRect(event->rect(), QColor(40, 40, 40));
-  int totalLines = document()->blockCount();
-  if (totalLines == 0)
-    return;
-  int visibleLines = height() / fontMetrics().height();
-  int startLine = (event->rect().top() * totalLines) / miniMap->height();
-  int endLine = (event->rect().bottom() * totalLines) / miniMap->height() + 1;
-  QTextBlock block = document()->findBlockByLineNumber(qMax(0, startLine));
-  int blockNumber = block.blockNumber();
-  painter.setPen(QColor(180, 180, 180));
-  while (block.isValid() && blockNumber <= endLine) {
-    int y = (blockNumber * miniMap->height()) / totalLines;
-    QString text = block.text().trimmed();
-    if (!text.isEmpty()) {
-      int lineWidth = qMin(text.length() * 2, miniMap->width() - 10);
-      painter.drawLine(5, y, 5 + lineWidth, y);
-    }
-    block = block.next();
-    blockNumber++;
-  }
-  int firstVisible = firstVisibleBlock().blockNumber();
-  int viewportY = (firstVisible * miniMap->height()) / totalLines;
-  int viewportHeight =
-      qMax(10, (visibleLines * miniMap->height()) / totalLines);
-  painter.fillRect(0, viewportY, miniMap->width(), viewportHeight,
-                   QColor(100, 100, 100, 100));
-  painter.setPen(QColor(0, 120, 215));
-  painter.drawRect(0, viewportY, miniMap->width() - 1, viewportHeight);
-}
-
-void CodeEditor::wheelEvent(QWheelEvent *event) {
-  if (!smoothScrollEnabled) {
-    QPlainTextEdit::wheelEvent(event);
-    return;
-  }
-  int numDegrees = event->angleDelta().y() / 8;
-  int numSteps = numDegrees / 8;
-
-  if (numSteps == 0) {
-    event->accept();
-    return;
-  }
-
-  QScrollBar *scrollBar = verticalScrollBar();
-  int currentValue = scrollBar->value();
-  targetScrollValue =
-      currentValue - (numSteps * 5); // 5 lines per step for faster scrolling
-
-  targetScrollValue =
-      qMax(scrollBar->minimum(), qMin(targetScrollValue, scrollBar->maximum()));
-  if (scrollAnimation->state() == QAbstractAnimation::Running)
-    scrollAnimation->stop();
-  scrollAnimation->setStartValue(currentValue);
-  scrollAnimation->setEndValue(targetScrollValue);
-  scrollAnimation->start();
-  event->accept();
-}
-
-void CodeEditor::enableSmoothScrolling(bool enable) {
-  smoothScrollEnabled = enable;
-}
-
-void CodeEditor::duplicateLine() {
-  QTextCursor cursor = textCursor();
-  cursor.beginEditBlock();
-  cursor.movePosition(QTextCursor::StartOfBlock);
-  cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-  QString textText = cursor.selectedText();
-  cursor.movePosition(QTextCursor::EndOfBlock);
-  cursor.insertText("\n" + textText);
-  cursor.endEditBlock();
-}
-
-void CodeEditor::moveLineUp() {
-  QTextCursor cursor = textCursor();
-  cursor.beginEditBlock();
-  if (cursor.blockNumber() == 0) {
-    cursor.endEditBlock();
-    return;
-  }
-
-  QTextBlock currentBlock = cursor.block();
-  QTextBlock prevBlock = currentBlock.previous();
-
-  // Select current block + trailing newline
-  cursor.movePosition(QTextCursor::StartOfBlock);
-  cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-  if (!cursor.atEnd())
-    cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
-  QString text = cursor.selectedText();
-  cursor.removeSelectedText();
-
-  cursor.setPosition(prevBlock.position());
-  cursor.insertText(text);
-  cursor.endEditBlock();
-}
-
-void CodeEditor::moveLineDown() {
-  QTextCursor cursor = textCursor();
-  cursor.beginEditBlock();
-  if (cursor.blockNumber() == document()->blockCount() - 1) {
-    cursor.endEditBlock();
-    return;
-  }
-
-  QTextBlock currentBlock = cursor.block();
-  QTextBlock nextBlock = currentBlock.next();
-
-  // Select current block + trailing newline
-  cursor.movePosition(QTextCursor::StartOfBlock);
-  cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-  if (!cursor.atEnd())
-    cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
-  QString text = cursor.selectedText();
-  cursor.removeSelectedText();
-
-  cursor.setPosition(nextBlock.position());
-  cursor.movePosition(QTextCursor::EndOfBlock);
-  if (cursor.atEnd())
-    cursor.insertText("\n" + text.trimmed());
-  else {
-    cursor.movePosition(QTextCursor::NextCharacter);
-    cursor.insertText(text);
-  }
-
-  cursor.endEditBlock();
-}
-
-void CodeEditor::deleteLine() {
-  QTextCursor cursor = textCursor();
-  cursor.beginEditBlock();
-  cursor.movePosition(QTextCursor::StartOfBlock);
-  cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-  if (!cursor.atEnd())
-    cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
-  cursor.removeSelectedText();
-  cursor.endEditBlock();
-}
-
-void CodeEditor::toggleComment() {
-  QTextCursor cursor = textCursor();
-  cursor.beginEditBlock();
-
-  QString prefix = "//";
-  if (currentLanguage == Language::Python || currentLanguage == Language::YAML)
-    prefix = "#";
-  else if (currentLanguage == Language::HTML)
-    prefix = "<!--";
-
-  int startBlock = cursor.selectionStart();
-  int endBlock = cursor.selectionEnd();
-  QTextCursor iterCursor(document());
-  iterCursor.setPosition(startBlock);
-  int firstBlockNum = iterCursor.blockNumber();
-  iterCursor.setPosition(endBlock);
-  int lastBlockNum = iterCursor.blockNumber();
-
-  // Check if commenting or uncommenting
-  bool allCommented = true;
-  for (int i = firstBlockNum; i <= lastBlockNum; ++i) {
-    QTextBlock block = document()->findBlockByLineNumber(i);
-    QString text = block.text().trimmed();
-    if (!text.isEmpty() && !text.startsWith(prefix)) {
-      allCommented = false;
-      break;
-    }
-  }
-
-  for (int i = firstBlockNum; i <= lastBlockNum; ++i) {
-    QTextBlock block = document()->findBlockByLineNumber(i);
-    QString text = block.text();
-    if (text.trimmed().isEmpty())
-      continue;
-
-    iterCursor.setPosition(block.position());
-    if (allCommented) {
-      int idx = text.indexOf(prefix);
-      if (idx != -1) {
-        iterCursor.setPosition(block.position() + idx);
-        iterCursor.movePosition(QTextCursor::NextCharacter,
-                                QTextCursor::KeepAnchor, prefix.length());
-        if (prefix == "<!--") {
-          // special HTML uncommenting
-          QString full = text;
-          int endIdx = full.indexOf("-->", idx);
-          if (endIdx != -1) {
-            QTextCursor endCur(document());
-            endCur.setPosition(block.position() + endIdx);
-            endCur.movePosition(QTextCursor::NextCharacter,
-                                QTextCursor::KeepAnchor, 3);
-            endCur.removeSelectedText();
-          }
-        }
-        iterCursor.removeSelectedText();
-        // Remove trailing space if exists
-        if (iterCursor.block().text().length() > iterCursor.positionInBlock() &&
-            iterCursor.block().text().at(iterCursor.positionInBlock()) == ' ') {
-          iterCursor.deleteChar();
-        }
-      }
-    } else {
-      // Find first non-whitespace
-      int idx = 0;
-      while (idx < text.length() && text.at(idx).isSpace())
-        idx++;
-      iterCursor.setPosition(block.position() + idx);
-      if (prefix == "<!--") {
-        iterCursor.insertText(prefix + " ");
-        iterCursor.movePosition(QTextCursor::EndOfBlock);
-        iterCursor.insertText(" -->");
-      } else {
-        iterCursor.insertText(prefix + " ");
-      }
-    }
-  }
-  cursor.endEditBlock();
-}
-
-void CodeEditor::smartHome() {
-  QTextCursor cursor = textCursor();
-  QTextBlock block = cursor.block();
-  QString text = block.text();
-
-  int firstNonSpace = 0;
-  while (firstNonSpace < text.length() && text.at(firstNonSpace).isSpace()) {
-    firstNonSpace++;
-  }
-
-  int currentPos = cursor.positionInBlock();
-  if (currentPos == firstNonSpace) {
-    cursor.movePosition(QTextCursor::StartOfBlock, QTextCursor::MoveAnchor);
-  } else {
-    cursor.setPosition(block.position() + firstNonSpace,
-                       QTextCursor::MoveAnchor);
-  }
-  setTextCursor(cursor);
-}
-
-// ============================================================
-
-// ============================================================
-// TitleBar Implementation
-// ============================================================
-TitleBar::TitleBar(QWidget *parent) : QWidget(parent) {
-  QHBoxLayout *layout = new QHBoxLayout(this);
-  layout->setContentsMargins(10, 0, 0, 0);
-  layout->setSpacing(0);
-
-  // Logo / Title
-  QLabel *icon = new QLabel("J");
-  icon->setStyleSheet("color: #569cd6; font-weight: bold; font-family: "
-                      "Consolas; font-size: 14px;");
-  layout->addWidget(icon);
-
-  layout->addSpacing(10);
-
-  titleLabel = new QLabel("Jim");
-  titleLabel->setStyleSheet(
-      "color: #cccccc; font-size: 12px; font-family: 'Segoe UI', sans-serif;");
-  titleLabel->setAlignment(Qt::AlignCenter);
-  layout->addWidget(titleLabel, 1); // stretch
-
-  // Window controls
-  QString btnStyle =
-      "QPushButton {"
-      "    background-color: transparent;"
-      "    color: #cccccc;"
-      "    border: none;"
-      "    width: 45px;"
-      "    height: 30px;"
-      "    font-family: 'Segoe MDL2 Assets', 'Segoe UI Symbol', sans-serif;"
-      "    font-size: 10px;"
-      "}"
-      "QPushButton:hover {"
-      "    background-color: #3e3e42;"
-      "}";
-
-  QString closeBtnStyle =
-      "QPushButton {"
-      "    background-color: transparent;"
-      "    color: #cccccc;"
-      "    border: none;"
-      "    width: 45px;"
-      "    height: 30px;"
-      "    font-family: 'Segoe MDL2 Assets', 'Segoe UI Symbol', sans-serif;"
-      "    font-size: 10px;"
-      "}"
-      "QPushButton:hover {"
-      "    background-color: #e81123;"
-      "    color: white;"
-      "}";
-
-  QPushButton *minBtn =
-      new QPushButton(QString::fromUtf8("\xE2\x80\x94")); // Em dash
-  minBtn->setStyleSheet(btnStyle);
-  connect(minBtn, &QPushButton::clicked, this, [this]() {
-    if (window())
-      window()->showMinimized();
-  });
-  layout->addWidget(minBtn);
-
-  QPushButton *maxBtn =
-      new QPushButton(QString::fromUtf8("\xE2\x96\xA1")); // White square
-  maxBtn->setStyleSheet(btnStyle);
-  connect(maxBtn, &QPushButton::clicked, this, &TitleBar::toggleMaximized);
-  layout->addWidget(maxBtn);
-
-  QPushButton *closeBtn =
-      new QPushButton(QString::fromUtf8("\xE2\x95\xB3")); // Cross
-  closeBtn->setStyleSheet(closeBtnStyle);
-  connect(closeBtn, &QPushButton::clicked, this, [this]() {
-    if (window())
-      window()->close();
-  });
-  layout->addWidget(closeBtn);
-
-  setFixedHeight(30);
-  setStyleSheet("background-color: #323233;");
-}
-
-void TitleBar::setTitle(const QString &title) { titleLabel->setText(title); }
-
-void TitleBar::toggleMaximized() {
-  if (!window())
-    return;
-  if (window()->isMaximized()) {
-    window()->showNormal();
-    qobject_cast<QPushButton *>(sender())->setText(
-        QString::fromUtf8("\xE2\x96\xA1"));
-  } else {
-    window()->showMaximized();
-    qobject_cast<QPushButton *>(sender())->setText(
-        QString::fromUtf8("\xE2\x9D\x90")); // Maximize icon
-  }
-}
-
-void TitleBar::mousePressEvent(QMouseEvent *event) {
-  if (event->button() == Qt::LeftButton) {
-    dragStartPos =
-        event->globalPosition().toPoint() - window()->frameGeometry().topLeft();
-    event->accept();
-  }
-}
-
-void TitleBar::mouseMoveEvent(QMouseEvent *event) {
-  if (event->buttons() & Qt::LeftButton) {
-    if (window()->isMaximized()) {
-      window()->showNormal();
-      dragStartPos = QPoint(window()->width() / 2, height() / 2);
-    }
-    window()->move(event->globalPosition().toPoint() - dragStartPos);
-    event->accept();
-  }
-}
-
-void TitleBar::mouseDoubleClickEvent(QMouseEvent *event) {
-  if (event->button() == Qt::LeftButton) {
-    toggleMaximized();
-    event->accept();
-  }
-}
-// SyntaxHighlighter Implementation
-// ============================================================
-QRegularExpression SyntaxHighlighter::multiLineCommentStart =
-    QRegularExpression("/\\*");
-QRegularExpression SyntaxHighlighter::multiLineCommentEnd =
-    QRegularExpression("\\*/");
-
-SyntaxHighlighter::SyntaxHighlighter(QTextDocument *parent)
-    : QSyntaxHighlighter(parent), currentLanguage(Language::CPP) {
-  setupRules();
-}
-
-void SyntaxHighlighter::setLanguage(Language lang) {
-  currentLanguage = lang;
-  setupRules();
-  rehighlight();
-}
-
-void SyntaxHighlighter::setupRules() {
-  highlightingRules.clear();
-  switch (currentLanguage) {
-  case Language::CPP:
-    setupCppRules();
-    break;
-  case Language::Python:
-    setupPythonRules();
-    break;
-  case Language::JavaScript:
-    setupJavaScriptRules();
-    break;
-  case Language::HTML:
-    setupHtmlRules();
-    break;
-  case Language::CSS:
-    setupCssRules();
-    break;
-  case Language::Rust:
-    setupRustRules();
-    break;
-  case Language::Go:
-    setupGoRules();
-    break;
-  case Language::JSON:
-    setupJsonRules();
-    break;
-  case Language::YAML:
-    setupYamlRules();
-    break;
-  case Language::Markdown:
-    setupMarkdownRules();
-    break;
-  default:
-    setupCppRules();
-    break;
-  }
-}
-
-void SyntaxHighlighter::setupCppRules() {
-  HighlightingRule rule;
-
-  // Preprocessor directives
-  QTextCharFormat preprocessorFormat;
-  preprocessorFormat.setForeground(keywordFormat.foreground());
-  preprocessorFormat.setFontWeight(QFont::Bold);
-  QStringList preprocessors = {
-      "#include", "#define", "#pragma", "#if", "#ifdef", "#ifndef",
-      "#elif",    "#else",   "#endif",  "#error", "#warning", "#undef",
-      "#line",    "#using"};
-  for (const QString &p : preprocessors) {
-    rule.pattern = QRegularExpression(p + "\\b");
-    rule.format = preprocessorFormat;
-    highlightingRules.append(rule);
-  }
-
-  keywordFormat.setFontWeight(QFont::Bold);
-  QStringList kw = {
-      "\\balignas\\b",       "\\balignof\\b",       "\\band\\b",
-      "\\band_eq\\b",        "\\basm\\b",           "\\bauto\\b",
-      "\\bbitand\\b",        "\\bbitor\\b",         "\\bbool\\b",
-      "\\bbreak\\b",         "\\bcase\\b",          "\\bcatch\\b",
-      "\\bchar\\b",          "\\bchar8_t\\b",       "\\bchar16_t\\b",
-      "\\bchar32_t\\b",      "\\bclass\\b",         "\\bcompl\\b",
-      "\\bconcept\\b",       "\\bconst\\b",         "\\bconsteval\\b",
-      "\\bconstexpr\\b",      "\\bconstinit\\b",     "\\bconst_cast\\b",
-      "\\bcontinue\\b",      "\\bco_await\\b",      "\\bco_return\\b",
-      "\\bco_yield\\b",      "\\bdecltype\\b",      "\\bdefault\\b",
-      "\\bdelete\\b",        "\\bdo\\b",            "\\bdouble\\b",
-      "\\bdynamic_cast\\b",  "\\belse\\b",          "\\benum\\b",
-      "\\bexplicit\\b",      "\\bexport\\b",        "\\bextern\\b",
-      "\\bfalse\\b",         "\\bfinal\\b",         "\\bfloat\\b",
-      "\\bfor\\b",           "\\bfriend\\b",        "\\bgoto\\b",
-      "\\bif\\b",            "\\binline\\b",        "\\bint\\b",
-      "\\blong\\b",          "\\bmutable\\b",       "\\bnamespace\\b",
-      "\\bnew\\b",           "\\bnoexcept\\b",      "\\bnot\\b",
-      "\\bnot_eq\\b",        "\\bnullptr\\b",       "\\boperator\\b",
-      "\\bor\\b",            "\\bor_eq\\b",         "\\boverride\\b",
-      "\\bprivate\\b",       "\\bprotected\\b",     "\\bpublic\\b",
-      "\\breinterpret_cast\\b", "\\brequires\\b",     "\\breturn\\b",
-      "\\bshort\\b",         "\\bsignals\\b",       "\\bsigned\\b",
-      "\\bsizeof\\b",        "\\bslots\\b",         "\\bstatic\\b",
-      "\\bstatic_assert\\b", "\\bstatic_cast\\b",   "\\bstruct\\b",
-      "\\bswitch\\b",        "\\btemplate\\b",      "\\bthis\\b",
-      "\\bthread_local\\b",  "\\bthrow\\b",         "\\btrue\\b",
-      "\\btry\\b",           "\\btypedef\\b",       "\\btypeid\\b",
-      "\\btypename\\b",      "\\bunion\\b",         "\\bunsigned\\b",
-      "\\busing\\b",         "\\bvirtual\\b",       "\\bvoid\\b",
-      "\\bvolatile\\b",      "\\bwchar_t\\b",       "\\bwhile\\b",
-      "\\bxor\\b",           "\\bxor_eq\\b"};
-  for (const QString &p : kw) {
-    rule.pattern = QRegularExpression(p);
-    rule.format = keywordFormat;
-    highlightingRules.append(rule);
-  }
-  classFormat.setFontWeight(QFont::Bold);
-  rule.pattern = QRegularExpression("\\bQ[A-Za-z]+\\b");
-  rule.format = classFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\".*?\"|'.*?'");
-  rule.format = stringFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b0x[0-9a-fA-F]+\\b|\\b[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b");
-  rule.format = numberFormat;
-  highlightingRules.append(rule);
-  functionFormat.setFontItalic(true);
-  rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
-  rule.format = functionFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("//[^\n]*");
-  rule.format = commentFormat;
-  highlightingRules.append(rule);
-}
-
-void SyntaxHighlighter::setupPythonRules() {
-  HighlightingRule rule;
-  keywordFormat.setFontWeight(QFont::Bold);
-  QStringList kw = {
-      "\\band\\b",      "\\bas\\b",    "\\bassert\\b", "\\basync\\b",
-      "\\bawait\\b",    "\\bbreak\\b",  "\\bclass\\b",  "\\bcontinue\\b",
-      "\\bdef\\b",      "\\bdel\\b",    "\\belif\\b",   "\\belse\\b",
-      "\\bexcept\\b",   "\\bFalse\\b",  "\\bfinally\\b", "\\bfor\\b",
-      "\\bfrom\\b",     "\\bglobal\\b", "\\bif\\b",      "\\bimport\\b",
-      "\\bin\\b",       "\\bis\\b",     "\\blambda\\b",  "\\bNone\\b",
-      "\\bnonlocal\\b", "\\bnot\\b",    "\\bor\\b",      "\\bpass\\b",
-      "\\braise\\b",    "\\breturn\\b", "\\bTrue\\b",   "\\btry\\b",
-      "\\bwhile\\b",    "\\bwith\\b",    "\\byield\\b",   "\\bmatch\\b",
-      "\\bcase\\b"};
-  for (const QString &p : kw) {
-    rule.pattern = QRegularExpression(p);
-    rule.format = keywordFormat;
-    highlightingRules.append(rule);
-  }
-
-  // Python built-ins
-  QTextCharFormat builtinFormat;
-  builtinFormat.setForeground(functionFormat.foreground());
-  builtinFormat.setFontItalic(true);
-  QStringList builtins = {
-      "\\babs\\b",   "\\ball\\b",      "\\bany\\b",    "\\bbin\\b",
-      "\\bbool\\b",  "\\bdict\\b",     "\\bdir\\b",    "\\benumerate\\b",
-      "\\beval\\b",  "\\bfloat\\b",    "\\binput\\b",  "\\bint\\b",
-      "\\blen\\b",   "\\blist\\b",     "\\bmax\\b",    "\\bmin\\b",
-      "\\bopen\\b",  "\\bprint\\b",    "\\brange\\b",  "\\bround\\b",
-      "\\bstr\\b",   "\\bsum\\b",      "\\btuple\\b",  "\\btype\\b",
-      "\\bzip\\b",   "\\bself\\b"};
-  for (const QString &p : builtins) {
-    rule.pattern = QRegularExpression(p);
-    rule.format = builtinFormat;
-    highlightingRules.append(rule);
-  }
-
-  rule.pattern = QRegularExpression("\".*?\"|'.*?'");
-  rule.format = stringFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b");
-  rule.format = numberFormat;
-  highlightingRules.append(rule);
-  functionFormat.setFontItalic(true);
-  rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
-  rule.format = functionFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("#[^\n]*");
-  rule.format = commentFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("@[A-Za-z_][A-Za-z0-9_]*");
-  rule.format = functionFormat;
-  highlightingRules.append(rule);
-}
-
-void SyntaxHighlighter::setupJavaScriptRules() {
-  HighlightingRule rule;
-  keywordFormat.setFontWeight(QFont::Bold);
-  QStringList kw = {
-      "\\bbreak\\b",      "\\bcase\\b",       "\\bcatch\\b",      "\\bclass\\b",
-      "\\bconst\\b",      "\\bcontinue\\b",   "\\bdebugger\\b",   "\\bdefault\\b",
-      "\\bdelete\\b",     "\\bdo\\b",         "\\belse\\b",       "\\bexport\\b",
-      "\\bextends\\b",     "\\bfalse\\b",      "\\bfinally\\b",    "\\bfor\\b",
-      "\\bfunction\\b",    "\\bif\\b",         "\\bimport\\b",     "\\bin\\b",
-      "\\binstanceof\\b",  "\\bnew\\b",        "\\bnull\\b",       "\\breturn\\b",
-      "\\bsuper\\b",      "\\bswitch\\b",     "\\bthis\\b",       "\\bthrow\\b",
-      "\\btrue\\b",       "\\btry\\b",        "\\btypeof\\b",     "\\bvar\\b",
-      "\\bvoid\\b",       "\\bwhile\\b",      "\\bwith\\b",       "\\bawait\\b",
-      "\\blet\\b",        "\\bstatic\\b",     "\\byield\\b",      "\\benum\\b",
-      "\\bimplements\\b", "\\binterface\\b",  "\\bpackage\\b",    "\\bprivate\\b",
-      "\\bprotected\\b",  "\\bpublic\\b",     "\\basync\\b",      "\\bof\\b",
-      "\\btype\\b",       "\\bfrom\\b"};
-  for (const QString &p : kw) {
-    rule.pattern = QRegularExpression(p);
-    rule.format = keywordFormat;
-    highlightingRules.append(rule);
-  }
-  rule.pattern = QRegularExpression("=>");
-  rule.format = keywordFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\".*?\"|'.*?'|`[^`]*`");
-  rule.format = stringFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b0x[0-9a-fA-F]+\\b|\\b[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b");
-  rule.format = numberFormat;
-  highlightingRules.append(rule);
-  functionFormat.setFontItalic(true);
-  rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
-  rule.format = functionFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("//[^\n]*");
-  rule.format = commentFormat;
-  highlightingRules.append(rule);
-}
-
-void SyntaxHighlighter::setupHtmlRules() {
-  HighlightingRule rule;
-  tagFormat.setFontWeight(QFont::Bold);
-  rule.pattern = QRegularExpression("</?[A-Za-z][A-Za-z0-9]*");
-  rule.format = tagFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("/?>");
-  rule.format = tagFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b[A-Za-z-]+(?==)");
-  rule.format = attributeFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\"[^\"]*\"");
-  rule.format = stringFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("<!--[^\n]*-->");
-  rule.format = commentFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("&[A-Za-z]+;");
-  rule.format = numberFormat;
-  highlightingRules.append(rule);
-}
-
-void SyntaxHighlighter::setupCssRules() {
-  HighlightingRule rule;
-  keywordFormat.setFontWeight(QFont::Bold);
-  rule.pattern = QRegularExpression("[.#]?[A-Za-z_-][A-Za-z0-9_-]*\\s*(?=\\{)");
-  rule.format = keywordFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("[A-Za-z-]+(?=\\s*:)");
-  rule.format = functionFormat;
-  highlightingRules.append(rule);
-  rule.pattern =
-      QRegularExpression("\\b[0-9]+\\.?[0-9]*(px|em|rem|%|vh|vw|s|ms)?\\b");
-  rule.format = numberFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("#[0-9a-fA-F]{3,8}\\b");
-  rule.format = numberFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\"[^\"]*\"|'[^']*'");
-  rule.format = stringFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("@[A-Za-z-]+");
-  rule.format = keywordFormat;
-  highlightingRules.append(rule);
-}
-
-void SyntaxHighlighter::setupRustRules() {
-  HighlightingRule rule;
-  keywordFormat.setFontWeight(QFont::Bold);
-  QStringList kw = {
-      "\\bas\\b",       "\\basync\\b",    "\\bawait\\b",    "\\bbreak\\b",
-      "\\bconst\\b",    "\\bcontinue\\b", "\\bcrate\\b",    "\\bdyn\\b",
-      "\\belse\\b",     "\\benum\\b",     "\\bextern\\b",   "\\bfalse\\b",
-      "\\bfn\\b",       "\\bfor\\b",      "\\bif\\b",       "\\bimpl\\b",
-      "\\bin\\b",       "\\blet\\b",      "\\bloop\\b",     "\\bmatch\\b",
-      "\\bmod\\b",      "\\bmove\\b",     "\\bmut\\b",      "\\bpub\\b",
-      "\\bref\\b",      "\\breturn\\b",   "\\bself\\b",     "\\bSelf\\b",
-      "\\bstatic\\b",   "\\bstruct\\b",   "\\bsuper\\b",    "\\btrait\\b",
-      "\\btrue\\b",     "\\btype\\b",     "\\bunion\\b",    "\\bunsafe\\b",
-      "\\buse\\b",      "\\bwhere\\b",    "\\bwhile\\b",    "\\babstract\\b",
-      "\\bbecome\\b",   "\\bbox\\b",      "\\bdo\\b",       "\\bfinal\\b",
-      "\\boverride\\b", "\\bpriv\\b",     "\\bvirtual\\b",  "\\byield\\b",
-      "\\btry\\b"};
-  for (const QString &p : kw) {
-    rule.pattern = QRegularExpression(p);
-    rule.format = keywordFormat;
-    highlightingRules.append(rule);
-  }
-  rule.pattern = QRegularExpression("\".*?\"|'.'");
-  rule.format = stringFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b0x[0-9a-fA-F]+\\b|\\b[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b");
-  rule.format = numberFormat;
-  highlightingRules.append(rule);
-  functionFormat.setFontItalic(true);
-  rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
-  rule.format = functionFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("//[^\n]*");
-  rule.format = commentFormat;
-  highlightingRules.append(rule);
-  classFormat.setFontWeight(QFont::Bold);
-  rule.pattern = QRegularExpression("[A-Z][A-Za-z0-9]+");
-  rule.format = classFormat;
-  highlightingRules.append(rule);
-}
-
-void SyntaxHighlighter::setupGoRules() {
-  HighlightingRule rule;
-  keywordFormat.setFontWeight(QFont::Bold);
-  QStringList kw = {
-      "\\bbreak\\b",    "\\bcase\\b",       "\\bchan\\b",      "\\bconst\\b",
-      "\\bcontinue\\b", "\\bdefault\\b",    "\\bdefer\\b",     "\\belse\\b",
-      "\\bfallthrough\\b", "\\bfor\\b",      "\\bfunc\\b",      "\\bgo\\b",
-      "\\bgoto\\b",     "\\bif\\b",         "\\bimport\\b",    "\\binterface\\b",
-      "\\bmap\\b",      "\\bpackage\\b",    "\\brange\\b",     "\\breturn\\b",
-      "\\bselect\\b",   "\\bstruct\\b",     "\\bswitch\\b",    "\\btype\\b",
-      "\\bvar\\b",      "\\bnil\\b",        "\\btrue\\b",      "\\bfalse\\b"};
-  for (const QString &p : kw) {
-    rule.pattern = QRegularExpression(p);
-    rule.format = keywordFormat;
-    highlightingRules.append(rule);
-  }
-
-  // Go built-in types and functions
-  QTextCharFormat builtinFormat;
-  builtinFormat.setForeground(functionFormat.foreground());
-  builtinFormat.setFontItalic(true);
-  QStringList builtins = {
-      "\\bappend\\b", "\\bcap\\b",   "\\bclose\\b",  "\\bcomplex\\b",
-      "\\bcopy\\b",   "\\bdelete\\b", "\\bimag\\b",   "\\blen\\b",
-      "\\bmake\\b",   "\\bnew\\b",    "\\bpanic\\b",  "\\bprint\\b",
-      "\\bprintln\\b", "\\breal\\b",   "\\brecover\\b", "\\bbool\\b",
-      "\\bbyte\\b",   "\\bcomplex64\\b", "\\bcomplex128\\b", "\\berror\\b",
-      "\\bfloat32\\b", "\\bfloat64\\b", "\\bint\\b",    "\\bint8\\b",
-      "\\bint16\\b",  "\\bint32\\b",  "\\bint64\\b",  "\\brune\\b",
-      "\\bstring\\b", "\\buint\\b",   "\\buint8\\b",  "\\buint16\\b",
-      "\\buint32\\b", "\\buint64\\b", "\\buintptr\\b"};
-  for (const QString &p : builtins) {
-    rule.pattern = QRegularExpression(p);
-    rule.format = builtinFormat;
-    highlightingRules.append(rule);
-  }
-
-  rule.pattern = QRegularExpression("\".*?\"|`[^`]*`|'.*?'");
-  rule.format = stringFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b0[xX][0-9a-fA-F]+\\b|\\b[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b");
-  rule.format = numberFormat;
-  highlightingRules.append(rule);
-  functionFormat.setFontItalic(true);
-  rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
-  rule.format = functionFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("//[^\n]*");
-  rule.format = commentFormat;
-  highlightingRules.append(rule);
-}
-
-void SyntaxHighlighter::setupJsonRules() {
-  HighlightingRule rule;
-  rule.pattern = QRegularExpression("\"[^\"]*\"\\s*(?=:)");
-  rule.format = keywordFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression(":\\s*\"[^\"]*\"");
-  rule.format = stringFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
-  rule.format = numberFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\btrue\\b|\\bfalse\\b|\\bnull\\b");
-  rule.format = keywordFormat;
-  highlightingRules.append(rule);
-}
-
-void SyntaxHighlighter::setupYamlRules() {
-  HighlightingRule rule;
-  keywordFormat.setFontWeight(QFont::Bold);
-  rule.pattern = QRegularExpression("^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*:)");
-  rule.format = keywordFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\"[^\"]*\"|'[^']*'");
-  rule.format = stringFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\b[0-9]+\\.?[0-9]*\\b");
-  rule.format = numberFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression(
-      "\\btrue\\b|\\bfalse\\b|\\bnull\\b|\\byes\\b|\\bno\\b");
-  rule.format = numberFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("#[^\n]*");
-  rule.format = commentFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("^\\s*-\\s");
-  rule.format = functionFormat;
-  highlightingRules.append(rule);
-}
-
-void SyntaxHighlighter::setupMarkdownRules() {
-  HighlightingRule rule;
-  headingFormat.setFontWeight(QFont::Bold);
-  rule.pattern = QRegularExpression("^#{1,6}\\s.*$");
-  rule.format = headingFormat;
-  highlightingRules.append(rule);
-  boldFormat.setFontWeight(QFont::Bold);
-  rule.pattern = QRegularExpression("\\*\\*[^*]+\\*\\*|__[^_]+__");
-  rule.format = boldFormat;
-  highlightingRules.append(rule);
-  QTextCharFormat italicFmt;
-  italicFmt.setFontItalic(true);
-  rule.pattern = QRegularExpression("\\*[^*]+\\*|_[^_]+_");
-  rule.format = italicFmt;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("`[^`]+`");
-  rule.format = stringFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("```[^\n]*");
-  rule.format = commentFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("\\[.*?\\]\\(.*?\\)");
-  rule.format = linkFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("^\\s*[-*+]\\s");
-  rule.format = keywordFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("^\\s*\\d+\\.\\s");
-  rule.format = keywordFormat;
-  highlightingRules.append(rule);
-  rule.pattern = QRegularExpression("^>\\s.*$");
-  rule.format = commentFormat;
-  highlightingRules.append(rule);
-}
-
-void SyntaxHighlighter::highlightBlock(const QString &text) {
-  if (text.isEmpty()) {
-    setCurrentBlockState(0);
-    return;
-  }
-  setCurrentBlockState(0);
-  int startIndex = 0;
-  if (currentLanguage == Language::CPP ||
-      currentLanguage == Language::JavaScript ||
-      currentLanguage == Language::Rust || currentLanguage == Language::Go ||
-      currentLanguage == Language::CSS) {
-    if (previousBlockState() != 1)
-      startIndex = text.indexOf(multiLineCommentStart);
-    while (startIndex >= 0) {
-      int endIndex = text.indexOf(multiLineCommentEnd, startIndex);
-      int commentLength;
-      if (endIndex == -1) {
-        setCurrentBlockState(1);
-        commentLength = text.length() - startIndex;
-      } else {
-        commentLength = endIndex - startIndex + 2;
-      }
-      setFormat(startIndex, commentLength, commentFormat);
-      startIndex =
-          text.indexOf(multiLineCommentStart, startIndex + commentLength);
-    }
-  }
-  if (previousBlockState() != 1) {
-    for (const HighlightingRule &rule : highlightingRules) {
-      QRegularExpressionMatchIterator matchIterator =
-          rule.pattern.globalMatch(text);
-      while (matchIterator.hasNext()) {
-        QRegularExpressionMatch match = matchIterator.next();
-        setFormat(match.capturedStart(), match.capturedLength(), rule.format);
-      }
-    }
-  }
-}
-
-void SyntaxHighlighter::applyTheme(const ColorTheme &theme) {
-  keywordFormat.setForeground(theme.keyword);
-  stringFormat.setForeground(theme.string);
-  commentFormat.setForeground(theme.comment);
-  numberFormat.setForeground(theme.number);
-  functionFormat.setForeground(theme.function);
-  classFormat.setForeground(theme.keyword);
-  tagFormat.setForeground(theme.keyword);
-  attributeFormat.setForeground(theme.function);
-  headingFormat.setForeground(theme.keyword);
-  boldFormat.setForeground(theme.foreground);
-  linkFormat.setForeground(QColor(86, 156, 214));
-  setupRules();
-  rehighlight();
-}
-// ============================================================
-// WelcomeWidget Implementation
-// ============================================================
-WelcomeWidget::WelcomeWidget(QWidget *parent) : QWidget(parent) { setupUI(); }
-
-void WelcomeWidget::setupUI() {
-  QVBoxLayout *mainLayout = new QVBoxLayout(this);
-  mainLayout->setAlignment(Qt::AlignCenter);
-  mainLayout->setSpacing(20);
-
-  QLabel *logo = new QLabel("Jim");
-  logo->setStyleSheet(
-      "font-size: 64px; font-weight: 300; color: #569cd6; letter-spacing: 8px; "
-      "font-family: 'Segoe UI', 'Consolas', monospace;");
-  logo->setAlignment(Qt::AlignCenter);
-  mainLayout->addWidget(logo);
-
-  QLabel *subtitle = new QLabel("Lightweight Code Editor");
-  subtitle->setStyleSheet("font-size: 16px; color: #808080; font-weight: 300; "
-                          "letter-spacing: 2px; margin-bottom: 30px;");
-  subtitle->setAlignment(Qt::AlignCenter);
-  mainLayout->addWidget(subtitle);
-
-  QHBoxLayout *buttonLayout = new QHBoxLayout();
-  buttonLayout->setAlignment(Qt::AlignCenter);
-  buttonLayout->setSpacing(16);
-
-  QString btnStyle =
-      "QPushButton { background-color: #0e639c; color: #ffffff; border: none; "
-      "padding: 12px 28px; border-radius: 6px; font-size: 14px; font-weight: "
-      "500; min-width: 140px; } QPushButton:hover { background-color: #1177bb; "
-      "} QPushButton:pressed { background-color: #094771; }";
-
-  QPushButton *openFileBtn = new QPushButton("Open File");
-  openFileBtn->setStyleSheet(btnStyle);
-  connect(openFileBtn, &QPushButton::clicked, this,
-          &WelcomeWidget::openFileRequested);
-  buttonLayout->addWidget(openFileBtn);
-
-  QPushButton *openFolderBtn = new QPushButton("Open Folder");
-  openFolderBtn->setStyleSheet(btnStyle);
-  connect(openFolderBtn, &QPushButton::clicked, this,
-          &WelcomeWidget::openFolderRequested);
-  buttonLayout->addWidget(openFolderBtn);
-
-  mainLayout->addLayout(buttonLayout);
-
-  QLabel *recentLabel = new QLabel("Recent Files");
-  recentLabel->setStyleSheet("font-size: 13px; color: #cccccc; font-weight: "
-                             "600; margin-top: 30px; letter-spacing: 1px;");
-  recentLabel->setAlignment(Qt::AlignCenter);
-  mainLayout->addWidget(recentLabel);
-
-  recentFilesLayout = new QVBoxLayout();
-  recentFilesLayout->setAlignment(Qt::AlignCenter);
-  recentFilesLayout->setSpacing(4);
-  mainLayout->addLayout(recentFilesLayout);
-  mainLayout->addStretch();
-  setStyleSheet("QWidget { background-color: #1e1e1e; }");
-}
-
-void WelcomeWidget::setRecentFiles(const QStringList &files) {
-  QLayoutItem *item;
-  while ((item = recentFilesLayout->takeAt(0)) != nullptr) {
-    delete item->widget();
-    delete item;
-  }
-  int count = 0;
-  for (const QString &file : files) {
-    if (count >= 8)
-      break;
-    QPushButton *btn = new QPushButton(QFileInfo(file).fileName());
-    btn->setToolTip(file);
-    btn->setStyleSheet(
-        "QPushButton { background-color: transparent; color: #3794ff; border: "
-        "none; padding: 6px 16px; font-size: 13px; text-align: center; "
-        "border-radius: 4px; min-width: 200px; } QPushButton:hover { "
-        "background-color: #2a2d2e; color: #58b0ff; }");
-    QString filePath = file;
-    connect(btn, &QPushButton::clicked, this,
-            [this, filePath]() { emit recentFileClicked(filePath); });
-    recentFilesLayout->addWidget(btn);
-    count++;
-  }
-  if (files.isEmpty()) {
-    QLabel *noFiles = new QLabel("No recent files");
-    noFiles->setStyleSheet("color: #555555; font-size: 12px; padding: 8px;");
-    noFiles->setAlignment(Qt::AlignCenter);
-    recentFilesLayout->addWidget(noFiles);
-  }
-}
-
-// ============================================================
-// BreadcrumbBar Implementation
-// ============================================================
-BreadcrumbBar::BreadcrumbBar(QWidget *parent) : QWidget(parent) {
-  QHBoxLayout *layout = new QHBoxLayout(this);
-  layout->setContentsMargins(12, 0, 12, 0);
-  layout->setSpacing(8);
-
-  iconLabel = new QLabel("\xF0\x9F\x93\x84"); // File icon
-  iconLabel->setStyleSheet("color: #999999; font-size: 14px;");
-  layout->addWidget(iconLabel);
-
-  pathLabel = new QLabel("");
-  pathLabel->setStyleSheet(
-      "color: #808080; font-size: 12px; font-family: 'Segoe UI', sans-serif;");
-  layout->addWidget(pathLabel);
-
-  fileLabel = new QLabel("");
-  fileLabel->setStyleSheet(
-      "color: #cccccc; font-size: 12px; font-family: 'Segoe UI', sans-serif; font-weight: 500;");
-  layout->addWidget(fileLabel);
-
-  symbolLabel = new QLabel("");
-  symbolLabel->setStyleSheet(
-      "color: #dcdcaa; font-size: 12px; font-family: 'Consolas', monospace;");
-  layout->addWidget(symbolLabel);
-
-  layout->addStretch();
-  setFixedHeight(30);
-  setStyleSheet("QWidget { background-color: #252526; border-bottom: 1px solid "
-                "#3e3e42; }");
-}
-
-void BreadcrumbBar::updatePath(const QString &filePath, const QString &symbol) {
-  if (filePath.isEmpty()) {
-    pathLabel->setText("");
-    fileLabel->setText("Untitled");
-    symbolLabel->setText("");
-    return;
-  }
-  QFileInfo info(filePath);
-  pathLabel->setText(info.absolutePath() + " > ");
-  fileLabel->setText(info.fileName());
-  
-  if (!symbol.isEmpty()) {
-    symbolLabel->setText(" > " + symbol);
-    symbolLabel->show();
-  } else {
-    symbolLabel->setText("");
-    symbolLabel->hide();
-  }
-}
-
-// ============================================================
-// FindBar Implementation
-// ============================================================
-FindBar::FindBar(QWidget *parent) : QWidget(parent) {
-  QHBoxLayout *layout = new QHBoxLayout(this);
-  layout->setContentsMargins(10, 2, 10, 2);
-  layout->setSpacing(10);
-
-  findInput = new QLineEdit(this);
-  findInput->setPlaceholderText("Find...");
-  findInput->setStyleSheet("QLineEdit { background-color: #3c3c3c; color: #cccccc; border: 1px solid #555555; padding: 2px 5px; border-radius: 2px; }");
-  layout->addWidget(findInput);
-
-  matchLabel = new QLabel("0/0", this);
-  matchLabel->setStyleSheet("color: #999999; font-size: 11px;");
-  layout->addWidget(matchLabel);
-
-  prevBtn = new QPushButton("\xE2\x86\x91", this); // Up arrow
-  nextBtn = new QPushButton("\xE2\x86\x93", this); // Down arrow
-  closeBtn = new QPushButton("\xE2\x9C\x95", this); // Close icon
-
-  QString btnStyle = "QPushButton { background-color: transparent; color: #cccccc; border: none; padding: 2px 8px; font-size: 14px; } "
-                      "QPushButton:hover { background-color: #4a4a4a; border-radius: 2px; }";
-  prevBtn->setStyleSheet(btnStyle);
-  nextBtn->setStyleSheet(btnStyle);
-  closeBtn->setStyleSheet(btnStyle + " QPushButton:hover { background-color: #e81123; color: white; }");
-
-  layout->addWidget(prevBtn);
-  layout->addWidget(nextBtn);
-  layout->addWidget(closeBtn);
-
-  setFixedHeight(34);
-  setStyleSheet("QWidget { background-color: #2d2d2d; border-bottom: 1px solid #3e3e42; border-left: 1px solid #3e3e42; }");
-
-  connect(findInput, &QLineEdit::textChanged, this, &FindBar::textChanged);
-  connect(findInput, &QLineEdit::returnPressed, this, [this]() { emit findNextRequested(findInput->text()); });
-  connect(prevBtn, &QPushButton::clicked, this, [this]() { emit findPreviousRequested(findInput->text()); });
-  connect(nextBtn, &QPushButton::clicked, this, [this]() { emit findNextRequested(findInput->text()); });
-  connect(closeBtn, &QPushButton::clicked, this, &FindBar::closeRequested);
-  
-  hide();
-}
-
-void FindBar::showAndFocus(const QString &text) {
-  if (!text.isEmpty()) findInput->setText(text);
-  show();
-  findInput->setFocus();
-  findInput->selectAll();
-}
-
-void FindBar::setMatchCount(int current, int total) {
-  if (total == 0) matchLabel->setText("No results");
-  else matchLabel->setText(QString("%1/%2").arg(current).arg(total));
-}
-
-QString FindBar::getSearchText() const {
-  return findInput->text();
-}
-
-// ============================================================
-// AnimationWidget Implementation
-// ============================================================
-AnimationWidget::AnimationWidget(QWidget *parent)
-    : QWidget(parent), currentType(None), timerId(0), frame(0) {
-    setAttribute(Qt::WA_TransparentForMouseEvents);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setStyleSheet("background: transparent;");
-    initMatrix();
-    initParticles();
-}
-
-void AnimationWidget::setAnimationType(AnimationType type) {
-    if (timerId) {
-        killTimer(timerId);
-        timerId = 0;
-    }
-    
-    currentType = type;
-    frame = 0;
-    
-    if (type != None) {
-        timerId = startTimer(33); // ~30 FPS for smoother animation
-    }
-    
-    if (type == Matrix) initMatrix();
-    else if (type == Particles || type == Waves || type == Pulse || type == Rain || type == Snow) initParticles();
-    else if (type == Starfield) initStarfield();
-    else if (type == Fire) initFire();
-    
-    update();
-}
-
-void AnimationWidget::cycleAnimation() {
-    int next = (static_cast<int>(currentType) + 1) % 9;
-    setAnimationType(static_cast<AnimationType>(next));
-}
-
-void AnimationWidget::initMatrix() {
-    matrixColumns.clear();
-    for (int i = 0; i < 30; i++) {
-        MatrixColumn col;
-        col.x = QRandomGenerator::global()->bounded(width() + 100);
-        col.y = -(QRandomGenerator::global()->bounded(500));
-        col.speed = 2 + QRandomGenerator::global()->bounded(5);
-        col.text = QString("01").at(QRandomGenerator::global()->bounded(2));
-        matrixColumns.append(col);
-    }
-}
-
-void AnimationWidget::initParticles() {
-    particles.clear();
-    for (int i = 0; i < 50; i++) {
-        Particle p;
-        p.x = QRandomGenerator::global()->bounded(width());
-        p.y = QRandomGenerator::global()->bounded(height());
-        p.vx = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
-        p.vy = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
-        p.life = 255;
-        p.size = 2.0f;
-        particles.append(p);
-    }
-}
-
-void AnimationWidget::initStarfield() {
-    particles.clear();
-    for (int i = 0; i < 100; i++) {
-        Particle p;
-        p.x = QRandomGenerator::global()->bounded(width()) - width() / 2;
-        p.y = QRandomGenerator::global()->bounded(height()) - height() / 2;
-        p.vx = p.x / 50.0f;
-        p.vy = p.y / 50.0f;
-        p.life = 255;
-        p.size = 0.5f + (QRandomGenerator::global()->bounded(100) / 50.0f);
-        particles.append(p);
-    }
-}
-
-void AnimationWidget::initFire() {
-    particles.clear();
-    for (int i = 0; i < 60; i++) {
-        Particle p;
-        p.x = QRandomGenerator::global()->bounded(width());
-        p.y = height() + QRandomGenerator::global()->bounded(50);
-        p.vx = (QRandomGenerator::global()->bounded(40) - 20) / 10.0f;
-        p.vy = -(2.0f + QRandomGenerator::global()->bounded(40) / 10.0f);
-        p.life = 100 + QRandomGenerator::global()->bounded(155);
-        p.size = 5.0f + QRandomGenerator::global()->bounded(10);
-        particles.append(p);
-    }
-}
-
-void AnimationWidget::timerEvent(QTimerEvent *) {
-    frame++;
-    
-    // Update matrix
-    for (auto &col : matrixColumns) {
-        col.y += col.speed;
-        if (col.y > height()) {
-            col.y = -20;
-            col.x = QRandomGenerator::global()->bounded(width());
-        }
-    }
-    
-    // Update particles
-    for (auto &p : particles) {
-        if (currentType == Starfield) {
-            p.x += p.vx;
-            p.y += p.vy;
-            p.vx *= 1.05f;
-            p.vy *= 1.05f;
-            if (qAbs(p.x) > width() / 2 || qAbs(p.y) > height() / 2) {
-                p.x = QRandomGenerator::global()->bounded(10) - 5;
-                p.y = QRandomGenerator::global()->bounded(10) - 5;
-                p.vx = p.x / 2.0f;
-                p.vy = p.y / 2.0f;
-            }
-        } else if (currentType == Rain) {
-            p.y += 15.0f;
-            if (p.y > height()) {
-                p.y = -20;
-                p.x = QRandomGenerator::global()->bounded(width());
-            }
-        } else if (currentType == Snow) {
-            p.y += 2.0f;
-            p.x += qSin(frame * 0.1f + p.life) * 1.5f;
-            if (p.y > height()) {
-                p.y = -10;
-                p.x = QRandomGenerator::global()->bounded(width());
-            }
-        } else if (currentType == Fire) {
-            p.x += p.vx;
-            p.y += p.vy;
-            p.life -= 5;
-            if (p.life <= 0) {
-                p.x = QRandomGenerator::global()->bounded(width());
-                p.y = height() + 10;
-                p.vx = (QRandomGenerator::global()->bounded(40) - 20) / 10.0f;
-                p.vy = -(2.0f + QRandomGenerator::global()->bounded(40) / 10.0f);
-                p.life = 255;
-            }
-        } else {
-            p.x += p.vx;
-            p.y += p.vy;
-            p.life--;
-            
-            if (p.life <= 0 || p.x < 0 || p.x > width() || p.y < 0 || p.y > height()) {
-                p.x = QRandomGenerator::global()->bounded(width());
-                p.y = QRandomGenerator::global()->bounded(height());
-                p.vx = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
-                p.vy = (QRandomGenerator::global()->bounded(100) - 50) / 50.0f;
-                p.life = 255;
-            }
-        }
-    }
-    
-    update();
-}
-
-void AnimationWidget::paintEvent(QPaintEvent *) {
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    
-    switch (currentType) {
-        case Matrix:
-            drawMatrix(painter);
-            break;
-        case Particles:
-            drawParticles(painter);
-            break;
-        case Waves:
-            drawWaves(painter);
-            break;
-        case Pulse:
-            drawPulse(painter);
-            break;
-        case Starfield:
-            drawStarfield(painter);
-            break;
-        case Rain:
-            drawRain(painter);
-            break;
-        case Snow:
-            drawSnow(painter);
-            break;
-        case Fire:
-            drawFire(painter);
-            break;
-        case DJMode:
-            drawDJMode(painter);
-            break;
-        default:
-            break;
-    }
-}
-
-void AnimationWidget::drawStarfield(QPainter &painter) {
-    painter.setPen(Qt::NoPen);
-    for (const auto &p : particles) {
-        painter.setBrush(Qt::white);
-        painter.drawEllipse(QPointF(p.x + width()/2, p.y + height()/2), p.size, p.size);
-    }
-}
-
-void AnimationWidget::drawRain(QPainter &painter) {
-    painter.setPen(QPen(QColor(100, 149, 237, 150), 2));
-    for (const auto &p : particles) {
-        painter.drawLine(QPointF(p.x, p.y), QPointF(p.x, p.y + 10));
-    }
-}
-
-void AnimationWidget::drawSnow(QPainter &painter) {
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(255, 255, 255, 200));
-    for (const auto &p : particles) {
-        painter.drawEllipse(QPointF(p.x, p.y), 3, 3);
-    }
-}
-
-void AnimationWidget::drawFire(QPainter &painter) {
-    for (const auto &p : particles) {
-        int r = 255;
-        int g = qMax(0, 255 - (255 - p.life) * 2);
-        int b = 0;
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(r, g, b, p.life));
-        painter.drawEllipse(QPointF(p.x, p.y), p.size * p.life / 255.0f, p.size * p.life / 255.0f);
-    }
-}
-
-void AnimationWidget::drawDJMode(QPainter &painter) {
-    if (!audioMonitor) {
-        // Draw a placeholder when no audio monitor is available
-        painter.fillRect(rect(), QColor(10, 10, 15));
-        painter.setPen(QColor(100, 100, 100));
-        painter.drawText(rect(), Qt::AlignCenter, "DJ Mode - No Audio Monitor");
-        return;
-    }
-    
-    QVector<float> levels = audioMonitor->getLevels();
-    if (levels.isEmpty()) {
-        painter.fillRect(rect(), QColor(10, 10, 15));
-        painter.setPen(QColor(100, 100, 100));
-        painter.drawText(rect(), Qt::AlignCenter, "DJ Mode - No Audio Levels");
-        return;
-    }
-
-    int numBars = levels.size();
-    float barWidth = static_cast<float>(width()) / numBars;
-    
-    // Dark background
-    painter.fillRect(rect(), QColor(10, 10, 15));
-    
-    // Draw frequency bars with smoothing
-    for (int i = 0; i < numBars; ++i) {
-        float level = levels[i];
-        if (level < 0.01f) level = 0.01f; // Higher minimum visibility
-        
-        float h = level * height() * 0.9f; // Increased to 90% of widget height for better visibility
-        if (h < 5.0f) h = 5.0f; // Minimum 5 pixels height so bars are always visible
-        
-        // Make bars wider by reducing gaps
-        float barGap = 0.5f; // Smaller gap between bars
-        QRectF barRect(i * barWidth + barGap/2, height() - h, barWidth - barGap, h);
-        
-        // Create smoother gradient from bottom to top
-        QLinearGradient grad(barRect.bottomLeft(), barRect.topLeft());
-        
-        // More subtle color range - blue to purple
-        float hue = 200.0f + (i / float(numBars)) * 60.0f; // Blue to purple range
-        grad.setColorAt(0, QColor::fromHsvF(hue / 360.0f, 0.7f, 0.6f)); // Less saturated
-        grad.setColorAt(0.7f, QColor::fromHsvF(hue / 360.0f, 0.8f, 0.8f));
-        grad.setColorAt(1.0f, QColor::fromHsvF((hue + 30) / 360.0f, 0.9f, 0.9f));
-        
-        painter.fillRect(barRect, grad);
-        
-        // Subtle glow only for very high levels
-        if (level > 0.8f) {
-            painter.setPen(QPen(QColor::fromHsvF(hue / 360.0f, 0.3f, 1.0f, 0.3f), 1)); // Less intense glow
-            painter.drawRect(barRect);
-        }
-    }
-    
-    // Gentle reflection at bottom
-    painter.setOpacity(0.2f); // Reduced opacity for subtler reflection
-    for (int i = 0; i < numBars; ++i) {
-        float level = levels[i];
-        if (level < 0.01f) continue;
-        
-        float h = level * height() * 0.2f; // Smaller reflection
-        float barGap = 0.5f; // Same gap as main bars
-        QRectF barRect(i * barWidth + barGap/2, 0, barWidth - barGap, h);
-        
-        float hue = 200.0f + (i / float(numBars)) * 60.0f;
-        painter.fillRect(barRect, QColor::fromHsvF(hue / 360.0f, 0.6f, 0.5f));
-    }
-    painter.setOpacity(1.0f);
-}
-
-void AnimationWidget::drawMatrix(QPainter &painter) {
-    painter.setFont(QFont("Consolas", 12));
-    for (const auto &col : matrixColumns) {
-        int alpha = 255;
-        for (int i = 0; i < 10; i++) {
-            painter.setPen(QColor(0, 255, 0, alpha));
-            painter.drawText(col.x, col.y - i * 20, col.text);
-            alpha = qMax(0, alpha - 30);
-        }
-    }
-}
-
-void AnimationWidget::drawParticles(QPainter &painter) {
-    for (const auto &p : particles) {
-        int alpha = qMin(255, p.life);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(100, 149, 237, alpha));
-        painter.drawEllipse(QPointF(p.x, p.y), 2, 2);
-    }
-}
-
-void AnimationWidget::drawWaves(QPainter &painter) {
-    painter.setPen(QPen(QColor(0, 120, 215, 100), 2));
-    
-    for (int wave = 0; wave < 3; wave++) {
-        QPainterPath path;
-        bool first = true;
-        for (int x = 0; x < width(); x += 5) {
-            float y = height() / 2 + 50 * qSin((x + frame * 2 + wave * 100) * 0.02);
-            if (first) {
-                path.moveTo(x, y);
-                first = false;
-            } else {
-                path.lineTo(x, y);
-            }
-        }
-        painter.drawPath(path);
-    }
-}
-
-void AnimationWidget::drawPulse(QPainter &painter) {
-    int centerX = width() / 2;
-    int centerY = height() / 2;
-    
-    for (int i = 0; i < 5; i++) {
-        int radius = ((frame + i * 20) % 200);
-        int alpha = 255 - (radius * 255 / 200);
-        painter.setPen(QPen(QColor(100, 149, 237, alpha), 2));
-        painter.setBrush(Qt::NoBrush);
-        painter.drawEllipse(QPoint(centerX, centerY), radius, radius);
-    }
-}
-
-// ============================================================
-// TerminalWidget Implementation
-// ============================================================
-TerminalWidget::TerminalWidget(QWidget *parent)
-    : QWidget(parent), process(nullptr) {
-  setupUI();
-}
-
-TerminalWidget::~TerminalWidget() {
-  if (process) {
-    process->kill();
-    process->waitForFinished(1000);
-  }
-}
-
-void TerminalWidget::setupUI() {
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setContentsMargins(0, 0, 0, 0);
-  layout->setSpacing(0);
-
-  QWidget *header = new QWidget();
-  QHBoxLayout *headerLayout = new QHBoxLayout(header);
-  headerLayout->setContentsMargins(12, 6, 12, 6);
-  
-  QLabel *termLabel = new QLabel("TERMINAL");
-  termLabel->setStyleSheet("color: #cccccc; font-size: 11px; font-weight: 600; letter-spacing: 1px;");
-  headerLayout->addWidget(termLabel);
-  headerLayout->addStretch();
-  
-  header->setStyleSheet("background-color: #252526; border-bottom: 1px solid #3e3e42;");
-  layout->addWidget(header);
-
-  output = new QPlainTextEdit();
-  output->setReadOnly(true);
-  output->setFont(QFont("Consolas", 10));
-  output->setStyleSheet(
-      "QPlainTextEdit { background-color: #1e1e1e; color: #cccccc; border: none; "
-      "padding: 8px; selection-background-color: #264f78; }");
-  output->setMaximumBlockCount(5000);
-  layout->addWidget(output);
-
-  input = new QLineEdit();
-  input->setFont(QFont("Consolas", 10));
-  input->setStyleSheet(
-      "QLineEdit { background-color: #1e1e1e; color: #cccccc; border: none; "
-      "border-top: 1px solid #3e3e42; padding: 8px; } "
-      "QLineEdit:focus { border-top: 1px solid #007acc; }");
-  input->setPlaceholderText("Type command and press Enter...");
-  connect(input, &QLineEdit::returnPressed, this, &TerminalWidget::executeCommand);
-  layout->addWidget(input);
-
-  currentDir = QDir::homePath();
-  setStyleSheet("background-color: #1e1e1e;");
-}
-
-void TerminalWidget::setWorkingDirectory(const QString &dir) {
-  QDir d(dir);
-  if (d.exists()) {
-    currentDir = d.absolutePath();
-  }
-}
-
-void TerminalWidget::startShell() {}
-
-void TerminalWidget::executeCommand() {
-  QString cmd = input->text().trimmed();
-  if (cmd.isEmpty()) return;
-  
-  output->appendPlainText("> " + cmd);
-  input->clear();
-
-  if (cmd == "clear" || cmd == "cls") {
-    output->clear();
-    return;
-  }
-
-  QProcess *proc = new QProcess(this);
-  proc->setWorkingDirectory(currentDir);
-  proc->setProcessChannelMode(QProcess::MergedChannels);
-  
-  connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc]() {
-    output->appendPlainText(QString::fromLocal8Bit(proc->readAllStandardOutput()));
-  });
-  
-  connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-          this, [proc]() { proc->deleteLater(); });
-  
-#ifdef Q_OS_WIN
-  proc->start("cmd.exe", QStringList() << "/c" << cmd);
-#else
-  proc->start("/bin/sh", QStringList() << "-c" << cmd);
-#endif
-}
-
-void TerminalWidget::appendOutput(const QString &text) {
-  output->appendPlainText(text);
-}
+// TerminalWidget implementation → uiwidgets.cpp
 
 // ============================================================
 // TextEditor Implementation (Main Window)
@@ -2331,6 +292,42 @@ void TextEditor::setupUI() {
 
   fileTreeDock->setWidget(fileTreeContainer);
   addDockWidget(Qt::LeftDockWidgetArea, fileTreeDock);
+
+  // Code Graveyard dock
+  graveyardDock = new QDockWidget("Deleted Code", this);
+  graveyardDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+  graveyardWidget = new GraveyardWidget(graveyardDock);
+  graveyardDock->setWidget(graveyardWidget);
+  graveyardDock->setMinimumWidth(240);
+  graveyardDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
+  addDockWidget(Qt::RightDockWidgetArea, graveyardDock);
+  graveyardDock->hide();
+  connect(graveyardWidget, &GraveyardWidget::resurrectRequested,
+          this, [this](const QString &code) {
+              CodeEditor *ed = currentEditor();
+              if (ed) {
+                  QTextCursor c = ed->textCursor();
+                  c.insertText(code);
+                  ed->setTextCursor(c);
+                  flashStatusMessage("Pasted from deleted code history", QColor("#4ec9b0"), 2500);
+              }
+          });
+
+  // Cybernetic HUD widget in status bar
+  hudWidget = new HUDWidget(statusBar());
+  statusBar()->addPermanentWidget(hudWidget);
+
+  // Keystroke heatmap overlay (child of main window, centred on show)
+  keyHeatmap = new KeyHeatmapOverlay(this);
+  keyHeatmap->hide();
+
+  // Ambient time-of-day theme tinting — fires immediately then every 10 min
+  ambientTimer = new QTimer(this);
+  ambientTimer->setInterval(10 * 60 * 1000);
+  connect(ambientTimer, &QTimer::timeout, this, &TextEditor::updateAmbientTheme);
+  ambientTimer->start();
+  // Initial application after a short delay (editors not yet created)
+  QTimer::singleShot(500, this, &TextEditor::updateAmbientTheme);
 }
 
 void TextEditor::showWelcomeScreen() {
@@ -2735,6 +732,39 @@ void TextEditor::createActions() {
   binaryInspectAct->setStatusTip("Inspect ELF/PE headers, sections and imports");
   connect(binaryInspectAct, &QAction::triggered, this, &TextEditor::openBinaryInspector);
 
+  neuralGraphAct = new QAction("🧠 &Neural Code Graph...", this);
+  neuralGraphAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  neuralGraphAct->setStatusTip("Visualize workspace includes as a 3D force-directed graph");
+  connect(neuralGraphAct, &QAction::triggered, this, &TextEditor::openNeuralGraph);
+
+  ghostReplayAct = new QAction("👻 &Ghost Replay Mode", this);
+  ghostReplayAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G));
+  ghostReplayAct->setStatusTip("Watch a replay of the current session's code edits");
+  connect(ghostReplayAct, &QAction::triggered, this, &TextEditor::openGhostReplay);
+
+  // v1.7 Cyberpunk actions
+  graveyardAct = new QAction("Deleted Code History", this);
+  graveyardAct->setCheckable(true);
+  graveyardAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_G));
+  graveyardAct->setStatusTip("Toggle Code Graveyard panel (deleted code >3 lines)");
+  connect(graveyardAct, &QAction::triggered, this, &TextEditor::toggleGraveyard);
+
+  crtAct = new QAction("⚡ CRT &Post-Processing", this);
+  crtAct->setCheckable(true);
+  crtAct->setStatusTip("Toggle CRT scanlines, chromatic aberration, and phosphor bloom");
+  connect(crtAct, &QAction::triggered, this, &TextEditor::toggleCRT);
+
+  keyHeatmapAct = new QAction("Key &Heatmap", this);
+  keyHeatmapAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_K));
+  keyHeatmapAct->setStatusTip("Show keystroke frequency heatmap overlay (click to dismiss)");
+  connect(keyHeatmapAct, &QAction::triggered, this, &TextEditor::toggleKeyHeatmap);
+
+  vimModeAct = new QAction("&Vim Mode", this);
+  vimModeAct->setCheckable(true);
+  vimModeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_V));
+  vimModeAct->setStatusTip("Toggle Vim Normal/Insert modal editing");
+  connect(vimModeAct, &QAction::triggered, this, &TextEditor::toggleVimMode);
+
   openHexAct = new QAction("🗂 Open in &Hex Editor", this);
   openHexAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H));
   openHexAct->setStatusTip("Re-open the current file in the built-in hex editor");
@@ -2807,11 +837,18 @@ void TextEditor::createMenus() {
   viewMenu->addSeparator();
   viewMenu->addAction(zenModeAct);
   viewMenu->addAction(typingSoundAct);
+  viewMenu->addSeparator();
+  viewMenu->addAction(crtAct);
+  viewMenu->addAction(vimModeAct);
+  viewMenu->addAction(keyHeatmapAct);
+  viewMenu->addAction(graveyardAct);
 
   toolsMenu = customMenuBar->addMenu("&Tools");
   toolsMenu->addAction(openHexAct);
   toolsMenu->addAction(disassembleAct);
   toolsMenu->addAction(binaryInspectAct);
+  toolsMenu->addAction(neuralGraphAct);
+  toolsMenu->addAction(ghostReplayAct);
   toolsMenu->addSeparator();
   toolsMenu->setStyleSheet(
       "QMenu { background-color: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; }"
@@ -2875,6 +912,14 @@ void TextEditor::createStatusBar() {
   statusBar()->addPermanentWidget(sessionTimeLabel);
   
   statusBar()->addPermanentWidget(statusLabel);
+
+  vimModeLabel = new QLabel("  NORMAL  ");
+  vimModeLabel->setStyleSheet(
+      "color: #282c34; background-color: #c678dd; padding: 1px 8px; "
+      "font-family: Consolas; font-weight: bold; font-size: 10px;");
+  vimModeLabel->setVisible(false);
+  statusBar()->addPermanentWidget(vimModeLabel);
+
   statusBar()->showMessage("Ready");
 }
 
@@ -2900,6 +945,29 @@ void TextEditor::newFile() {
   if (typingSoundEnabled && typingSound) {
       connect(editor, &CodeEditor::characterTyped, typingSound, &QSoundEffect::play);
   }
+  connect(editor, &CodeEditor::codeBlockDeleted, this, &TextEditor::onCodeBlockDeleted);
+  if (hudWidget)
+      connect(editor, &CodeEditor::characterTyped, hudWidget, &HUDWidget::addKeystroke);
+  // Keystroke heatmap
+  if (keyHeatmap)
+      connect(editor, &CodeEditor::keyPressed, keyHeatmap, &KeyHeatmapOverlay::recordKey);
+  // Vim mode status label
+  connect(editor, &CodeEditor::vimModeChanged, this, [this](const QString &mode) {
+      if (vimModeLabel) {
+          if (mode.isEmpty()) { vimModeLabel->hide(); return; }
+          vimModeLabel->setText("  " + mode + "  ");
+          bool isNormal = (mode == "NORMAL");
+          vimModeLabel->setStyleSheet(QString(
+              "color: #282c34; background-color: %1; padding: 1px 8px; "
+              "font-family: Consolas; font-weight: bold; font-size: 10px;")
+              .arg(isNormal ? "#c678dd" : "#98c379"));
+          vimModeLabel->show();
+      }
+  });
+  if (crtAct && crtAct->isChecked())
+      editor->setCRTEnabled(true);
+  if (vimModeAct && vimModeAct->isChecked())
+      editor->setVimEnabled(true);
   int index = tabWidget->addTab(editor, "Untitled");
   tabWidget->setCurrentIndex(index);
   editor->setFocus();
@@ -3403,23 +1471,57 @@ void TextEditor::toggleDJMode() {
             addDockWidget(Qt::BottomDockWidgetArea, djVisualizerDock);
             
             // Connect audio updates to the visualizer
-            connect(audioMonitor, &AudioMonitor::levelsUpdated, 
+            connect(audioMonitor, &AudioMonitor::levelsUpdated,
                     djVisualizerWidget->visualizerWidget, qOverload<>(&QWidget::update));
         }
         djVisualizerWidget->setAudioMonitor(audioMonitor);
         djVisualizerDock->setVisible(true);
         djVisualizerDock->raise();
-        
+
         // Make sure the audio monitor is running
         if (!audioMonitor->isRunning()) {
             audioMonitor->start();
         }
+
+        // Audio-reactive syntax highlighting
+        if (!audioPulseTimer) {
+            audioPulseTimer = new QTimer(this);
+            audioPulseTimer->setInterval(80);
+            connect(audioPulseTimer, &QTimer::timeout, this, [this]() {
+                if (!audioMonitor) return;
+                QVector<float> levels = audioMonitor->getLevels();
+                if (levels.isEmpty()) return;
+                // Average the low-frequency (bass) buckets
+                int bassEnd = qMin(4, levels.size());
+                float bass = 0.f;
+                for (int i = 0; i < bassEnd; ++i) bass += levels[i];
+                bass /= bassEnd;
+                float pulse = qBound(0.f, bass * 1.2f, 1.f);
+                for (int i = 0; i < tabWidget->count(); ++i) {
+                    CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+                    if (ed) {
+                        SyntaxHighlighter *hl = highlighters.value(ed);
+                        if (hl) hl->setAudioPulse(pulse);
+                    }
+                }
+            });
+        }
+        audioPulseTimer->start();
     } else {
         if (audioMonitor) {
             audioMonitor->stop();
         }
         if (djVisualizerDock) {
             djVisualizerDock->setVisible(false);
+        }
+        // Stop audio-reactive highlighting and reset pulse
+        if (audioPulseTimer) audioPulseTimer->stop();
+        for (int i = 0; i < tabWidget->count(); ++i) {
+            CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+            if (ed) {
+                SyntaxHighlighter *hl = highlighters.value(ed);
+                if (hl) hl->setAudioPulse(0.f);
+            }
         }
         // Reset the dock animation widget to Matrix mode
         animationWidget->setAnimationType(AnimationWidget::Matrix);
@@ -3575,6 +1677,30 @@ void TextEditor::loadFile(const QString &fileName) {
             &TextEditor::updateStatusBar);
     connect(editor, &QPlainTextEdit::cursorPositionChanged, this,
             &TextEditor::updateBreadcrumb);
+    connect(editor, &CodeEditor::codeBlockDeleted, this,
+            &TextEditor::onCodeBlockDeleted);
+    if (keyHeatmap)
+        connect(editor, &CodeEditor::keyPressed, keyHeatmap, &KeyHeatmapOverlay::recordKey);
+    connect(editor, &CodeEditor::vimModeChanged, this, [this](const QString &mode) {
+        if (vimModeLabel) {
+            if (mode.isEmpty()) { vimModeLabel->hide(); return; }
+            vimModeLabel->setText("  " + mode + "  ");
+            bool isNormal = (mode == "NORMAL");
+            vimModeLabel->setStyleSheet(QString(
+                "color: #282c34; background-color: %1; padding: 1px 8px; "
+                "font-family: Consolas; font-weight: bold; font-size: 10px;")
+                .arg(isNormal ? "#c678dd" : "#98c379"));
+            vimModeLabel->show();
+        }
+    });
+    // Apply CRT if currently enabled
+    if (crtAct && crtAct->isChecked())
+        editor->setCRTEnabled(true);
+    if (vimModeAct && vimModeAct->isChecked())
+        editor->setVimEnabled(true);
+
+    // Apply ambient tint immediately so the new editor matches others
+    updateAmbientTheme();
 
     int index = tabWidget->addTab(editor, strippedName(fileName));
     tabWidget->setCurrentIndex(index);
@@ -4127,6 +2253,108 @@ void TextEditor::openDisassembler() {
     }
     if (!path.isEmpty())
         openInDisassembler(path);
+}
+
+void TextEditor::openNeuralGraph() {
+    CodeGraph *graph = new CodeGraph(currentFolder.isEmpty() ? QDir::currentPath() : currentFolder, this);
+    graph->exec();
+}
+
+void TextEditor::openGhostReplay() {
+    CodeEditor *ed = currentEditor();
+    if (!ed) return;
+    
+    QDialog *replayDialog = new QDialog(this);
+    replayDialog->setWindowTitle("Ghost Replay Mode: " + ed->getFileName());
+    replayDialog->resize(800, 600);
+    QVBoxLayout *layout = new QVBoxLayout(replayDialog);
+    QPlainTextEdit *replayEditor = new QPlainTextEdit(replayDialog);
+    replayEditor->setReadOnly(true);
+    replayEditor->setStyleSheet(ed->styleSheet());
+    layout->addWidget(replayEditor);
+    
+    QTimer *playbackTimer = new QTimer(replayDialog);
+    int eventIndex = 0;
+    connect(playbackTimer, &QTimer::timeout, replayDialog, [=]() mutable {
+        if (eventIndex >= ed->ghostLog.size()) {
+            playbackTimer->stop();
+            return;
+        }
+        GhostEvent ev = ed->ghostLog[eventIndex];
+        QTextCursor c(replayEditor->document());
+        c.setPosition(ev.position);
+        if (ev.charsRemoved > 0) {
+            c.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor, ev.charsRemoved);
+            c.removeSelectedText();
+        }
+        if (!ev.textAdded.isEmpty()) {
+            c.insertText(ev.textAdded);
+        }
+        eventIndex++;
+    });
+    playbackTimer->start(150); 
+    
+    replayDialog->exec();
+}
+
+void TextEditor::toggleGraveyard() {
+    bool visible = !graveyardDock->isVisible();
+    graveyardDock->setVisible(visible);
+    if (graveyardAct) graveyardAct->setChecked(visible);
+}
+
+void TextEditor::toggleCRT() {
+    bool enabled = crtAct->isChecked();
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+        if (ed) ed->setCRTEnabled(enabled);
+    }
+    flashStatusMessage(enabled ? "CRT Effect: ON" : "CRT Effect: OFF",
+                       QColor("#66fcf1"), 2000);
+}
+
+void TextEditor::onCodeBlockDeleted(const QString &code, const QString &source) {
+    if (graveyardWidget)
+        graveyardWidget->addSnippet(code, source);
+    // Auto-show graveyard dock briefly
+    if (graveyardDock && !graveyardDock->isVisible()) {
+        graveyardDock->show();
+        if (graveyardAct) graveyardAct->setChecked(true);
+    }
+}
+
+void TextEditor::toggleKeyHeatmap() {
+    if (!keyHeatmap) return;
+    if (keyHeatmap->isVisible())
+        keyHeatmap->hide();
+    else
+        keyHeatmap->show();
+}
+
+void TextEditor::toggleVimMode() {
+    bool enabled = vimModeAct->isChecked();
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+        if (ed) ed->setVimEnabled(enabled);
+    }
+    if (vimModeLabel)
+        vimModeLabel->setVisible(enabled);
+    flashStatusMessage(enabled ? "Vim Mode: ON  (Esc = Normal)" : "Vim Mode: OFF",
+                       QColor("#c678dd"), 2500);
+}
+
+void TextEditor::updateAmbientTheme() {
+    int hour = QTime::currentTime().hour();
+    QColor tint;
+    if      (hour >=  5 && hour <  8) tint = QColor(255, 160,  80, 22); // dawn — warm amber
+    else if (hour >= 17 && hour < 20) tint = QColor(255, 100,  40, 28); // dusk — deep orange
+    else if (hour >= 20 || hour <  5) tint = QColor( 40,  70, 200, 20); // night — cool blue
+    // else: daytime — no tint (default theme bg)
+
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+        if (ed) ed->setAmbientBackground(tint);
+    }
 }
 
 void TextEditor::openBinaryInspector() {

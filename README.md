@@ -41,6 +41,9 @@ A lightweight, native code editor built with C++ and Qt6. Fast, distraction-free
 - **Multi-cursor editing** — `Alt+Click` to place arbitrary cursors, `Ctrl+D` to select next occurrence (`v1.6.0`)
 - **Auto-close HTML/XML tags** — Detects `</` and auto-completes the closing tag (`v1.6.0`)
 - **Color preview** — Show a small color swatch next to hex color codes (`#FF5733`) inline (`v1.6.0`)
+- **Bracket Pair Colorization** — `()`, `[]`, `{}` coloured in three rotating neon hues with depth-tracking, painted directly in `paintEvent` for zero lag (`v1.8`)
+- **Vim Mode** — Full modal Normal/Insert editing: `hjkl/w/b/0/$`, `G/gg`, `dd/yy`, `i/a/A/I/o/O/s/C`, undo/redo, paste, half-page scroll. Status-bar pill shows current mode. (`Ctrl+Alt+V`, `v1.8`)
+- **Edit Heatmap Strip** — 3 px gutter strip colour-coded blue→red by per-line edit frequency since file open (`v1.8`)
 
 ### Navigation
 - **File Tree** — Browse and open files from a sidebar (`Ctrl+B`)
@@ -56,6 +59,8 @@ A lightweight, native code editor built with C++ and Qt6. Fast, distraction-free
 - **Disassembler** — Native disassembly via `objdump`/`llvm-objdump` with a parsed function list; click any function to jump to it (`Ctrl+Shift+D`)
 - **Binary Inspector** — Pure native ELF and PE parser: headers, sections, imports/symbols, MD5 hashing, and string extraction — no external tools required (`Ctrl+Shift+I`)
 - **Markdown Preview** — Live split-panel rendered preview with full dark theme, tables, code blocks, images, and task lists (`Ctrl+Shift+M`)
+- **Neural Code Graph** — Force-directed dependency graph of all `#include` relations in the workspace, physics-simulated with draggable nodes (`Ctrl+Shift+N`)
+- **Ghost Replay Mode** — Replays every insertion and deletion made since the file was opened, letting you watch the session back event-by-event (`Ctrl+Shift+G`)
 - **File Watcher** — Detects external file changes and prompts to reload
 - **AI Autocomplete** — Configurable AI-powered completions via any OpenAI-compatible API; explicit support for Groq, OpenRouter, and Together AI (Plugins menu)
 
@@ -73,12 +78,20 @@ Right-click any file in the Explorer to access all three tools directly.
 ### Visuals & Effects
 - **Animation Cycler** — Matrix, Particles, Waves, Pulse, Starfield, Rain, Snow, Fire, **DJ Mode** (`Ctrl+Shift+A` / `Ctrl+Shift+J`)
 - **Themes** — Light, Dark, Monokai, and **Noir Edition** (high-contrast grayscale)
+- **CRT Post-Processing** — Scanline overlay, radial vignette, chromatic aberration edge fringe, and phosphor bloom (toggle in View menu)
+- **Data Waterfall Minimap** — Matrix-style digital rain animated in the minimap background with the code overview rendered on top
+- **Audio-Reactive Syntax Highlighting** — Keyword and function colours brighten and pulse to the bass when DJ Mode is active
 - **Typing Sounds** — Satisfying mechanical keyboard click sounds on each keystroke (Toggle in View menu)
+- **Laser Editing Effects** — Red laser slash and dissolving spark particles animate on the deleted line when `Ctrl+Shift+K` is used
 - **Animated Panels** — Smooth slide animations for terminal, fade for welcome screen, flash on tab open
 - **Custom Title Bar** — Frameless window with minimize, maximize/restore, and close
+- **Keystroke Heatmap Overlay** — Floating QWERTY keyboard rendered over the editor, each key tinted dark-grey→blue→red by typing frequency; click to dismiss (`Ctrl+Alt+K`, `v1.8`)
+- **Time-of-Day Ambient Theme** — Background tint shifts automatically every 10 min: dawn amber → neutral daytime → dusk rose → midnight indigo (`v1.8`)
 
 ### Productivity
 - **Line Manipulation** — Duplicate (`Ctrl+D`), Move Up/Down (`Alt+↑/↓`), Delete (`Ctrl+Shift+K`), Toggle Comment (`Ctrl+/`)
+- **Deleted Code History** — Dockable panel that automatically captures deleted code blocks (≥3 lines cut or deleted); click "Paste Selected" to restore any entry (`Ctrl+Alt+G`)
+- **Cybernetic HUD** — Status bar widget showing a rolling hex counter, live CPU/Memory sparklines, and real-time WPM counter (Linux: `/proc/stat` + `/proc/meminfo`)
 - **Trailing Whitespace** — Automatically trimmed on save
 - **Command Line Support** — Open files and folders from terminal
 - **Comprehensive Shortcuts** — All common operations keyboard-accessible
@@ -219,6 +232,9 @@ jim /path/to/project       # open a specific folder
 | `Ctrl+Shift+H` | Open current file in Hex Editor |
 | `Ctrl+Shift+D` | Disassemble file |
 | `Ctrl+Shift+I` | Open Binary Inspector |
+| `Ctrl+Shift+N` | Neural Code Graph |
+| `Ctrl+Shift+G` | Ghost Replay Mode |
+| `Ctrl+Alt+G` | Toggle Deleted Code History panel |
 
 ---
 
@@ -239,7 +255,17 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 
 ## Recent Updates
 
-### v1.6.0 (Current)
+### v1.7.0 (Current)
+- Added **CRT Post-Processing** — scanline overlay, vignette, chromatic aberration fringe, and phosphor bloom; toggle in View menu.
+- Added **Deleted Code History** — dockable panel that auto-captures deleted blocks of ≥3 lines with timestamps; double-click or "Paste Selected" to restore (`Ctrl+Alt+G`).
+- Added **Audio-Reactive Syntax Highlighting** — keyword and function colours pulse to the bass when DJ Mode is active; intensity scales with actual signal level.
+- Added **Data Waterfall Minimap** — Matrix-style animated digital rain rendered as the minimap background with the code overview overlaid on top.
+- Added **Cybernetic HUD** — status bar telemetry widget: rolling hex counter + live CPU and Memory sparklines.
+- Added **Laser Editing Effects** — `Ctrl+Shift+K` now spawns a red laser slash and dissolving spark particles on the deleted line.
+- Added **Neural Code Graph** — force-directed `#include` dependency graph for the open workspace, with physics simulation and draggable nodes (`Ctrl+Shift+N`).
+- Added **Ghost Replay Mode** — records every insertion and deletion from the moment a file is opened; replay plays the session back event-by-event (`Ctrl+Shift+G`).
+
+### v1.6.0
 - Added **Multi-cursor Editing** — `Alt+Click` to place multiple cursors; `Ctrl+D` now selects the next occurrence of the current word for simultaneous editing.
 - Added **Secret DJ Mode** — An edgy system-audio reactive visualizer built into the animation dock (`Ctrl+Shift+J`).
 - Added **Zen Mode** — Pure distraction-free writing: hides the explorer, terminal, tabs, and status bar instantly (`Ctrl+Shift+Z`).

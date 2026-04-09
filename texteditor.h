@@ -44,20 +44,85 @@ class AIAutocomplete;
 class QSoundEffect;
 class AudioMonitor;
 
-// Language enum for syntax highlighting
-enum class Language {
-    PlainText,
-    CPP,
-    Python,
-    JavaScript,
-    HTML,
-    CSS,
-    Rust,
-    Go,
-    JSON,
-    YAML,
-    Markdown
+#include <QDateTime>
+#include <QListWidget>
+#include "syntaxhighlighter.h"
+
+class KeyHeatmapOverlay;
+class VimMode;
+
+// Ghost Replay Event
+struct GhostEvent {
+    long long timestampMs;
+    int position;
+    int charsRemoved;
+    QString textAdded;
 };
+
+// ── Code Graveyard ─────────────────────────────────────────────────────────
+class GraveyardWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit GraveyardWidget(QWidget *parent = nullptr);
+    void addSnippet(const QString &code, const QString &source);
+signals:
+    void resurrectRequested(const QString &code);
+private:
+    QListWidget *listWidget;
+    QVector<QString> snippets;
+};
+
+// ── CRT Post-Processing Overlay ────────────────────────────────────────────
+class CRTOverlay : public QWidget {
+public:
+    explicit CRTOverlay(QWidget *parent = nullptr);
+    void setEnabled(bool enabled);
+    bool isEnabled() const { return m_enabled; }
+protected:
+    void paintEvent(QPaintEvent *event) override;
+private:
+    bool m_enabled = false;
+};
+
+// ── Laser Particle Overlay ─────────────────────────────────────────────────
+class LaserParticleOverlay : public QWidget {
+    Q_OBJECT
+public:
+    explicit LaserParticleOverlay(QWidget *parent = nullptr);
+    void spawnSlash(int yPos);
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void timerEvent(QTimerEvent *event) override;
+private:
+    struct Spark { float x, y, vx, vy, life; };
+    QVector<Spark> sparks;
+    float slashAlpha = 0.f;
+    int slashY = 0;
+    int timerId = 0;
+};
+
+// ── Cybernetic HUD Widget ──────────────────────────────────────────────────
+class HUDWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit HUDWidget(QWidget *parent = nullptr);
+    void addKeystroke(); // call on every keypress for WPM tracking
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void timerEvent(QTimerEvent *event) override;
+private:
+    QVector<float> cpuHistory;
+    QVector<float> memHistory;
+    quint64 hexCounter = 0xDEADBEEF00000000ULL;
+    float readCpuUsage();
+    float readMemUsage();
+    quint64 prevIdle = 0, prevTotal = 0;
+    // WPM tracking
+    QVector<qint64> keystrokeTimestamps;
+    int currentWPM = 0;
+};
+
+// Language enum is defined in syntaxhighlighter.h (included above)
 
 // Animation widget with multiple effects
 class AnimationWidget : public QWidget {
@@ -137,20 +202,7 @@ private:
     QVBoxLayout* layout;
 };
 
-struct ColorTheme {
-    QString name;
-    QColor background;
-    QColor foreground;
-    QColor lineNumberBg;
-    QColor lineNumberFg;
-    QColor currentLine;
-    QColor selection;
-    QColor keyword;
-    QColor string;
-    QColor comment;
-    QColor number;
-    QColor function;
-};
+// ColorTheme struct is defined in syntaxhighlighter.h (included above)
 
 class TitleBar : public QWidget {
     Q_OBJECT
@@ -229,8 +281,34 @@ public:
     void clearExtraCursors();
     void selectNextOccurrence();
 
+    // Ghost Replay
+    QVector<GhostEvent> ghostLog;
+    long long sessionStartTimeMs = 0;
+    bool ghostIsRecording = false;
+    void startRecordingGhost();
+    void logGhostEvent(int pos, int charsRemoved, const QString &textAdded);
+
+    // Kinetic/Laser editing
+    void triggerLaserEffect();
+
+    // CRT overlay toggle (forwarded from TextEditor)
+    void setCRTEnabled(bool enabled);
+
+    // Data Waterfall minimap
+    bool minimapWaterfallEnabled = true;
+
+    // Ambient background tint (blended into theme bg, called by TextEditor timer)
+    void setAmbientBackground(QColor tint);
+
+    // Vim mode
+    void setVimEnabled(bool enabled);
+    bool isVimEnabled() const;
+
 signals:
     void characterTyped();
+    void codeBlockDeleted(const QString &code, const QString &source);
+    void keyPressed(int key, const QString &text);   // for KeyHeatmapOverlay
+    void vimModeChanged(const QString &modeName);    // "" | "INSERT" | "NORMAL"
 
 public slots:
     void duplicateLine();
@@ -251,6 +329,7 @@ private slots:
     void updateLineNumberAreaWidth(int newBlockCount);
     void highlightCurrentLine();
     void updateLineNumberArea(const QRect &rect, int dy);
+    void onDocumentContentsChange(int position, int charsRemoved, int charsAdded);
 
     friend class FoldingArea;
 
@@ -258,6 +337,8 @@ private:
     LineNumberArea *lineNumberArea;
     FoldingArea *foldingArea;
     MiniMap *miniMap;
+    CRTOverlay *crtOverlay;
+    LaserParticleOverlay *laserOverlay;
     QString fileName;
     ColorTheme currentTheme;
     bool smoothScrollEnabled;
@@ -266,58 +347,18 @@ private:
     Language currentLanguage;
     QList<QTextCursor> searchSelections;
     QList<QTextCursor> extraCursors;
+    // Data waterfall minimap
+    QVector<int> waterfallDrops;
+    int waterfallFrame = 0;
+    // Edit heatmap (line number → edit count)
+    QMap<int, int> lineEditHeat;
+    // Vim mode handler
+    VimMode *vimMode = nullptr;
     void autoIndent();
     void matchBrackets();
 };
 
-class SyntaxHighlighter : public QSyntaxHighlighter {
-    Q_OBJECT
-
-public:
-    SyntaxHighlighter(QTextDocument *parent = nullptr);
-    void applyTheme(const ColorTheme &theme);
-    void setLanguage(Language lang);
-
-protected:
-    void highlightBlock(const QString &text) override;
-
-private:
-    struct HighlightingRule {
-        QRegularExpression pattern;
-        QTextCharFormat format;
-    };
-    QVector<HighlightingRule> highlightingRules;
-
-    QTextCharFormat keywordFormat;
-    QTextCharFormat classFormat;
-    QTextCharFormat commentFormat;
-    QTextCharFormat stringFormat;
-    QTextCharFormat functionFormat;
-    QTextCharFormat numberFormat;
-    QTextCharFormat tagFormat;
-    QTextCharFormat attributeFormat;
-    QTextCharFormat headingFormat;
-    QTextCharFormat boldFormat;
-    QTextCharFormat linkFormat;
-    
-    Language currentLanguage;
-    
-    // Cached patterns for performance
-    static QRegularExpression multiLineCommentStart;
-    static QRegularExpression multiLineCommentEnd;
-    
-    void setupRules();
-    void setupCppRules();
-    void setupPythonRules();
-    void setupJavaScriptRules();
-    void setupHtmlRules();
-    void setupCssRules();
-    void setupRustRules();
-    void setupGoRules();
-    void setupJsonRules();
-    void setupYamlRules();
-    void setupMarkdownRules();
-};
+// SyntaxHighlighter class is defined in syntaxhighlighter.h (included above)
 
 // Welcome Screen Widget
 class WelcomeWidget : public QWidget {
@@ -431,6 +472,8 @@ private slots:
     // Tools
     void openDisassembler();
     void openBinaryInspector();
+    void openNeuralGraph();
+    void openGhostReplay();
 
 private:
     void createActions();
@@ -599,9 +642,33 @@ private:
     QAction *disassembleAct;
     QAction *binaryInspectAct;
     QAction *openHexAct;
+    QAction *neuralGraphAct;
+    QAction *ghostReplayAct;
 
     // Markdown preview action
     QAction *markdownPreviewAct;
+
+    // v1.7 Cyberpunk features
+    GraveyardWidget *graveyardWidget = nullptr;
+    QDockWidget *graveyardDock = nullptr;
+    QAction *graveyardAct = nullptr;
+    QAction *crtAct = nullptr;
+    HUDWidget *hudWidget = nullptr;
+    QTimer *audioPulseTimer = nullptr;
+
+    // v1.8 features
+    KeyHeatmapOverlay *keyHeatmap = nullptr;
+    QAction *keyHeatmapAct = nullptr;
+    QAction *vimModeAct = nullptr;
+    QLabel *vimModeLabel = nullptr;
+    QTimer *ambientTimer = nullptr;
+
+    void toggleGraveyard();
+    void toggleCRT();
+    void onCodeBlockDeleted(const QString &code, const QString &source);
+    void toggleKeyHeatmap();
+    void toggleVimMode();
+    void updateAmbientTheme();
 };
 
 #endif

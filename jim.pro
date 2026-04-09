@@ -23,9 +23,12 @@ win32 {
 SOURCES += texteditor.cpp linenumberarea.cpp hexeditor.cpp main.cpp \
            aiautocomplete.cpp aisettingsdialog.cpp \
            disassembler.cpp binaryinspector.cpp \
-           markdownviewer.cpp audiomonitor.cpp
+           markdownviewer.cpp audiomonitor.cpp codegraph.cpp \
+           syntaxhighlighter.cpp keyheatmap.cpp vimmode.cpp \
+           codeeditor.cpp animationwidget.cpp uiwidgets.cpp overlays.cpp
 HEADERS += texteditor.h linenumberarea.h hexeditor.h \
            aiautocomplete.h aisettingsdialog.h \
            disassembler.h binaryinspector.h \
-           markdownviewer.h audiomonitor.h
+           markdownviewer.h audiomonitor.h codegraph.h \
+           syntaxhighlighter.h keyheatmap.h vimmode.h
 

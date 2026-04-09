@@ -68,6 +68,18 @@
 | `AIAutocomplete` | `QObject` | Sends context to any OpenAI-compatible API (Groq, OpenRouter, etc.) via custom base URL configuration, emits suggestion signal |
 | `AISettingsDialog` | `QDialog` | Configuration dialog for base URL, API key, model name, enable toggle |
 
+### v1.7 Cyberpunk Features
+
+| Class | Base | Role |
+|-------|------|------|
+| `GraveyardWidget` | `QWidget` | Deleted Code History panel — captures cut/deleted blocks ≥3 lines, timestamped list, "Paste Selected" resurrection |
+| `CRTOverlay` | `QWidget` | Transparent viewport overlay — scanlines, radial vignette, chromatic aberration fringe, phosphor bloom |
+| `LaserParticleOverlay` | `QWidget` | Transparent viewport overlay — red laser slash + dissolving spark particles on `deleteLine()` |
+| `HUDWidget` | `QWidget` | Status bar telemetry widget — rolling hex counter, CPU sparkline (`/proc/stat`), Memory sparkline (`/proc/meminfo`) |
+| `CodeGraph` | `QDialog` | Force-directed `#include` dependency graph — physics simulation (repulsion + spring edges), draggable nodes, 60 fps timer |
+| `GraphNode` | `QGraphicsEllipseItem` | Individual file node — velocity/force accumulation, cyberpunk colour coding (.h = cyan, .cpp = red) |
+| `GraphEdge` | `QGraphicsLineItem` | Directed include edge between two `GraphNode` instances |
+
 ---
 
 ## Enums
@@ -124,8 +136,16 @@ enum class AnimationType {
 | Smart Home | `Home` |
 | Zen Mode | `Ctrl+Shift+Z` |
 | DJ Mode | `Ctrl+Shift+J` |
+| Neural Code Graph | `Ctrl+Shift+N` |
+| Ghost Replay | `Ctrl+Shift+G` |
+| Deleted Code History | `Ctrl+Alt+G` |
 
 - Trailing whitespace auto-trimmed on save
+- **Ghost Replay** — `QTextDocument::contentsChange` logged to `QVector<GhostEvent>` per editor from open; replay dialog plays back at 150 ms/event
+- **Deleted Code History** — `keyPressEvent` intercepts Cut/Delete/Backspace on selections spanning ≥3 lines; emits `codeBlockDeleted` signal; `TextEditor` forwards to `GraveyardWidget`
+- **Laser Editing** — `deleteLine()` calls `triggerLaserEffect()`, spawning `LaserParticleOverlay` with a slash fade and 18–30 gravity-affected sparks at ~60 fps
+- **CRT Overlay** — child of `viewport()` with `WA_TransparentForMouseEvents`; resized in `resizeEvent`; draws scanlines, vignette gradient, 6 px colour fringe, phosphor bloom lines
+- **Data Waterfall Minimap** — `miniMapPaintEvent` renders animated character columns with 10-step fade trails before the code-line overlay; driven by `waterfallFrame` counter incremented each paint
 
 ### Syntax Highlighting
 
@@ -149,6 +169,12 @@ enum class AnimationType {
 - Go to line (`Ctrl+G`)
 - Breadcrumb — resolves current function/class via upward regex scan from cursor
 - Smart Home — first press → first non-whitespace; second press → column 0
+
+### Audio & Visualisation
+- `AudioMonitor` — WASAPI loopback thread (Windows); 64-band RMS levels at ~60 fps; silence flag decays levels rather than generating fake data; gain ×5, smoothing 0.7/0.3
+- `AnimationWidget` (DJ Mode) — bar heights driven by `AudioMonitor::getLevels()`; blue-to-purple gradient per bar
+- `SyntaxHighlighter::setAudioPulse(float)` — modulates HSV brightness (+80 max) and saturation (+40 max) of every highlighted token; called every 80 ms by `audioPulseTimer` in `TextEditor` when DJ Mode is active; bass average from first 4 frequency buckets scaled ×1.2
+- `HUDWidget` — 600 ms timer; reads `/proc/stat` delta for CPU, `/proc/meminfo` MemAvailable for memory; stores last 40 samples per channel; draws sparklines and rolling hex address
 
 ### Binary Analysis Suite
 

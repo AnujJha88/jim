@@ -106,15 +106,10 @@ void AudioMonitor::run() {
                     if (FAILED(hr)) break;
                     
                     if (flags & AUDCLNT_BUFFERFLAGS_SILENT) {
+                        // Silence: decay levels toward zero
                         m_mutex.lock();
-                        // Generate test data when silent to verify visualization works
-                        static int testCounter = 0;
-                        for (int i = 0; i < 64; i++) {
-                            float testLevel = (sin(testCounter * 0.05f + i * 0.1f) + 1.0f) * 0.6f; // Increased amplitude
-                            testLevel = testLevel * testLevel; // Square for more dynamic range
-                            m_levels[i] = m_levels[i] * 0.85f + testLevel * 0.15f; // Slightly smoother transitions
-                        }
-                        testCounter++;
+                        for (int i = 0; i < 64; i++)
+                            m_levels[i] *= 0.75f;
                         m_mutex.unlock();
                     } else {
                         // Advanced multi-format handler
@@ -162,9 +157,8 @@ void AudioMonitor::run() {
                                 count++;
                             }
                             float rms = (count > 0) ? sqrt(sum / count) : 0;
-                            // Apply increased sensitivity for better visibility
-                            float level = rms * 12.0f; // Increased from 4.0f for more dramatic fluctuations
-                            m_levels[i] = m_levels[i] * 0.8f + level * 0.2f; // Slightly faster response
+                            float level = rms * 5.0f;
+                            m_levels[i] = m_levels[i] * 0.7f + level * 0.3f; // responsive but not twitchy
                             if (m_levels[i] > 1.0f) m_levels[i] = 1.0f;
                         }
                         m_mutex.unlock();
@@ -178,17 +172,12 @@ void AudioMonitor::run() {
             pAudioClient->Stop();
         }
     } else {
-        // If audio client initialization failed, still generate test data for visualization
+        // Audio client init failed — just decay levels to zero, no fake data
         while (m_running) {
-            msleep(16);
+            msleep(50);
             m_mutex.lock();
-            static int testCounter = 0;
-            for (int i = 0; i < 64; i++) {
-                float testLevel = (sin(testCounter * 0.05f + i * 0.1f) + 1.0f) * 0.6f; // Increased amplitude
-                testLevel = testLevel * testLevel;
-                m_levels[i] = m_levels[i] * 0.85f + testLevel * 0.15f; // Slightly smoother transitions
-            }
-            testCounter++;
+            for (int i = 0; i < 64; i++)
+                m_levels[i] *= 0.8f;
             m_mutex.unlock();
             emit levelsUpdated();
         }
