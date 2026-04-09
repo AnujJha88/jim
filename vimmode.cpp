@@ -1,4 +1,5 @@
 #include "vimmode.h"
+#include <QTextBlock>
 
 VimMode::VimMode(QObject *parent) : QObject(parent) {}
 

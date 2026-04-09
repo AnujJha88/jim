@@ -900,6 +900,19 @@ void TextEditor::onAISuggestion(const QString &suggestion) {
     qDebug() << "AI Suggestion:" << suggestion;
 }
 
+void TextEditor::clampToScreen() {
+    QRect avail = QGuiApplication::primaryScreen()->availableGeometry();
+    QRect cur   = geometry();
+    // Clamp size first so the window actually fits
+    int w = qMin(cur.width(),  avail.width());
+    int h = qMin(cur.height(), avail.height());
+    // Then clamp position so the bottom/right edges don't escape
+    int x = qBound(avail.left(), cur.left(), avail.right()  - w);
+    int y = qBound(avail.top(),  cur.top(),  avail.bottom() - h);
+    if (w != cur.width() || h != cur.height() || x != cur.left() || y != cur.top())
+        setGeometry(x, y, w, h);
+}
+
 void TextEditor::createStatusBar() {
   statusLabel = new QLabel("Line 1, Col 1");
   languageLabel = new QLabel("Plain Text");
@@ -950,7 +963,9 @@ void TextEditor::newFile() {
       connect(editor, &CodeEditor::characterTyped, hudWidget, &HUDWidget::addKeystroke);
   // Keystroke heatmap
   if (keyHeatmap)
-      connect(editor, &CodeEditor::keyPressed, keyHeatmap, &KeyHeatmapOverlay::recordKey);
+      connect(editor, &CodeEditor::keyPressed, keyHeatmap, [this](int key, const QString &text) {
+          keyHeatmap->recordKey(text, key);
+      });
   // Vim mode status label
   connect(editor, &CodeEditor::vimModeChanged, this, [this](const QString &mode) {
       if (vimModeLabel) {
@@ -971,6 +986,7 @@ void TextEditor::newFile() {
   int index = tabWidget->addTab(editor, "Untitled");
   tabWidget->setCurrentIndex(index);
   editor->setFocus();
+  QTimer::singleShot(0, this, &TextEditor::clampToScreen);
 }
 
 void TextEditor::openFile() {
@@ -1459,6 +1475,9 @@ void TextEditor::toggleDJMode() {
         }
         audioMonitor->start();
         
+        // Cap height before adding the dock so Qt can't grow past the screen
+        setMaximumHeight(QGuiApplication::primaryScreen()->availableGeometry().height());
+
         // Create and show the DJ visualizer dock
         if (!djVisualizerWidget) {
             djVisualizerWidget = new DJVisualizerWidget(this);
@@ -1477,36 +1496,13 @@ void TextEditor::toggleDJMode() {
         djVisualizerWidget->setAudioMonitor(audioMonitor);
         djVisualizerDock->setVisible(true);
         djVisualizerDock->raise();
+        QTimer::singleShot(0, this, &TextEditor::clampToScreen);
 
         // Make sure the audio monitor is running
         if (!audioMonitor->isRunning()) {
             audioMonitor->start();
         }
 
-        // Audio-reactive syntax highlighting
-        if (!audioPulseTimer) {
-            audioPulseTimer = new QTimer(this);
-            audioPulseTimer->setInterval(80);
-            connect(audioPulseTimer, &QTimer::timeout, this, [this]() {
-                if (!audioMonitor) return;
-                QVector<float> levels = audioMonitor->getLevels();
-                if (levels.isEmpty()) return;
-                // Average the low-frequency (bass) buckets
-                int bassEnd = qMin(4, levels.size());
-                float bass = 0.f;
-                for (int i = 0; i < bassEnd; ++i) bass += levels[i];
-                bass /= bassEnd;
-                float pulse = qBound(0.f, bass * 1.2f, 1.f);
-                for (int i = 0; i < tabWidget->count(); ++i) {
-                    CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-                    if (ed) {
-                        SyntaxHighlighter *hl = highlighters.value(ed);
-                        if (hl) hl->setAudioPulse(pulse);
-                    }
-                }
-            });
-        }
-        audioPulseTimer->start();
     } else {
         if (audioMonitor) {
             audioMonitor->stop();
@@ -1514,15 +1510,7 @@ void TextEditor::toggleDJMode() {
         if (djVisualizerDock) {
             djVisualizerDock->setVisible(false);
         }
-        // Stop audio-reactive highlighting and reset pulse
-        if (audioPulseTimer) audioPulseTimer->stop();
-        for (int i = 0; i < tabWidget->count(); ++i) {
-            CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-            if (ed) {
-                SyntaxHighlighter *hl = highlighters.value(ed);
-                if (hl) hl->setAudioPulse(0.f);
-            }
-        }
+        setMaximumHeight(QWIDGETSIZE_MAX); // release the screen-height cap
         // Reset the dock animation widget to Matrix mode
         animationWidget->setAnimationType(AnimationWidget::Matrix);
     }
@@ -1680,7 +1668,9 @@ void TextEditor::loadFile(const QString &fileName) {
     connect(editor, &CodeEditor::codeBlockDeleted, this,
             &TextEditor::onCodeBlockDeleted);
     if (keyHeatmap)
-        connect(editor, &CodeEditor::keyPressed, keyHeatmap, &KeyHeatmapOverlay::recordKey);
+        connect(editor, &CodeEditor::keyPressed, keyHeatmap, [this](int key, const QString &text) {
+          keyHeatmap->recordKey(text, key);
+      });
     connect(editor, &CodeEditor::vimModeChanged, this, [this](const QString &mode) {
         if (vimModeLabel) {
             if (mode.isEmpty()) { vimModeLabel->hide(); return; }
@@ -1722,6 +1712,7 @@ void TextEditor::loadFile(const QString &fileName) {
   }
 
   statusBar()->showMessage("File loaded", 2000);
+  QTimer::singleShot(0, this, &TextEditor::clampToScreen);
 }
 
 bool TextEditor::saveFileToPath(const QString &fileName) {

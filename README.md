@@ -80,7 +80,6 @@ Right-click any file in the Explorer to access all three tools directly.
 - **Themes** — Light, Dark, Monokai, and **Noir Edition** (high-contrast grayscale)
 - **CRT Post-Processing** — Scanline overlay, radial vignette, chromatic aberration edge fringe, and phosphor bloom (toggle in View menu)
 - **Data Waterfall Minimap** — Matrix-style digital rain animated in the minimap background with the code overview rendered on top
-- **Audio-Reactive Syntax Highlighting** — Keyword and function colours brighten and pulse to the bass when DJ Mode is active
 - **Typing Sounds** — Satisfying mechanical keyboard click sounds on each keystroke (Toggle in View menu)
 - **Laser Editing Effects** — Red laser slash and dissolving spark particles animate on the deleted line when `Ctrl+Shift+K` is used
 - **Animated Panels** — Smooth slide animations for terminal, fade for welcome screen, flash on tab open
@@ -258,7 +257,6 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 ### v1.7.0 (Current)
 - Added **CRT Post-Processing** — scanline overlay, vignette, chromatic aberration fringe, and phosphor bloom; toggle in View menu.
 - Added **Deleted Code History** — dockable panel that auto-captures deleted blocks of ≥3 lines with timestamps; double-click or "Paste Selected" to restore (`Ctrl+Alt+G`).
-- Added **Audio-Reactive Syntax Highlighting** — keyword and function colours pulse to the bass when DJ Mode is active; intensity scales with actual signal level.
 - Added **Data Waterfall Minimap** — Matrix-style animated digital rain rendered as the minimap background with the code overview overlaid on top.
 - Added **Cybernetic HUD** — status bar telemetry widget: rolling hex counter + live CPU and Memory sparklines.
 - Added **Laser Editing Effects** — `Ctrl+Shift+K` now spawns a red laser slash and dissolving spark particles on the deleted line.

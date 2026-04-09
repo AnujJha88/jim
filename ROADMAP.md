@@ -98,7 +98,7 @@ Focuses on enhancing the ability to find and move through code quickly.
 ## v1.7 — The "Cyberpunk" Pack (COMPLETED)
 - [x] **CRT & Cyberpunk Post-Processing:** Scanlines, vignette, chromatic aberration (red/cyan edge fringe), and phosphor bloom overlay toggled via View menu.
 - [x] **The Code Graveyard:** Dockable panel that automatically catches deleted code blocks (>3 lines via cut/delete/backspace) with timestamps and one-click resurrection.
-- [x] **Audio-Reactive Syntax Highlighting:** Keyword and function colours pulse and brighten to the bass of system audio when DJ Mode is active.
+- [x] ~~**Audio-Reactive Syntax Highlighting**~~ — removed (too distracting during heavy music).
 - [x] **"Data Waterfall" Minimap:** Matrix-style digital rain permanently animated as the minimap background with code overview overlay on top.
 - [x] **Cybernetic HUD Status Bar:** Telemetry widget with rolling hex address counter and real-time CPU/Memory sparklines (Linux: `/proc/stat` + `/proc/meminfo`).
 - [x] **Kinetic / Laser Editing Mechanics:** Red laser slash + dissolving spark particles animate on the deleted line whenever `Ctrl+Shift+K` is used.
@@ -115,6 +115,7 @@ Focuses on enhancing the ability to find and move through code quickly.
 - [x] **Edit Heatmap Strip:** A 3 px wide heat strip on the left edge of the line-number gutter colour-codes every line blue→red by how many edits it has received since file open.
 - [x] **Live WPM Counter:** Real-time words-per-minute counter in the Cybernetic HUD, calculated from keystrokes in a rolling 60-second window.
 - [x] **Major Refactor:** `texteditor.cpp` split into `codeeditor.cpp`, `animationwidget.cpp`, `uiwidgets.cpp`, and `overlays.cpp` — each containing a focused set of classes. `SyntaxHighlighter` extracted to its own `syntaxhighlighter.cpp/.h`. `VimMode` and `KeyHeatmapOverlay` each live in their own file pairs.
+- [x] **Bug fix:** DJ Mode dock no longer pushes the window bottom off-screen — window `maximumHeight` is clamped to available screen height before the dock is attached.
 
 ---
 

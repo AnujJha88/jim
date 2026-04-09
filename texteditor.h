@@ -479,6 +479,7 @@ private:
     void createActions();
     void createMenus();
     void createStatusBar();
+    void clampToScreen();
     void readSettings();
     void writeSettings();
     bool maybeSave(int tabIndex);
@@ -654,7 +655,6 @@ private:
     QAction *graveyardAct = nullptr;
     QAction *crtAct = nullptr;
     HUDWidget *hudWidget = nullptr;
-    QTimer *audioPulseTimer = nullptr;
 
     // v1.8 features
     KeyHeatmapOverlay *keyHeatmap = nullptr;

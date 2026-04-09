@@ -306,8 +306,8 @@ void SyntaxHighlighter::highlightBlock(const QString &text) {
                     QColor fg = rule.format.foreground().color();
                     int h, s, v, a;
                     fg.getHsv(&h, &s, &v, &a);
-                    v = qMin(255, v + static_cast<int>(audioPulseIntensity * 80));
-                    s = qMin(255, s + static_cast<int>(audioPulseIntensity * 40));
+                    v = qMin(255, v + static_cast<int>(audioPulseIntensity * 15));
+                    s = qMin(255, s + static_cast<int>(audioPulseIntensity * 8));
                     pulsedFmt.setForeground(QColor::fromHsv(h, s, v, a));
                     setFormat(match.capturedStart(), match.capturedLength(), pulsedFmt);
                 } else {
