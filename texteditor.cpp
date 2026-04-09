@@ -681,7 +681,8 @@ void TextEditor::createActions() {
   terminalAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft));
   connect(terminalAct, &QAction::triggered, this, &TextEditor::toggleTerminal);
 
-  djModeAct = new QAction("\U0001F3B5 DJ Mode", this);
+  djModeAct = new QAction("DJ Mode", this);
+  djModeAct->setIcon(QIcon::fromTheme("audio-card", QIcon::fromTheme("audio-volume-high")));
   djModeAct->setCheckable(true);
   djModeAct->setShortcut(QKeySequence("Ctrl+Shift+J"));
   connect(djModeAct, &QAction::triggered, this, &TextEditor::toggleDJMode);
@@ -725,24 +726,31 @@ void TextEditor::createActions() {
   connect(markdownPreviewAct, &QAction::triggered, this, &TextEditor::toggleMarkdownPreview);
 
   // ── Tools actions ────────────────────────────────────────────────────────
-  disassembleAct = new QAction("⚙ &Disassemble File...", this);
+  disassembleAct = new QAction("&Disassemble File...", this);
   disassembleAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
   disassembleAct->setStatusTip("Disassemble a binary using objdump");
+  disassembleAct->setIcon(QIcon::fromTheme("applications-engineering",
+                          QIcon::fromTheme("utilities-terminal")));
   connect(disassembleAct, &QAction::triggered, this, &TextEditor::openDisassembler);
 
-  binaryInspectAct = new QAction("🔍 &Binary Inspector...", this);
+  binaryInspectAct = new QAction("&Binary Inspector...", this);
   binaryInspectAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I));
   binaryInspectAct->setStatusTip("Inspect ELF/PE headers, sections and imports");
+  binaryInspectAct->setIcon(QIcon::fromTheme("system-search",
+                             QIcon::fromTheme("document-properties")));
   connect(binaryInspectAct, &QAction::triggered, this, &TextEditor::openBinaryInspector);
 
-  neuralGraphAct = new QAction("🧠 &Neural Code Graph...", this);
+  neuralGraphAct = new QAction("&Neural Code Graph...", this);
   neuralGraphAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
   neuralGraphAct->setStatusTip("Visualize workspace includes as a 3D force-directed graph");
+  neuralGraphAct->setIcon(QIcon::fromTheme("preferences-system-network",
+                          QIcon::fromTheme("view-web-browser-dom")));
   connect(neuralGraphAct, &QAction::triggered, this, &TextEditor::openNeuralGraph);
 
-  ghostReplayAct = new QAction("👻 &Ghost Replay Mode", this);
+  ghostReplayAct = new QAction("&Ghost Replay Mode", this);
   ghostReplayAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G));
   ghostReplayAct->setStatusTip("Watch a replay of the current session's code edits");
+  ghostReplayAct->setIcon(QIcon::fromTheme("media-playback-start"));
   connect(ghostReplayAct, &QAction::triggered, this, &TextEditor::openGhostReplay);
 
   // v1.7 Cyberpunk actions
@@ -752,7 +760,7 @@ void TextEditor::createActions() {
   graveyardAct->setStatusTip("Toggle Code Graveyard panel (deleted code >3 lines)");
   connect(graveyardAct, &QAction::triggered, this, &TextEditor::toggleGraveyard);
 
-  crtAct = new QAction("⚡ CRT &Post-Processing", this);
+  crtAct = new QAction("CRT &Post-Processing", this);
   crtAct->setCheckable(true);
   crtAct->setStatusTip("Toggle CRT scanlines, chromatic aberration, and phosphor bloom");
   connect(crtAct, &QAction::triggered, this, &TextEditor::toggleCRT);
@@ -768,9 +776,11 @@ void TextEditor::createActions() {
   vimModeAct->setStatusTip("Toggle Vim Normal/Insert modal editing");
   connect(vimModeAct, &QAction::triggered, this, &TextEditor::toggleVimMode);
 
-  scratchpadAct = new QAction("📝 &Scratchpad", this);
+  scratchpadAct = new QAction("&Scratchpad", this);
   scratchpadAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_S));
   scratchpadAct->setStatusTip("Open persistent scratchpad for mid-session notes");
+  scratchpadAct->setIcon(QIcon::fromTheme("accessories-text-editor",
+                         QIcon::fromTheme("document-new")));
   connect(scratchpadAct, &QAction::triggered, this, &TextEditor::openScratchpad);
 
   commandPaletteAct = new QAction("&Command Palette", this);
@@ -797,7 +807,9 @@ void TextEditor::createActions() {
   sessionStatsAct->setStatusTip("View keystrokes, WPM, and activity stats for this session");
   connect(sessionStatsAct, &QAction::triggered, this, &TextEditor::showSessionStats);
 
-  openHexAct = new QAction("🗂 Open in &Hex Editor", this);
+  openHexAct = new QAction("Open in &Hex Editor", this);
+  openHexAct->setIcon(QIcon::fromTheme("text-x-generic",
+                      QIcon::fromTheme("document-open")));
   openHexAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H));
   openHexAct->setStatusTip("Re-open the current file in the built-in hex editor");
   connect(openHexAct, &QAction::triggered, this, [this]() {

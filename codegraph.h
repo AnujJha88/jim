@@ -63,6 +63,8 @@ public:
     void addConnection()        { m_connections++; }
     void updateSize();
 
+    QRectF boundingRect() const override;
+
 protected:
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
 

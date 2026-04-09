@@ -375,6 +375,14 @@ void GraphNode::updateSize()
     setRect(-r, -r, r * 2, r * 2);
 }
 
+QRectF GraphNode::boundingRect() const
+{
+    // Extend the base ellipse rect rightward to include the filename label
+    // so Qt doesn't cull it when the label sticks out past the dot.
+    QRectF base = QGraphicsEllipseItem::boundingRect();
+    return base.adjusted(-6, -6, 200, 6); // glow padding left/top + label space right
+}
+
 void GraphNode::addForce(const QVector2D &force) { m_force += force; }
 
 void GraphNode::advancePosition()
