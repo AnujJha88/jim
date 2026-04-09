@@ -38,6 +38,7 @@
 #include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QStandardPaths>
 #include <QScrollBar>
 #include <QSettings>
 #include <QSplitter>
@@ -58,6 +59,7 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QRadialGradient>
+#include <QDialog>
 #include <cmath>
 #include <algorithm>
 
@@ -765,6 +767,25 @@ void TextEditor::createActions() {
   vimModeAct->setStatusTip("Toggle Vim Normal/Insert modal editing");
   connect(vimModeAct, &QAction::triggered, this, &TextEditor::toggleVimMode);
 
+  scratchpadAct = new QAction("📝 &Scratchpad", this);
+  scratchpadAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_S));
+  scratchpadAct->setStatusTip("Open persistent scratchpad for mid-session notes");
+  connect(scratchpadAct, &QAction::triggered, this, &TextEditor::openScratchpad);
+
+  focusFadeAct = new QAction("Focus &Fade", this);
+  focusFadeAct->setCheckable(true);
+  focusFadeAct->setStatusTip("Dim all lines except the current line while editing");
+  connect(focusFadeAct, &QAction::triggered, this, &TextEditor::toggleFocusFade);
+
+  imagePreviewAct = new QAction("Image &Preview on Hover", this);
+  imagePreviewAct->setCheckable(true);
+  imagePreviewAct->setStatusTip("Show thumbnail tooltip when hovering over image paths in code");
+  connect(imagePreviewAct, &QAction::triggered, this, &TextEditor::toggleImagePreview);
+
+  sessionStatsAct = new QAction("Session &Statistics", this);
+  sessionStatsAct->setStatusTip("View keystrokes, WPM, and activity stats for this session");
+  connect(sessionStatsAct, &QAction::triggered, this, &TextEditor::showSessionStats);
+
   openHexAct = new QAction("🗂 Open in &Hex Editor", this);
   openHexAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H));
   openHexAct->setStatusTip("Re-open the current file in the built-in hex editor");
@@ -842,8 +863,14 @@ void TextEditor::createMenus() {
   viewMenu->addAction(vimModeAct);
   viewMenu->addAction(keyHeatmapAct);
   viewMenu->addAction(graveyardAct);
+  viewMenu->addSeparator();
+  viewMenu->addAction(focusFadeAct);
+  viewMenu->addAction(imagePreviewAct);
 
   toolsMenu = customMenuBar->addMenu("&Tools");
+  toolsMenu->addAction(scratchpadAct);
+  toolsMenu->addAction(sessionStatsAct);
+  toolsMenu->addSeparator();
   toolsMenu->addAction(openHexAct);
   toolsMenu->addAction(disassembleAct);
   toolsMenu->addAction(binaryInspectAct);
@@ -983,6 +1010,11 @@ void TextEditor::newFile() {
       editor->setCRTEnabled(true);
   if (vimModeAct && vimModeAct->isChecked())
       editor->setVimEnabled(true);
+  if (focusFadeAct && focusFadeAct->isChecked())
+      editor->setFocusFadeEnabled(true);
+  if (imagePreviewAct && imagePreviewAct->isChecked())
+      editor->setImagePreviewEnabled(true);
+  connect(editor, &CodeEditor::keyPressed, this, &TextEditor::trackKeystroke);
   int index = tabWidget->addTab(editor, "Untitled");
   tabWidget->setCurrentIndex(index);
   editor->setFocus();
@@ -1688,6 +1720,12 @@ void TextEditor::loadFile(const QString &fileName) {
         editor->setCRTEnabled(true);
     if (vimModeAct && vimModeAct->isChecked())
         editor->setVimEnabled(true);
+    if (focusFadeAct && focusFadeAct->isChecked())
+        editor->setFocusFadeEnabled(true);
+    if (imagePreviewAct && imagePreviewAct->isChecked())
+        editor->setImagePreviewEnabled(true);
+    connect(editor, &CodeEditor::keyPressed, this, &TextEditor::trackKeystroke);
+    ++sessionFilesOpened;
 
     // Apply ambient tint immediately so the new editor matches others
     updateAmbientTheme();
@@ -2286,6 +2324,150 @@ void TextEditor::openGhostReplay() {
     playbackTimer->start(150); 
     
     replayDialog->exec();
+}
+
+void TextEditor::openScratchpad() {
+    // If already open, just switch to it
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        if (tabWidget->tabText(i) == "📝 Scratchpad") {
+            tabWidget->setCurrentIndex(i);
+            return;
+        }
+    }
+
+    hideWelcomeScreen();
+
+    if (!scratchpadEditor) {
+        scratchpadEditor = new QPlainTextEdit();
+        scratchpadEditor->setFont(QFont("Consolas", fontSize));
+        scratchpadEditor->setStyleSheet(
+            "QPlainTextEdit { background:#1a1a2e; color:#e0e0e0; "
+            "border:none; font-family:Consolas,monospace; }");
+        scratchpadEditor->setPlaceholderText(
+            "Scratchpad — jot anything here. Saved automatically.");
+
+        // Load persisted content
+        QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                       + "/jim_scratchpad.txt";
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly | QIODevice::Text))
+            scratchpadEditor->setPlainText(f.readAll());
+
+        // Auto-save on every change
+        connect(scratchpadEditor, &QPlainTextEdit::textChanged, this, [this]() {
+            QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                           + "/jim_scratchpad.txt";
+            QDir().mkpath(QFileInfo(path).absolutePath());
+            QSaveFile f(path);
+            if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                f.write(scratchpadEditor->toPlainText().toUtf8());
+                f.commit();
+            }
+        });
+    }
+
+    int idx = tabWidget->addTab(scratchpadEditor, "📝 Scratchpad");
+    tabWidget->setCurrentIndex(idx);
+    scratchpadEditor->setFocus();
+    QTimer::singleShot(0, this, &TextEditor::clampToScreen);
+}
+
+// ── v1.9 Feature Implementations ──────────────────────────────────────────────
+
+void TextEditor::toggleFocusFade() {
+    bool enabled = focusFadeAct->isChecked();
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+        if (ed) ed->setFocusFadeEnabled(enabled);
+    }
+    flashStatusMessage(enabled ? "Focus Fade: ON" : "Focus Fade: OFF",
+                       QColor("#61afef"), 2000);
+}
+
+void TextEditor::toggleImagePreview() {
+    bool enabled = imagePreviewAct->isChecked();
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+        if (ed) ed->setImagePreviewEnabled(enabled);
+    }
+    flashStatusMessage(enabled ? "Image Preview: ON (hover over image paths)" : "Image Preview: OFF",
+                       QColor("#61afef"), 2000);
+}
+
+void TextEditor::trackKeystroke(int key, const QString &text) {
+    Q_UNUSED(text)
+    sessionKeystrokes++;
+    if (key == Qt::Key_Return || key == Qt::Key_Enter)
+        sessionLinesWritten++;
+
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    statsKeystrokeTimestamps.append(now);
+    // Prune timestamps older than 60 seconds
+    qint64 cutoff = now - 60000;
+    while (!statsKeystrokeTimestamps.isEmpty() && statsKeystrokeTimestamps.first() < cutoff)
+        statsKeystrokeTimestamps.removeFirst();
+
+    // WPM = (keystrokes in window / 5) / (window_minutes)
+    int wpm = 0;
+    if (statsKeystrokeTimestamps.size() >= 2) {
+        double windowSec = (now - statsKeystrokeTimestamps.first()) / 1000.0;
+        if (windowSec > 0)
+            wpm = static_cast<int>((statsKeystrokeTimestamps.size() / 5.0) / (windowSec / 60.0));
+    }
+    sessionPeakWPM = qMax(sessionPeakWPM, wpm);
+}
+
+void TextEditor::showSessionStats() {
+    // Compute active time from session timer
+    int totalSecs = sessionSecondsAccumulated;
+    if (sessionTimer && sessionTimer->isActive()) {
+        QDateTime now = QDateTime::currentDateTime();
+        totalSecs += static_cast<int>(sessionStart.secsTo(now));
+    }
+    int hours   = totalSecs / 3600;
+    int minutes = (totalSecs % 3600) / 60;
+    int secs    = totalSecs % 60;
+    QString timeStr = QString("%1h %2m %3s").arg(hours).arg(minutes, 2, 10, QChar('0')).arg(secs, 2, 10, QChar('0'));
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("Session Statistics");
+    dlg.setFixedSize(340, 280);
+    dlg.setStyleSheet(
+        "QDialog { background:#1e1e2e; color:#cdd6f4; }"
+        "QLabel  { color:#cdd6f4; font-family:Consolas,monospace; }"
+        "QPushButton { background:#313244; color:#cdd6f4; border:1px solid #45475a; "
+        "              border-radius:6px; padding:6px 20px; font-family:Consolas; }"
+        "QPushButton:hover { background:#45475a; }");
+
+    auto *layout = new QVBoxLayout(&dlg);
+    layout->setContentsMargins(24, 20, 24, 20);
+    layout->setSpacing(10);
+
+    auto *title = new QLabel("  Session Stats", &dlg);
+    title->setStyleSheet("font-size:15px; font-weight:bold; color:#89b4fa;");
+    layout->addWidget(title);
+
+    auto addRow = [&](const QString &icon, const QString &label, const QString &value) {
+        auto *row = new QLabel(QString("%1  <span style='color:#a6e3a1'>%2</span>"
+                                       "  <span style='color:#cdd6f4'>%3</span>").arg(icon, label, value), &dlg);
+        row->setTextFormat(Qt::RichText);
+        row->setStyleSheet("font-size:12px; padding:2px 0;");
+        layout->addWidget(row);
+    };
+
+    addRow("⌨", "Keystrokes:",   QString::number(sessionKeystrokes));
+    addRow("↵", "Lines written:", QString::number(sessionLinesWritten));
+    addRow("📂", "Files opened:", QString::number(sessionFilesOpened));
+    addRow("⏱", "Active time:",  timeStr);
+    addRow("🚀", "Peak WPM:",    QString::number(sessionPeakWPM));
+
+    layout->addStretch();
+
+    auto *closeBtn = new QPushButton("Close", &dlg);
+    connect(closeBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+    layout->addWidget(closeBtn, 0, Qt::AlignCenter);
+
+    dlg.exec();
 }
 
 void TextEditor::toggleGraveyard() {

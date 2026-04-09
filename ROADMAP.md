@@ -119,6 +119,21 @@ Focuses on enhancing the ability to find and move through code quickly.
 
 ---
 
+## v1.8.1 — Productivity & Ambient Pack (COMPLETED)
+- [x] **Indent-Based Folding** — fold Python, YAML, and Markdown blocks by indentation level in addition to the existing brace-based folding for C++/JS/etc.
+- [x] **Persistent Scratchpad** — a special always-available tab (`Ctrl+Alt+S`) for mid-session notes; auto-saved to disk so nothing is lost between sessions.
+- [x] **Focus Fade** — All lines outside the current block dim while editing, snapping back instantly when the cursor moves. Pure `paintEvent` overlay — zero layout changes. Toggle via View menu.
+- [x] **Inline Image Preview** — Hover over any string literal containing an image path (`.png`, `.jpg`, `.svg`, `.gif`, `.bmp`, `.webp`, `.ico`) to see a thumbnail tooltip; path resolved relative to the current file. Toggle via View menu.
+- [x] **Session Statistics** — Tracks keystrokes, lines written, files opened, active coding time, and peak WPM across the session; displayed as a styled stats card dialog (`Tools > Session Statistics`).
+- [ ] **Command Palette** (`Ctrl+Shift+P`) — fuzzy-searchable popup over all editor actions: open file, toggle features, switch theme, run tools, etc.
+- [ ] **TODO/FIXME Panel** — dockable panel that scans all open files for `TODO`, `FIXME`, `HACK`, `NOTE`, `BUG` tags and lists them with file+line; click to jump.
+
+---
+
+## v1.9 — Planned
+
+---
+
 ## v2.0 — Intelligence & Ecosystem
 - [ ] Snippet support (user-defined templates)
 - [ ] Bracket completion for multi-line blocks

@@ -269,6 +269,8 @@ public:
     bool isFoldable(const QTextBlock &block) const;
     bool isFolded(const QTextBlock &block) const;
     int findMatchingBrace(const QTextBlock &block) const;
+    int findIndentEnd(const QTextBlock &block) const;
+    int indentLevel(const QTextBlock &block) const;
     
     void setLanguage(Language lang);
     Language getLanguage() const { return currentLanguage; }
@@ -304,6 +306,10 @@ public:
     void setVimEnabled(bool enabled);
     bool isVimEnabled() const;
 
+    // v1.9 toggleable features
+    void setFocusFadeEnabled(bool enabled);
+    void setImagePreviewEnabled(bool enabled);
+
 signals:
     void characterTyped();
     void codeBlockDeleted(const QString &code, const QString &source);
@@ -324,6 +330,7 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
 
 private slots:
     void updateLineNumberAreaWidth(int newBlockCount);
@@ -354,6 +361,9 @@ private:
     QMap<int, int> lineEditHeat;
     // Vim mode handler
     VimMode *vimMode = nullptr;
+    // v1.9 features
+    bool focusFadeEnabled = false;
+    bool imagePreviewEnabled = false;
     void autoIndent();
     void matchBrackets();
 };
@@ -474,6 +484,7 @@ private slots:
     void openBinaryInspector();
     void openNeuralGraph();
     void openGhostReplay();
+    void openScratchpad();
 
 private:
     void createActions();
@@ -663,12 +674,31 @@ private:
     QLabel *vimModeLabel = nullptr;
     QTimer *ambientTimer = nullptr;
 
+    // v1.8.1 features
+    QPlainTextEdit *scratchpadEditor = nullptr;
+    QAction *scratchpadAct = nullptr;
+
+    // v1.9 features
+    QAction *focusFadeAct = nullptr;
+    QAction *imagePreviewAct = nullptr;
+    QAction *sessionStatsAct = nullptr;
+    int sessionKeystrokes = 0;
+    int sessionLinesWritten = 0;
+    int sessionFilesOpened = 0;
+    int sessionPeakWPM = 0;
+    QVector<qint64> statsKeystrokeTimestamps;
+    void trackKeystroke(int key, const QString &text);
+
     void toggleGraveyard();
     void toggleCRT();
     void onCodeBlockDeleted(const QString &code, const QString &source);
     void toggleKeyHeatmap();
     void toggleVimMode();
     void updateAmbientTheme();
+    // v1.9 feature slots
+    void toggleFocusFade();
+    void toggleImagePreview();
+    void showSessionStats();
 };
 
 #endif

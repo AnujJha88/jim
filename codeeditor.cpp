@@ -13,6 +13,8 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QRegularExpression>
+#include <QToolTip>
+#include <QUrl>
 #include <cmath>
 #include <algorithm>
 
@@ -58,6 +60,7 @@ CodeEditor::CodeEditor(QWidget *parent)
   updateLineNumberAreaWidth(0);
   highlightCurrentLine();
   setTabStopDistance(fontMetrics().horizontalAdvance(' ') * 4);
+  viewport()->setMouseTracking(true);
 
   // Ghost replay & graveyard tracking
   connect(document(), &QTextDocument::contentsChange, this,
@@ -287,6 +290,23 @@ void CodeEditor::paintEvent(QPaintEvent *e) {
           painter.drawLine(rect.topLeft() + QPoint(1,0), rect.bottomLeft() + QPoint(1,0));
       }
   }
+
+  // Focus Fade: dim all lines except the current cursor block
+  if (focusFadeEnabled) {
+      int cursorBlockNum = textCursor().blockNumber();
+      QTextBlock blk = firstVisibleBlock();
+      QPointF off = contentOffset();
+      painter.save();
+      while (blk.isValid()) {
+          QRectF br = blockBoundingGeometry(blk).translated(off);
+          if (br.top() > viewport()->height()) break;
+          if (blk.blockNumber() != cursorBlockNum && blk.isVisible()) {
+              painter.fillRect(br, QColor(0, 0, 0, 110));
+          }
+          blk = blk.next();
+      }
+      painter.restore();
+  }
 }
 
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event) {
@@ -342,6 +362,56 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event) {
 }
 
 // ============================================================
+// v1.9 Feature Implementations
+// ============================================================
+void CodeEditor::setFocusFadeEnabled(bool enabled) {
+    focusFadeEnabled = enabled;
+    viewport()->update();
+}
+
+void CodeEditor::setImagePreviewEnabled(bool enabled) {
+    imagePreviewEnabled = enabled;
+    if (!enabled)
+        QToolTip::hideText();
+}
+
+void CodeEditor::mouseMoveEvent(QMouseEvent *event) {
+    if (imagePreviewEnabled) {
+        QTextCursor cur = cursorForPosition(event->pos());
+        QString line = cur.block().text();
+        int col = cur.positionInBlock();
+
+        // Match string literals containing image file extensions
+        static QRegularExpression imgRe(
+            R"([\"'`]([^\"'`\n]*\.(png|jpg|jpeg|gif|bmp|svg|webp|ico))[\"'`]?)",
+            QRegularExpression::CaseInsensitiveOption);
+
+        QRegularExpressionMatchIterator it = imgRe.globalMatch(line);
+        bool shown = false;
+        while (it.hasNext()) {
+            QRegularExpressionMatch m = it.next();
+            if (col >= m.capturedStart() && col <= m.capturedEnd()) {
+                QString imgPath = m.captured(1);
+                // Resolve relative to current file's directory
+                if (!QFileInfo(imgPath).isAbsolute() && !fileName.isEmpty())
+                    imgPath = QFileInfo(fileName).absoluteDir().filePath(imgPath);
+                if (QFileInfo::exists(imgPath)) {
+                    // Build a rich-text tooltip with a thumbnail
+                    QString url = QUrl::fromLocalFile(imgPath).toString();
+                    QString tip = QString("<img src='%1' style='max-width:240px;max-height:160px;'>").arg(url);
+                    QToolTip::showText(event->globalPosition().toPoint(), tip, this);
+                    shown = true;
+                }
+                break;
+            }
+        }
+        if (!shown)
+            QToolTip::hideText();
+    }
+    QPlainTextEdit::mouseMoveEvent(event);
+}
+
+// ============================================================
 // Code Folding
 // ============================================================
 bool CodeEditor::isFoldable(const QTextBlock &block) const {
@@ -385,13 +455,40 @@ int CodeEditor::findMatchingBrace(const QTextBlock &block) const {
   return document()->blockCount() - 1;
 }
 
+int CodeEditor::indentLevel(const QTextBlock &block) const {
+    int spaces = 0;
+    for (QChar c : block.text()) {
+        if (c == ' ')       spaces++;
+        else if (c == '\t') spaces += 4;
+        else break;
+    }
+    return spaces;
+}
+
+int CodeEditor::findIndentEnd(const QTextBlock &block) const {
+    int base = indentLevel(block);
+    int last = block.blockNumber();
+    QTextBlock b = block.next();
+    while (b.isValid()) {
+        if (!b.text().trimmed().isEmpty()) {
+            if (indentLevel(b) <= base) break;
+            last = b.blockNumber();
+        }
+        b = b.next();
+    }
+    return last;
+}
+
 void CodeEditor::toggleFoldAt(int blockNumber) {
   QTextBlock block = document()->findBlockByNumber(blockNumber);
   if (!block.isValid() || !isFoldable(block))
     return;
 
   bool fold = !isFolded(block);
-  int endBlock = findMatchingBrace(block);
+  // Brace blocks use brace matching; indent blocks (Python/YAML/etc) use indent end
+  int endBlock = block.text().trimmed().endsWith('{')
+      ? findMatchingBrace(block)
+      : findIndentEnd(block);
 
   QTextBlock b = block.next();
   while (b.isValid() && b.blockNumber() <= endBlock) {

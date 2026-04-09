@@ -44,6 +44,10 @@ A lightweight, native code editor built with C++ and Qt6. Fast, distraction-free
 - **Bracket Pair Colorization** — `()`, `[]`, `{}` coloured in three rotating neon hues with depth-tracking, painted directly in `paintEvent` for zero lag (`v1.8`)
 - **Vim Mode** — Full modal Normal/Insert editing: `hjkl/w/b/0/$`, `G/gg`, `dd/yy`, `i/a/A/I/o/O/s/C`, undo/redo, paste, half-page scroll. Status-bar pill shows current mode. (`Ctrl+Alt+V`, `v1.8`)
 - **Edit Heatmap Strip** — 3 px gutter strip colour-coded blue→red by per-line edit frequency since file open (`v1.8`)
+- **Indent-Based Folding** — fold Python, YAML, and Markdown blocks by indentation level alongside brace-based folding for C++/JS/etc. (`v1.8.1`)
+- **Persistent Scratchpad** — always-available tab (`Ctrl+Alt+S`) for mid-session notes; auto-saved to disk (`v1.8.1`)
+- **Focus Fade** — all lines outside the current block dim while editing; snaps back on cursor move. Pure `paintEvent` overlay, toggle in View menu (`v1.8.1`)
+- **Inline Image Preview** — hover over any image path string literal to see a thumbnail tooltip; resolved relative to the current file (`v1.8.1`)
 
 ### Navigation
 - **File Tree** — Browse and open files from a sidebar (`Ctrl+B`)
@@ -92,6 +96,7 @@ Right-click any file in the Explorer to access all three tools directly.
 - **Deleted Code History** — Dockable panel that automatically captures deleted code blocks (≥3 lines cut or deleted); click "Paste Selected" to restore any entry (`Ctrl+Alt+G`)
 - **Cybernetic HUD** — Status bar widget showing a rolling hex counter, live CPU/Memory sparklines, and real-time WPM counter (Linux: `/proc/stat` + `/proc/meminfo`)
 - **Trailing Whitespace** — Automatically trimmed on save
+- **Session Statistics** — Tracks keystrokes, lines written, files opened, active time, and peak WPM; view as a styled stats card via `Tools > Session Statistics` (`v1.8.1`)
 - **Command Line Support** — Open files and folders from terminal
 - **Comprehensive Shortcuts** — All common operations keyboard-accessible
 
@@ -234,6 +239,9 @@ jim /path/to/project       # open a specific folder
 | `Ctrl+Shift+N` | Neural Code Graph |
 | `Ctrl+Shift+G` | Ghost Replay Mode |
 | `Ctrl+Alt+G` | Toggle Deleted Code History panel |
+| `Ctrl+Alt+S` | Open Persistent Scratchpad |
+| `Ctrl+Alt+V` | Toggle Vim Mode |
+| `Ctrl+Alt+K` | Keystroke Heatmap Overlay |
 
 ---
 
@@ -254,7 +262,24 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 
 ## Recent Updates
 
-### v1.7.0 (Current)
+### v1.8.1 (Current)
+- Added **Indent-Based Folding** — fold Python, YAML, and Markdown blocks by indentation level, alongside existing brace-based folding for C++/JS/etc.
+- Added **Persistent Scratchpad** — always-available tab (`Ctrl+Alt+S`) for mid-session notes; auto-saved to disk atomically so nothing is ever lost.
+- Added **Focus Fade** — all lines outside the current block dim while editing; snaps back on cursor move. Pure `paintEvent` overlay. Toggle in View menu.
+- Added **Inline Image Preview** — hover over any image path string literal (`.png`, `.jpg`, `.svg`, `.gif`, `.bmp`, `.webp`, `.ico`) to see a thumbnail tooltip resolved relative to the current file. Toggle in View menu.
+- Added **Session Statistics** — tracks keystrokes, lines written, files opened, active coding time, and peak WPM for the session; displayed as a styled stats card (`Tools > Session Statistics`).
+
+### v1.8.0
+- Added **Bracket Pair Colorization** — `()`, `[]`, `{}` coloured in rotating neon hues (cyan/magenta/yellow) with depth-tracking, painted in `paintEvent` for zero lag.
+- Added **Vim Mode** — Full modal Normal/Insert editing: `hjkl/w/b/0/$`, `G/gg`, `dd/yy`, `i/a/A/I/o/O/s/C`, undo/redo, paste, half-page scroll. Status-bar pill shows current mode. (`Ctrl+Alt+V`)
+- Added **Keystroke Heatmap Overlay** — Floating QWERTY keyboard rendered over the editor, each key tinted dark-grey to red by typing frequency; click to dismiss. (`Ctrl+Alt+K`)
+- Added **Time-of-Day Ambient Theme** — Background tint shifts automatically every 10 min: dawn amber → neutral daytime → dusk rose → midnight indigo.
+- Added **Edit Heatmap Strip** — 3 px gutter strip colour-coded blue to red by per-line edit frequency since file open.
+- Added **Live WPM Counter** — Real-time words-per-minute in the Cybernetic HUD, calculated from a rolling 60-second keystroke window.
+- **Major Refactor** — `texteditor.cpp` split into `codeeditor.cpp`, `animationwidget.cpp`, `uiwidgets.cpp`, and `overlays.cpp`.
+- **Bug fix** — DJ Mode dock no longer pushes the window off-screen; `maximumHeight` is clamped to available screen height before the dock attaches.
+
+### v1.7.0
 - Added **CRT Post-Processing** — scanline overlay, vignette, chromatic aberration fringe, and phosphor bloom; toggle in View menu.
 - Added **Deleted Code History** — dockable panel that auto-captures deleted blocks of ≥3 lines with timestamps; double-click or "Paste Selected" to restore (`Ctrl+Alt+G`).
 - Added **Data Waterfall Minimap** — Matrix-style animated digital rain rendered as the minimap background with the code overview overlaid on top.
