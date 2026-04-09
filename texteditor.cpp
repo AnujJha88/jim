@@ -2299,7 +2299,14 @@ void TextEditor::openDisassembler() {
 }
 
 void TextEditor::openNeuralGraph() {
-    CodeGraph *graph = new CodeGraph(currentFolder.isEmpty() ? QDir::currentPath() : currentFolder, this);
+    QString folder = currentFolder.isEmpty() ? QDir::currentPath() : currentFolder;
+    QString activeFile;
+    if (CodeEditor *ed = currentEditor())
+        activeFile = ed->getFileName();
+    // If no folder is set but a file is open, use its directory
+    if (currentFolder.isEmpty() && !activeFile.isEmpty())
+        folder = QFileInfo(activeFile).absolutePath();
+    CodeGraph *graph = new CodeGraph(folder, activeFile, this);
     graph->exec();
 }
 
