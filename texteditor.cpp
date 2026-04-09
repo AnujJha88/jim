@@ -62,6 +62,7 @@
 #include <QDialog>
 #include <cmath>
 #include <algorithm>
+#include <functional>
 
 // ============================================================
 // Language Auto-Detection
@@ -772,6 +773,16 @@ void TextEditor::createActions() {
   scratchpadAct->setStatusTip("Open persistent scratchpad for mid-session notes");
   connect(scratchpadAct, &QAction::triggered, this, &TextEditor::openScratchpad);
 
+  commandPaletteAct = new QAction("&Command Palette", this);
+  commandPaletteAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P));
+  commandPaletteAct->setStatusTip("Fuzzy-search all editor commands");
+  connect(commandPaletteAct, &QAction::triggered, this, &TextEditor::openCommandPalette);
+
+  todoAct = new QAction("TODO/FIXME &Panel", this);
+  todoAct->setCheckable(true);
+  todoAct->setStatusTip("Show panel listing all TODO, FIXME, HACK, NOTE, BUG tags in open files");
+  connect(todoAct, &QAction::triggered, this, &TextEditor::toggleTodoPanel);
+
   focusFadeAct = new QAction("Focus &Fade", this);
   focusFadeAct->setCheckable(true);
   focusFadeAct->setStatusTip("Dim all lines except the current line while editing");
@@ -868,8 +879,11 @@ void TextEditor::createMenus() {
   viewMenu->addAction(imagePreviewAct);
 
   toolsMenu = customMenuBar->addMenu("&Tools");
+  toolsMenu->addAction(commandPaletteAct);
+  toolsMenu->addSeparator();
   toolsMenu->addAction(scratchpadAct);
   toolsMenu->addAction(sessionStatsAct);
+  toolsMenu->addAction(todoAct);
   toolsMenu->addSeparator();
   toolsMenu->addAction(openHexAct);
   toolsMenu->addAction(disassembleAct);
@@ -2468,6 +2482,93 @@ void TextEditor::showSessionStats() {
     layout->addWidget(closeBtn, 0, Qt::AlignCenter);
 
     dlg.exec();
+}
+
+void TextEditor::openCommandPalette() {
+    if (!commandPalette)
+        commandPalette = new CommandPalette(this);
+
+    // Collect every QAction from all menus recursively
+    QList<QAction*> actions;
+    std::function<void(QMenu*)> collect = [&](QMenu *menu) {
+        for (QAction *act : menu->actions()) {
+            if (act->isSeparator()) continue;
+            if (act->menu()) { collect(act->menu()); continue; }
+            if (!act->text().isEmpty())
+                actions.append(act);
+        }
+    };
+    for (QAction *act : customMenuBar->actions()) {
+        if (act->menu()) collect(act->menu());
+    }
+
+    commandPalette->populate(actions);
+
+    // Centre it below the menu bar
+    QRect geo = geometry();
+    int cx = geo.left() + (geo.width() - commandPalette->width()) / 2;
+    int cy = geo.top() + 60;
+    commandPalette->move(cx, cy);
+    commandPalette->exec();
+}
+
+void TextEditor::toggleTodoPanel() {
+    if (!todoPanel) {
+        todoPanel = new TodoPanel(this);
+        todoDock = new QDockWidget("TODO / FIXME", this);
+        todoDock->setObjectName("todoDock");
+        todoDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea);
+        todoDock->setWidget(todoPanel);
+        todoDock->setStyleSheet(
+            "QDockWidget { color:#cccccc; font-family:Consolas; font-size:11px; }"
+            "QDockWidget::title { background:#252526; padding:4px 8px; "
+            "                     border-bottom:1px solid #3c3c3c; }");
+        addDockWidget(Qt::BottomDockWidgetArea, todoDock);
+
+        connect(todoPanel, &TodoPanel::jumpRequested, this, &TextEditor::onTodoJump);
+        connect(todoDock, &QDockWidget::visibilityChanged, this, [this](bool vis) {
+            if (todoAct) todoAct->setChecked(vis);
+            if (vis) todoPanel->scan(tabWidget);
+        });
+    }
+
+    bool show = !todoDock->isVisible();
+    todoDock->setVisible(show);
+    if (todoAct) todoAct->setChecked(show);
+    if (show) todoPanel->scan(tabWidget);
+}
+
+void TextEditor::onTodoJump(const QString &filePath, int line) {
+    if (filePath.isEmpty()) {
+        // Refresh button pressed
+        if (todoPanel) todoPanel->scan(tabWidget);
+        return;
+    }
+    // Find the tab with this file and jump to the line
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+        if (ed && ed->getFileName() == filePath) {
+            tabWidget->setCurrentIndex(i);
+            QTextCursor cur = ed->textCursor();
+            cur.movePosition(QTextCursor::Start);
+            cur.movePosition(QTextCursor::NextBlock, QTextCursor::MoveAnchor, line);
+            ed->setTextCursor(cur);
+            ed->centerCursor();
+            ed->setFocus();
+            return;
+        }
+    }
+    // File not open — load it
+    loadFile(filePath);
+    QTimer::singleShot(100, this, [this, line]() {
+        CodeEditor *ed = currentEditor();
+        if (!ed) return;
+        QTextCursor cur = ed->textCursor();
+        cur.movePosition(QTextCursor::Start);
+        cur.movePosition(QTextCursor::NextBlock, QTextCursor::MoveAnchor, line);
+        ed->setTextCursor(cur);
+        ed->centerCursor();
+    });
 }
 
 void TextEditor::toggleGraveyard() {

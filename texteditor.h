@@ -50,6 +50,8 @@ class AudioMonitor;
 
 class KeyHeatmapOverlay;
 class VimMode;
+class CommandPalette;
+class TodoPanel;
 
 // Ghost Replay Event
 struct GhostEvent {
@@ -422,6 +424,38 @@ private:
     void appendOutput(const QString &text);
 };
 
+// ── Command Palette ────────────────────────────────────────────────────────
+#include <QDialog>
+#include <QTreeWidget>
+#include <QKeyEvent>
+class CommandPalette : public QDialog {
+    Q_OBJECT
+public:
+    explicit CommandPalette(QWidget *parent = nullptr);
+    void populate(const QList<QAction*> &actions);
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
+private:
+    QLineEdit   *searchBox;
+    QListWidget *resultList;
+    QList<QAction*> allActions;
+    void filter(const QString &text);
+    void runSelected();
+};
+
+// ── TODO/FIXME Panel ───────────────────────────────────────────────────────
+class TodoPanel : public QWidget {
+    Q_OBJECT
+public:
+    explicit TodoPanel(QWidget *parent = nullptr);
+    void scan(QTabWidget *tabs);
+signals:
+    void jumpRequested(const QString &filePath, int line);
+private:
+    QTreeWidget *tree;
+};
+
 class TextEditor : public QMainWindow {
     Q_OBJECT
 
@@ -677,6 +711,16 @@ private:
     // v1.8.1 features
     QPlainTextEdit *scratchpadEditor = nullptr;
     QAction *scratchpadAct = nullptr;
+
+    // v1.8.1 command palette + todo panel
+    CommandPalette *commandPalette = nullptr;
+    TodoPanel      *todoPanel      = nullptr;
+    QDockWidget    *todoDock       = nullptr;
+    QAction        *commandPaletteAct = nullptr;
+    QAction        *todoAct           = nullptr;
+    void openCommandPalette();
+    void toggleTodoPanel();
+    void onTodoJump(const QString &filePath, int line);
 
     // v1.9 features
     QAction *focusFadeAct = nullptr;

@@ -11,6 +11,11 @@
 #include <QScrollBar>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QTreeWidget>
+#include <QHeaderView>
+#include <QKeyEvent>
+#include <QRegularExpression>
+#include <QTabWidget>
 
 // ============================================================
 // TitleBar Implementation
@@ -434,4 +439,222 @@ void TerminalWidget::executeCommand() {
 
 void TerminalWidget::appendOutput(const QString &text) {
   output->appendPlainText(text);
+}
+
+// ============================================================
+// Command Palette
+// ============================================================
+static const QString kPaletteStyle =
+    "QDialog { background:#1e1e2e; border:1px solid #45475a; border-radius:8px; }"
+    "QLineEdit { background:#313244; color:#cdd6f4; border:none; border-radius:4px;"
+    "            padding:8px 12px; font-family:Consolas,monospace; font-size:13px; }"
+    "QListWidget { background:#1e1e2e; color:#cdd6f4; border:none;"
+    "              font-family:Consolas,monospace; font-size:12px; outline:none; }"
+    "QListWidget::item { padding:6px 12px; border-radius:4px; }"
+    "QListWidget::item:selected { background:#313244; color:#89b4fa; }"
+    "QListWidget::item:hover { background:#2a2a3e; }";
+
+CommandPalette::CommandPalette(QWidget *parent) : QDialog(parent, Qt::FramelessWindowHint | Qt::Popup) {
+    setAttribute(Qt::WA_TranslucentBackground);
+    setFixedWidth(560);
+    setStyleSheet(kPaletteStyle);
+
+    auto *root = new QVBoxLayout(this);
+    root->setContentsMargins(8, 8, 8, 8);
+    root->setSpacing(6);
+
+    searchBox = new QLineEdit(this);
+    searchBox->setPlaceholderText("Type a command...");
+    searchBox->installEventFilter(this);
+    root->addWidget(searchBox);
+
+    resultList = new QListWidget(this);
+    resultList->setMaximumHeight(340);
+    resultList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    resultList->setFocusProxy(searchBox);
+    root->addWidget(resultList);
+
+    connect(searchBox, &QLineEdit::textChanged, this, &CommandPalette::filter);
+    connect(resultList, &QListWidget::itemActivated, this, [this](QListWidgetItem *) {
+        runSelected();
+    });
+}
+
+void CommandPalette::populate(const QList<QAction*> &actions) {
+    allActions = actions;
+    filter(QString());
+    if (resultList->count() > 0)
+        resultList->setCurrentRow(0);
+}
+
+void CommandPalette::filter(const QString &text) {
+    resultList->clear();
+    for (QAction *act : allActions) {
+        QString label = act->text().remove('&').trimmed();
+        if (label.isEmpty() || !act->isEnabled()) continue;
+        if (text.isEmpty() || label.contains(text, Qt::CaseInsensitive)) {
+            auto *item = new QListWidgetItem(resultList);
+            // Show shortcut on the right if available
+            QString sc = act->shortcut().toString(QKeySequence::NativeText);
+            item->setText(label + (sc.isEmpty() ? "" : "   " + sc));
+            item->setData(Qt::UserRole, QVariant::fromValue(act));
+            resultList->addItem(item);
+        }
+    }
+    if (resultList->count() > 0)
+        resultList->setCurrentRow(0);
+    // Resize height to content
+    int rows = qMin(resultList->count(), 12);
+    resultList->setMaximumHeight(rows * 30 + 8);
+    adjustSize();
+}
+
+void CommandPalette::runSelected() {
+    QListWidgetItem *item = resultList->currentItem();
+    if (!item) return;
+    auto *act = item->data(Qt::UserRole).value<QAction*>();
+    if (act && act->isEnabled()) {
+        accept();
+        act->trigger();
+    }
+}
+
+void CommandPalette::keyPressEvent(QKeyEvent *event) {
+    if (event->key() == Qt::Key_Escape) { reject(); return; }
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) { runSelected(); return; }
+    if (event->key() == Qt::Key_Down) {
+        int next = resultList->currentRow() + 1;
+        if (next < resultList->count()) resultList->setCurrentRow(next);
+        return;
+    }
+    if (event->key() == Qt::Key_Up) {
+        int prev = resultList->currentRow() - 1;
+        if (prev >= 0) resultList->setCurrentRow(prev);
+        return;
+    }
+    QDialog::keyPressEvent(event);
+}
+
+bool CommandPalette::eventFilter(QObject *obj, QEvent *event) {
+    if (obj == searchBox && event->type() == QEvent::KeyPress) {
+        auto *ke = static_cast<QKeyEvent*>(event);
+        if (ke->key() == Qt::Key_Down || ke->key() == Qt::Key_Up ||
+            ke->key() == Qt::Key_Return || ke->key() == Qt::Key_Enter ||
+            ke->key() == Qt::Key_Escape) {
+            keyPressEvent(ke);
+            return true;
+        }
+    }
+    return QDialog::eventFilter(obj, event);
+}
+
+// ============================================================
+// TODO/FIXME Panel
+// ============================================================
+static const QString kTagColors[] = {
+    "#f38ba8", // TODO  — red
+    "#fab387", // FIXME — peach
+    "#f9e2af", // HACK  — yellow
+    "#89b4fa", // NOTE  — blue
+    "#ff5555", // BUG   — bright red
+};
+static const QString kTags[] = { "TODO", "FIXME", "HACK", "NOTE", "BUG" };
+
+TodoPanel::TodoPanel(QWidget *parent) : QWidget(parent) {
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    // Header bar
+    auto *header = new QWidget(this);
+    header->setFixedHeight(32);
+    header->setStyleSheet("background:#252526; border-bottom:1px solid #3c3c3c;");
+    auto *hbox = new QHBoxLayout(header);
+    hbox->setContentsMargins(8, 0, 8, 0);
+    auto *title = new QLabel("TODO / FIXME", header);
+    title->setStyleSheet("color:#cccccc; font-family:Consolas; font-size:11px; font-weight:bold;");
+    hbox->addWidget(title);
+    hbox->addStretch();
+    auto *refreshBtn = new QPushButton("↻", header);
+    refreshBtn->setFixedSize(24, 24);
+    refreshBtn->setStyleSheet(
+        "QPushButton { background:transparent; color:#cccccc; border:none; font-size:14px; }"
+        "QPushButton:hover { color:#ffffff; }");
+    hbox->addWidget(refreshBtn);
+    layout->addWidget(header);
+
+    tree = new QTreeWidget(this);
+    tree->setColumnCount(4);
+    tree->setHeaderLabels({"Tag", "File", "Line", "Text"});
+    tree->setStyleSheet(
+        "QTreeWidget { background:#1e1e1e; color:#cccccc; border:none;"
+        "              font-family:Consolas,monospace; font-size:11px; outline:none; }"
+        "QTreeWidget::item { padding:3px 4px; }"
+        "QTreeWidget::item:selected { background:#094771; }"
+        "QTreeWidget::item:hover { background:#2a2d2e; }"
+        "QHeaderView::section { background:#252526; color:#888; border:none;"
+        "                       border-bottom:1px solid #3c3c3c; padding:4px; }");
+    tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    tree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    tree->header()->setSectionResizeMode(3, QHeaderView::Stretch);
+    tree->setRootIsDecorated(false);
+    tree->setSortingEnabled(true);
+    tree->sortByColumn(1, Qt::AscendingOrder);
+    layout->addWidget(tree);
+
+    connect(refreshBtn, &QPushButton::clicked, this, [this]() {
+        // Trigger a re-scan from outside — parent will call scan() again
+        // We emit a dummy signal by re-emitting the last item click to force parent rescan
+        emit jumpRequested(QString(), -1);
+    });
+
+    connect(tree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem *item) {
+        QString filePath = item->data(0, Qt::UserRole).toString();
+        int line = item->data(1, Qt::UserRole).toInt();
+        if (!filePath.isEmpty() && line >= 0)
+            emit jumpRequested(filePath, line);
+    });
+
+    setStyleSheet("background:#1e1e1e;");
+}
+
+void TodoPanel::scan(QTabWidget *tabs) {
+    tree->clear();
+    static QRegularExpression tagRe(
+        R"(\b(TODO|FIXME|HACK|NOTE|BUG)\b[:\s]?\s*(.*))",
+        QRegularExpression::CaseInsensitiveOption);
+
+    for (int i = 0; i < tabs->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor*>(tabs->widget(i));
+        if (!ed) continue;
+        QString filePath = ed->getFileName();
+        QString displayName = filePath.isEmpty() ? tabs->tabText(i) : QFileInfo(filePath).fileName();
+        QTextDocument *doc = ed->document();
+        for (QTextBlock blk = doc->begin(); blk != doc->end(); blk = blk.next()) {
+            QRegularExpressionMatch m = tagRe.match(blk.text());
+            if (!m.hasMatch()) continue;
+            QString tag  = m.captured(1).toUpper();
+            QString text = m.captured(2).trimmed();
+            int lineNum  = blk.blockNumber() + 1;
+
+            auto *item = new QTreeWidgetItem(tree);
+            item->setText(0, tag);
+            item->setText(1, displayName);
+            item->setText(2, QString::number(lineNum));
+            item->setText(3, text);
+            item->setData(0, Qt::UserRole, filePath);
+            item->setData(1, Qt::UserRole, lineNum - 1); // 0-based for block navigation
+
+            // Colour the tag column
+            for (int t = 0; t < 5; ++t) {
+                if (kTags[t] == tag) {
+                    item->setForeground(0, QColor(kTagColors[t]));
+                    break;
+                }
+            }
+            item->setForeground(2, QColor("#888888"));
+            item->setForeground(3, QColor("#a0a0a0"));
+        }
+    }
 }

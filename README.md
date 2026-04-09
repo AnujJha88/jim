@@ -54,6 +54,7 @@ A lightweight, native code editor built with C++ and Qt6. Fast, distraction-free
 - **Breadcrumb Navigation** — Shows `folder > file > function` context below the tab bar
 - **Go to Line** — Jump to any line instantly (`Ctrl+G`)
 - **Find & Replace** — Inline find bar with "Find All Matches" (simultaneous highlighting), match count, and golden-accent current selection
+- **Command Palette** — Fuzzy-search every editor action by name; arrow keys to navigate, Enter to trigger (`Ctrl+Shift+P`, `v1.8.1`)
 - **Recent Files** — Access recently opened files from the File menu
 - **Mini Map Navigation** — Click anywhere to jump to that part of your code
 
@@ -97,6 +98,7 @@ Right-click any file in the Explorer to access all three tools directly.
 - **Cybernetic HUD** — Status bar widget showing a rolling hex counter, live CPU/Memory sparklines, and real-time WPM counter (Linux: `/proc/stat` + `/proc/meminfo`)
 - **Trailing Whitespace** — Automatically trimmed on save
 - **Session Statistics** — Tracks keystrokes, lines written, files opened, active time, and peak WPM; view as a styled stats card via `Tools > Session Statistics` (`v1.8.1`)
+- **TODO/FIXME Panel** — Dockable panel scanning all open editors for `TODO`, `FIXME`, `HACK`, `NOTE`, `BUG` tags; colour-coded by type, double-click to jump (`v1.8.1`)
 - **Command Line Support** — Open files and folders from terminal
 - **Comprehensive Shortcuts** — All common operations keyboard-accessible
 
@@ -233,6 +235,7 @@ jim /path/to/project       # open a specific folder
 ### Tools
 | Shortcut | Action |
 |----------|--------|
+| `Ctrl+Shift+P` | **Command Palette** |
 | `Ctrl+Shift+H` | Open current file in Hex Editor |
 | `Ctrl+Shift+D` | Disassemble file |
 | `Ctrl+Shift+I` | Open Binary Inspector |
@@ -263,6 +266,8 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 ## Recent Updates
 
 ### v1.8.1 (Current)
+- Added **Command Palette** (`Ctrl+Shift+P`) — fuzzy-searchable frameless popup listing every editor action; arrow keys to navigate, Enter to trigger, Escape to dismiss.
+- Added **TODO/FIXME Panel** — dockable panel that scans all open editors for `TODO`, `FIXME`, `HACK`, `NOTE`, `BUG` tags; colour-coded by type, double-click to jump to file+line (`Tools > TODO/FIXME Panel`).
 - Added **Indent-Based Folding** — fold Python, YAML, and Markdown blocks by indentation level, alongside existing brace-based folding for C++/JS/etc.
 - Added **Persistent Scratchpad** — always-available tab (`Ctrl+Alt+S`) for mid-session notes; auto-saved to disk atomically so nothing is ever lost.
 - Added **Focus Fade** — all lines outside the current block dim while editing; snaps back on cursor move. Pure `paintEvent` overlay. Toggle in View menu.
