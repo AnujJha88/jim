@@ -416,10 +416,15 @@ void CodeEditor::mouseMoveEvent(QMouseEvent *event) {
 // ============================================================
 bool CodeEditor::isFoldable(const QTextBlock &block) const {
   QString text = block.text().trimmed();
-  return text.endsWith('{') ||
-         (text.endsWith('(') && text.contains("class ")) ||
-         text.startsWith("def ") || text.startsWith("function ") ||
-         text.startsWith("class ") || text.endsWith(":");
+  if (text.isEmpty()) return false;
+  if (text.endsWith('{')) return true;
+  if (text.endsWith('(') && text.contains("class ")) return true;
+  if (text.startsWith("function ")) return true;
+  // Python/YAML/indent-based: ends with ':' but is not a continuation line
+  // (exclude closing-bracket lines like "):" or "]:" from multi-line signatures)
+  if (text.endsWith(':') && !text.startsWith(')') && !text.startsWith(']'))
+    return true;
+  return false;
 }
 
 bool CodeEditor::isFolded(const QTextBlock &block) const {
@@ -467,13 +472,24 @@ int CodeEditor::indentLevel(const QTextBlock &block) const {
 
 int CodeEditor::findIndentEnd(const QTextBlock &block) const {
     int base = indentLevel(block);
-    int last = block.blockNumber();
+    int lastNonEmpty = block.blockNumber();
     QTextBlock b = block.next();
     while (b.isValid()) {
         if (!b.text().trimmed().isEmpty()) {
             if (indentLevel(b) <= base) break;
-            last = b.blockNumber();
+            lastNonEmpty = b.blockNumber();
         }
+        b = b.next();
+    }
+    // No body found — return header's own block number; toggleFoldAt will bail early
+    if (lastNonEmpty == block.blockNumber())
+        return lastNonEmpty;
+
+    // Extend past trailing blank lines so the fold swallows the gap between blocks
+    int last = lastNonEmpty;
+    b = document()->findBlockByNumber(lastNonEmpty + 1);
+    while (b.isValid() && b.text().trimmed().isEmpty()) {
+        last = b.blockNumber();
         b = b.next();
     }
     return last;
@@ -490,15 +506,24 @@ void CodeEditor::toggleFoldAt(int blockNumber) {
       ? findMatchingBrace(block)
       : findIndentEnd(block);
 
+  // Nothing to fold (no body found)
+  if (endBlock <= blockNumber)
+    return;
+
   QTextBlock b = block.next();
   while (b.isValid() && b.blockNumber() <= endBlock) {
     b.setVisible(!fold);
     b = b.next();
   }
-  document()->markContentsDirty(block.position(), document()->characterCount() -
-                                                      block.position());
+
+  // markContentsDirty triggers QPlainTextDocumentLayout::documentChanged
+  // which recalculates block heights (invisible blocks → 0 height) and
+  // emits documentSizeChanged so the scroll bar updates correctly.
+  document()->markContentsDirty(block.position(),
+                                document()->characterCount() - block.position());
   updateLineNumberAreaWidth(0);
   viewport()->update();
+  foldingArea->update();
 }
 
 void CodeEditor::foldingAreaPaintEvent(QPaintEvent *event) {
