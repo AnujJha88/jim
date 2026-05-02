@@ -69,7 +69,7 @@ QVector<VulnScanner::Finding> VulnScanner::scan(const QString &text, Language la
 
         checkRules(generalRules);
         
-        if (lang == Language::CPP || lang == Language::C) {
+        if (lang == Language::CPP) {
             checkRules(cppRules);
         }
         

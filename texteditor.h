@@ -27,6 +27,7 @@
 #include <QSplitter>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QRandomGenerator>
 
 class LineNumberArea;
 class FoldingArea;
@@ -331,6 +332,12 @@ public:
     bool getAutoSaveOnFocusLost() const { return autoSaveOnFocusLost; }
     void insertFromMimeData(const QMimeData *source) override;
 
+    // v0.9.0 Web3Sec (public so TextEditor can call them)
+    void setGasMinimapEnabled(bool en);
+    void setMemTraceEnabled(bool en);
+    void highlightMemoryTraceLines(const QVector<int> &lines);
+    QVector<VulnScanner::Finding> vulnFindings;
+
 signals:
     void characterTyped();
     void codeBlockDeleted(const QString &code, const QString &source);
@@ -388,7 +395,6 @@ private:
     bool vulnScanEnabled = false;
     VulnScanner *vulnScanner = nullptr;
     QTimer *vulnScanTimer = nullptr;
-    QVector<VulnScanner::Finding> vulnFindings;
     // v1.9 features
     bool focusFadeEnabled = false;
     bool imagePreviewEnabled = false;
@@ -412,9 +418,6 @@ private:
     bool gasMinimapEnabled;
     bool memTraceEnabled;
     QVector<int> memTraceHighlightLines;
-    void setGasMinimapEnabled(bool en);
-    void setMemTraceEnabled(bool en);
-    void highlightMemoryTraceLines(const QVector<int> &lines);
 };
 
 // SyntaxHighlighter class is defined in syntaxhighlighter.h (included above)
@@ -649,7 +652,6 @@ private:
     void clampToScreen();
     void readSettings();
     void writeSettings();
-    bool maybeSave(int tabIndex);
     void loadFile(const QString &fileName);
     bool saveFileToPath(const QString &fileName);
     void setCurrentFile(const QString &fileName);
@@ -679,7 +681,7 @@ private:
     void animateTerminalShow();
     void animateTerminalHide();
     void flashTabLabel(int tabIndex);
-    void flashStatusMessage(const QString &msg, const QColor &color, int ms = 2500);
+    void flashStatusMessage(const QString &msg, const QColor &color = QColor("#4ec9b0"), int ms = 2500);
 
     // Markdown preview helpers
     void connectMarkdownPreview(CodeEditor *editor);

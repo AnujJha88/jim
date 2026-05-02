@@ -21,7 +21,7 @@
 - [x] Monokai theme
 - [x] Modernized VS Code-inspired UI
 
-### Remaining for v1.1
+### Remaining for v0.1
 - [x] Regex search with toggle
 - [x] Case-sensitive / whole-word search toggles
 - [x] Highlight all search matches

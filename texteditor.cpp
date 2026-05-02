@@ -2002,8 +2002,9 @@ void TextEditor::writeSettings() {
   settings.setValue("wordWrap", wordWrapEnabled);
 }
 
-bool TextEditor::maybeSave(int tabIndex) {
-  QWidget *widget = tabWidget->widget(tabIndex);
+bool TextEditor::maybeSave(int tabIndex, QTabWidget *targetWidget) {
+  QTabWidget *tw = targetWidget ? targetWidget : tabWidget;
+  QWidget *widget = tw->widget(tabIndex);
   CodeEditor *editor = qobject_cast<CodeEditor *>(widget);
   HexEditor *hexEditor = qobject_cast<HexEditor *>(widget);
 
@@ -3986,7 +3987,7 @@ void TextEditor::triggerPanicButton() {
                 if (pass == 1) {
                     zeroes.fill('\xFF');
                 } else if (pass == 2) {
-                    for (char &c : zeroes) c = (char)(qrand() % 256);
+                    for (char &c : zeroes) c = (char)(QRandomGenerator::global()->bounded(256));
                 }
             }
             scratchFile.close();
@@ -4279,7 +4280,7 @@ void TextEditor::showOnChainTracer() {
         params.append(opts);
         rpcCall["params"] = params;
 
-        QNetworkRequest req(QUrl(rpcUrl));
+        QNetworkRequest req{QUrl(rpcUrl)};
         req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         req.setHeader(QNetworkRequest::UserAgentHeader, "Jim-Editor/0.9.0");
 
