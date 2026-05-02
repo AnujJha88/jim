@@ -25,6 +25,8 @@
 #include <QVariantAnimation>
 #include <QGraphicsOpacityEffect>
 #include <QSplitter>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 
 class LineNumberArea;
 class FoldingArea;
@@ -47,6 +49,9 @@ class AudioMonitor;
 #include <QDateTime>
 #include <QListWidget>
 #include "syntaxhighlighter.h"
+#include "vulnscanner.h"
+#include "solidityanalyzer.h"
+#include "storageslotvisualizer.h"
 
 class KeyHeatmapOverlay;
 class VimMode;
@@ -308,9 +313,23 @@ public:
     void setVimEnabled(bool enabled);
     bool isVimEnabled() const;
 
+    // Security Pack
+    void setParanoiaMode(bool enabled);
+    void setVulnScanEnabled(bool enabled);
+
     // v1.9 toggleable features
     void setFocusFadeEnabled(bool enabled);
     void setImagePreviewEnabled(bool enabled);
+
+    // v0.8.0 QoL features
+    void setStickyScrollEnabled(bool enabled);
+    void setInvisibleCharsEnabled(bool enabled);
+    void setGitBlameEnabled(bool enabled);
+    void fetchGitBlame();
+    void setKineticScrollEnabled(bool enabled);
+    void setAutoSaveOnFocusLost(bool enabled) { autoSaveOnFocusLost = enabled; }
+    bool getAutoSaveOnFocusLost() const { return autoSaveOnFocusLost; }
+    void insertFromMimeData(const QMimeData *source) override;
 
 signals:
     void characterTyped();
@@ -339,6 +358,7 @@ private slots:
     void highlightCurrentLine();
     void updateLineNumberArea(const QRect &rect, int dy);
     void onDocumentContentsChange(int position, int charsRemoved, int charsAdded);
+    void runVulnScan();
 
     friend class FoldingArea;
 
@@ -363,11 +383,38 @@ private:
     QMap<int, int> lineEditHeat;
     // Vim mode handler
     VimMode *vimMode = nullptr;
+    // Security Pack
+    bool paranoiaMode = false;
+    bool vulnScanEnabled = false;
+    VulnScanner *vulnScanner = nullptr;
+    QTimer *vulnScanTimer = nullptr;
+    QVector<VulnScanner::Finding> vulnFindings;
     // v1.9 features
     bool focusFadeEnabled = false;
     bool imagePreviewEnabled = false;
     void autoIndent();
     void matchBrackets();
+
+    // v0.8.0 QoL features
+    bool stickyScrollEnabled = false;
+    bool invisibleCharsEnabled = false;
+    bool gitBlameEnabled = false;
+    bool kineticScrollEnabled = false;
+    bool autoSaveOnFocusLost = false;
+    // Git blame cache: line number -> short annotation string
+    QMap<int, QString> blameCache;
+    QProcess *blameProcess = nullptr;
+    // Kinetic scroll
+    double kineticVelocity = 0.0;
+    QTimer *kineticTimer = nullptr;
+
+    // v0.9.0 Web3Sec
+    bool gasMinimapEnabled;
+    bool memTraceEnabled;
+    QVector<int> memTraceHighlightLines;
+    void setGasMinimapEnabled(bool en);
+    void setMemTraceEnabled(bool en);
+    void highlightMemoryTraceLines(const QVector<int> &lines);
 };
 
 // SyntaxHighlighter class is defined in syntaxhighlighter.h (included above)
@@ -456,6 +503,52 @@ private:
     QTreeWidget *tree;
 };
 
+// ── Search Everywhere Dialog ──────────────────────────────────────────────
+class SearchEverywhere : public QDialog {
+    Q_OBJECT
+public:
+    explicit SearchEverywhere(QWidget *parent = nullptr);
+    void populate(const QList<QAction*> &actions,
+                  const QStringList &recentFiles,
+                  const QStringList &openFiles);
+signals:
+    void fileRequested(const QString &filePath);
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
+private:
+    QLineEdit   *searchBox;
+    QListWidget *resultList;
+    QList<QAction*> allActions;
+    QStringList allFiles;
+    QStringList allRecent;
+    void filter(const QString &text);
+    void runSelected();
+};
+
+// ── Drag and Drop Split Panes ─────────────────────────────────────────────
+class DraggableTabBar : public QTabBar {
+    Q_OBJECT
+public:
+    explicit DraggableTabBar(QWidget *parent = nullptr);
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+private:
+    QPoint dragStartPos;
+};
+
+class DraggableTabWidget : public QTabWidget {
+    Q_OBJECT
+public:
+    explicit DraggableTabWidget(QWidget *parent = nullptr);
+signals:
+    void tabDroppedOutside();
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+};
+
 class TextEditor : public QMainWindow {
     Q_OBJECT
 
@@ -479,6 +572,7 @@ private slots:
     void openFolder();
     bool saveFile();
     bool saveFileAs();
+    bool maybeSave(int tabIndex, QTabWidget *targetWidget = nullptr);
     void closeTab(int index);
     void tabChanged(int index);
     void findText();
@@ -492,6 +586,7 @@ private slots:
     void updateStatusBar();
     void increaseFontSize();
     void decreaseFontSize();
+    void selectFont();
     void toggleWordWrap();
     void toggleSplitView();
     void toggleFileTree();
@@ -519,6 +614,33 @@ private slots:
     void openNeuralGraph();
     void openGhostReplay();
     void openScratchpad();
+    
+    // Security Pack
+    void toggleParanoiaMode();
+    void toggleVulnScan();
+
+    // v0.8.0 QoL slots
+    void switchHeaderSource();
+    void locateCurrentFileInTree();
+    void openSearchEverywhere();
+    void toggleStickyScroll();
+    void toggleInvisibleChars();
+    void toggleGitBlame();
+    void toggleAutoSaveOnFocusLost();
+    void sendSelectionToScratchpad();
+
+    // Web3Sec Pack (v0.8.1)
+    void triggerGodView();
+    void extractABI();
+    void resolveFourByte();
+    void triggerPanicButton();
+
+    // v0.9.0 Web3Sec
+    void showStorageSlotVisualizer();
+    void toggleGasMinimap();
+    void toggleSlitherOverlay();
+    void showOnChainTracer();
+    void showProxyDiff();
 
 private:
     void createActions();
@@ -576,13 +698,25 @@ private:
     QMap<CodeEditor*, SyntaxHighlighter*> highlighters;
     QLabel *statusLabel;
     QLabel *languageLabel;
+    QLabel *paranoiaLabel = nullptr;
     QStringList recentFiles;
     QString lastSearchText;
     bool wordWrapEnabled;
     bool splitViewEnabled;
+    bool paranoiaMode = false;
     int fontSize;
+    QString editorFontFamily = "Consolas";
     int currentThemeIndex;
     QVector<ColorTheme> themes;
+
+    // v0.8.0 state
+    SearchEverywhere *searchEverywhere = nullptr;
+    qint64 lastShiftPressMs = 0;   // for double-Shift detection
+    bool stickyScrollEnabled = false;
+    bool invisibleCharsEnabled = false;
+    bool gitBlameEnabled = false;
+    bool autoSaveFocusEnabled = false;
+    QGraphicsColorizeEffect *pane2DimEffect = nullptr;
     
     // Session Time Tracker
     QLabel *sessionTimeLabel;
@@ -624,6 +758,8 @@ private:
     MarkdownPreviewWidget *markdownPreview  = nullptr;
     QTimer                *markdownTimer    = nullptr;
     CodeEditor            *markdownEditor   = nullptr; // editor currently connected
+    
+    QNetworkAccessManager *networkManager = nullptr;
     
     QMenu *fileMenu;
     QMenu *markdownMenu;
@@ -672,6 +808,7 @@ private:
     QAction *wordWrapAct;
     QAction *increaseFontAct;
     QAction *decreaseFontAct;
+    QAction *selectFontAct = nullptr;
     QAction *splitViewAct;
     QAction *fileTreeAct;
     QAction *miniMapAct;
@@ -688,8 +825,27 @@ private:
     QAction *disassembleAct;
     QAction *binaryInspectAct;
     QAction *openHexAct;
+
+    // Web3Sec Actions
+    QAction *godViewAct;
+    QAction *extractABIAct;
+    QAction *resolveFourByteAct;
+    QAction *panicButtonAct;
     QAction *neuralGraphAct;
     QAction *ghostReplayAct;
+
+    // v0.9.0 dock widgets
+    StorageSlotVisualizerWidget *slotVisualizerWidget = nullptr;
+    QDockWidget *slotVisualizerDock = nullptr;
+
+    // v0.9.0 actions
+    QAction *storageSlotVizAct = nullptr;
+    QAction *gasMiniMapAct = nullptr;
+    QAction *slitherOverlayAct = nullptr;
+    QAction *onChainTracerAct = nullptr;
+    QAction *proxyDiffAct = nullptr;
+    QAction *memTraceAct = nullptr;
+    bool gasMiniMapEnabled = false;
 
     // Markdown preview action
     QAction *markdownPreviewAct;
@@ -722,6 +878,20 @@ private:
     void toggleTodoPanel();
     void onTodoJump(const QString &filePath, int line);
 
+    // Security Pack actions
+    QAction *paranoiaModeAct = nullptr;
+    QAction *vulnScanAct = nullptr;
+
+    // v0.8.0 QoL actions
+    QAction *switchHeaderSourceAct = nullptr;
+    QAction *locateInTreeAct = nullptr;
+    QAction *searchEverywhereAct = nullptr;
+    QAction *stickyScrollAct = nullptr;
+    QAction *invisibleCharsAct = nullptr;
+    QAction *gitBlameAct = nullptr;
+    QAction *autoSaveFocusAct = nullptr;
+    QAction *sendToScratchpadAct = nullptr;
+
     // v1.9 features
     QAction *focusFadeAct = nullptr;
     QAction *imagePreviewAct = nullptr;
@@ -743,6 +913,12 @@ private:
     void toggleFocusFade();
     void toggleImagePreview();
     void showSessionStats();
+    // v0.8.0 helpers
+    void applyPaneDimming();
+    void propagateV080Settings(CodeEditor *ed);
+    void propagateV090Settings(CodeEditor *ed);
+    void changeEvent(QEvent *e) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
 };
 
 #endif

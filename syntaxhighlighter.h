@@ -19,7 +19,9 @@ enum class Language {
     Go,
     JSON,
     YAML,
-    Markdown
+    Markdown,
+    Solidity,
+    Yul
 };
 
 struct ColorTheme {
@@ -87,6 +89,8 @@ private:
     void setupJsonRules();
     void setupYamlRules();
     void setupMarkdownRules();
+    void setupSolidityRules();
+    void setupYulRules();
 };
 
 #endif // SYNTAXHIGHLIGHTER_H

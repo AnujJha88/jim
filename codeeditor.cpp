@@ -15,6 +15,10 @@
 #include <QRegularExpression>
 #include <QToolTip>
 #include <QUrl>
+#include <QLocale>
+#include <QMimeData>
+#include <QProcess>
+#include <QColorDialog>
 #include <cmath>
 #include <algorithm>
 
@@ -62,6 +66,13 @@ CodeEditor::CodeEditor(QWidget *parent)
   setTabStopDistance(fontMetrics().horizontalAdvance(' ') * 4);
   viewport()->setMouseTracking(true);
 
+  // Vuln Scanner initialization
+  vulnScanner = new VulnScanner(this);
+  vulnScanTimer = new QTimer(this);
+  vulnScanTimer->setSingleShot(true);
+  vulnScanTimer->setInterval(300);
+  connect(vulnScanTimer, &QTimer::timeout, this, &CodeEditor::runVulnScan);
+
   // Ghost replay & graveyard tracking
   connect(document(), &QTextDocument::contentsChange, this,
           &CodeEditor::onDocumentContentsChange);
@@ -71,6 +82,19 @@ CodeEditor::CodeEditor(QWidget *parent)
   vimMode = new VimMode(this);
   connect(vimMode, &VimMode::modeChanged, this, &CodeEditor::vimModeChanged);
   connect(vimMode, &VimMode::deleteLineRequested, this, &CodeEditor::deleteLine);
+
+  // Kinetic scroll timer
+  kineticTimer = new QTimer(this);
+  kineticTimer->setInterval(16); // ~60fps
+  connect(kineticTimer, &QTimer::timeout, this, [this]() {
+      if (qAbs(kineticVelocity) < 0.5) { kineticTimer->stop(); kineticVelocity = 0; return; }
+      QScrollBar *sb = verticalScrollBar();
+      sb->setValue(sb->value() + static_cast<int>(kineticVelocity));
+      kineticVelocity *= 0.88; // friction
+  });
+
+  gasMinimapEnabled = false;
+  memTraceEnabled = false;
 }
 
 void CodeEditor::setLanguage(Language lang) { currentLanguage = lang; }
@@ -222,6 +246,47 @@ void CodeEditor::paintEvent(QPaintEvent *e) {
     block = block.next();
   }
 
+  // ── Laser Vuln Underlines ─────────────────────────────────────────────────
+  if (vulnScanEnabled && !vulnFindings.isEmpty()) {
+      QTextBlock block = firstVisibleBlock();
+      QPointF offset = contentOffset();
+      
+      painter.save();
+      while (block.isValid()) {
+          QRectF blockRect = blockBoundingGeometry(block).translated(offset);
+          if (blockRect.top() > e->rect().bottom()) break;
+          
+          if (block.isVisible() && blockRect.bottom() >= e->rect().top()) {
+              int bNum = block.blockNumber();
+              for (const auto &finding : vulnFindings) {
+                  if (finding.line == bNum) {
+                      QTextCursor curStart(block);
+                      curStart.setPosition(block.position() + finding.colStart);
+                      QTextCursor curEnd(block);
+                      curEnd.setPosition(block.position() + finding.colEnd);
+                      
+                      QRect rStart = cursorRect(curStart);
+                      QRect rEnd = cursorRect(curEnd);
+                      
+                      int xStart = rStart.left();
+                      int xEnd = rEnd.left() > xStart ? rEnd.left() : rStart.right() + 8; // ensure some width
+                      int yLine = rStart.bottom() - 1;
+                      
+                      // Draw laser glow (semi-transparent thicker line)
+                      painter.setPen(QPen(QColor(255, 40, 40, 80), 4));
+                      painter.drawLine(xStart, yLine, xEnd, yLine);
+                      
+                      // Draw laser core (solid thinner line)
+                      painter.setPen(QPen(QColor(255, 40, 40), 2));
+                      painter.drawLine(xStart, yLine, xEnd, yLine);
+                  }
+              }
+          }
+          block = block.next();
+      }
+      painter.restore();
+  }
+
   // ── Bracket Pair Colorization ─────────────────────────────────────────────
   {
     static const QColor bColors[3] = {
@@ -307,6 +372,134 @@ void CodeEditor::paintEvent(QPaintEvent *e) {
       }
       painter.restore();
   }
+
+  // ── Memory Pointer Trace Highlights ─────────────────────────────────────
+  if (memTraceEnabled && !memTraceHighlightLines.isEmpty()) {
+      painter.save();
+      QTextBlock blk = firstVisibleBlock();
+      QPointF off = contentOffset();
+      while (blk.isValid()) {
+          QRectF br = blockBoundingGeometry(blk).translated(off);
+          if (br.top() > e->rect().bottom()) break;
+          if (blk.isVisible() && memTraceHighlightLines.contains(blk.blockNumber())) {
+              painter.fillRect(br, QColor(0, 200, 255, 30));
+              painter.setPen(QPen(QColor(0, 200, 255, 120), 1, Qt::DashLine));
+              painter.drawRect(br.adjusted(0,0,-1,-1));
+          }
+          blk = blk.next();
+      }
+      painter.restore();
+  }
+
+  // ── Sticky Scroll: draw scope context header at top ────────────────────
+  if (stickyScrollEnabled) {
+      static QRegularExpression scopeRe(
+          R"(^\s*(class|struct|namespace|void|int|float|double|bool|auto|QString|QWidget|public:|private:|protected:|function|def|async|if|for|while|switch)\b.*[:{]\s*$)");
+      QTextBlock top = firstVisibleBlock();
+      // Walk backwards to find the enclosing scope line
+      QTextBlock scope;
+      QTextBlock b = top.previous();
+      for (int n = 0; n < 100 && b.isValid(); ++n, b = b.previous()) {
+          if (scopeRe.match(b.text()).hasMatch()) { scope = b; break; }
+      }
+      if (scope.isValid() && scope.blockNumber() != top.blockNumber()) {
+          QString header = scope.text().trimmed();
+          if (header.length() > 80) header = header.left(77) + "...";
+          QFont hf = font();
+          hf.setBold(false);
+          painter.save();
+          painter.setFont(hf);
+          QFontMetrics hfm(hf);
+          int headerH = hfm.height() + 4;
+          QRect bgRect(0, 0, viewport()->width(), headerH);
+          // Background pill
+          QColor bgCol = currentTheme.background.isValid()
+              ? currentTheme.background.darker(130) : QColor(25, 25, 35);
+          bgCol.setAlpha(230);
+          painter.fillRect(bgRect, bgCol);
+          // Left accent line
+          painter.fillRect(0, 0, 3, headerH, QColor(86, 156, 214));
+          // Text
+          painter.setPen(QColor(180, 200, 220, 220));
+          painter.drawText(8, 0, viewport()->width() - 12, headerH,
+                           Qt::AlignVCenter | Qt::AlignLeft, header);
+          painter.restore();
+      }
+  }
+
+  // ── Invisible Character Rendering ────────────────────────────────
+  if (invisibleCharsEnabled) {
+      painter.save();
+      QFont dotFont = font();
+      painter.setFont(dotFont);
+      QFontMetrics ifm(dotFont);
+      int charW = ifm.horizontalAdvance(' ');
+      QTextBlock blk = firstVisibleBlock();
+      QPointF off = contentOffset();
+      while (blk.isValid()) {
+          QRectF br = blockBoundingGeometry(blk).translated(off);
+          if (br.top() > e->rect().bottom()) break;
+          if (blk.isVisible() && br.bottom() >= e->rect().top()) {
+              const QString &txt = blk.text();
+              // Trailing spaces
+              int trailStart = txt.length();
+              while (trailStart > 0 && txt[trailStart-1] == ' ') --trailStart;
+              for (int k = trailStart; k < txt.length(); ++k) {
+                  QTextCursor tc(blk);
+                  tc.setPosition(blk.position() + k);
+                  QRect cr = cursorRect(tc);
+                  painter.setPen(QColor(220, 80, 80, 160));
+                  int cx = cr.left() + charW/2;
+                  int cy = static_cast<int>(br.center().y());
+                  painter.drawEllipse(QPoint(cx, cy), 2, 2);
+              }
+              // Tabs
+              for (int k = 0; k < txt.length(); ++k) {
+                  if (txt[k] != '\t') continue;
+                  QTextCursor tc(blk);
+                  tc.setPosition(blk.position() + k);
+                  QRect cr = cursorRect(tc);
+                  painter.setPen(QColor(100, 160, 220, 140));
+                  int y = static_cast<int>(br.center().y());
+                  painter.drawLine(cr.left()+2, y, cr.left()+8, y);
+                  painter.drawLine(cr.left()+6, y-2, cr.left()+8, y);
+                  painter.drawLine(cr.left()+6, y+2, cr.left()+8, y);
+              }
+          }
+          blk = blk.next();
+      }
+      painter.restore();
+  }
+
+  // ── Git Blame Annotations ───────────────────────────────────────
+  if (gitBlameEnabled && !blameCache.isEmpty()) {
+      painter.save();
+      QFont bf = font();
+      bf.setPointSizeF(bf.pointSizeF() * 0.78);
+      bf.setItalic(true);
+      painter.setFont(bf);
+      QFontMetrics bfm(bf);
+      QTextBlock blk = firstVisibleBlock();
+      QPointF off = contentOffset();
+      while (blk.isValid()) {
+          QRectF br = blockBoundingGeometry(blk).translated(off);
+          if (br.top() > e->rect().bottom()) break;
+          if (blk.isVisible() && br.bottom() >= e->rect().top()) {
+              int lineNum = blk.blockNumber();
+              if (blameCache.contains(lineNum)) {
+                  QString ann = blameCache[lineNum];
+                  // Draw right-aligned at the end of the viewport
+                  int x = viewport()->width() - bfm.horizontalAdvance(ann) - 8;
+                  int y = static_cast<int>(br.top());
+                  painter.setPen(QColor(130, 130, 160, 140));
+                  painter.drawText(x, y, bfm.horizontalAdvance(ann), static_cast<int>(br.height()),
+                                   Qt::AlignVCenter, ann);
+              }
+          }
+          blk = blk.next();
+      }
+      painter.restore();
+  }
 }
 
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event) {
@@ -359,6 +552,42 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event) {
     bottom = top + qRound(blockBoundingRect(block).height());
     ++blockNumber;
   }
+
+  // ── Reentrancy Bloodline ─────────────────────────────────────────────────
+  if (vulnScanEnabled && !vulnFindings.isEmpty()) {
+      painter.save();
+      QVector<QPair<int,int>> reentrancyPairs;
+      for (const auto &f : vulnFindings) {
+          if (f.category == "REENTRANCY") {
+              reentrancyPairs.append({f.line, f.colEnd});
+          }
+      }
+      for (auto &pair : reentrancyPairs) {
+          int callLine = pair.first;
+          int stateLine = pair.second;
+          if (stateLine < 0) continue;
+          QTextBlock callBlock = document()->findBlockByNumber(callLine);
+          QTextBlock stateBlock = document()->findBlockByNumber(stateLine);
+          if (!callBlock.isValid() || !stateBlock.isValid()) continue;
+          int callTop = qRound(blockBoundingGeometry(callBlock).translated(contentOffset()).top());
+          int stateTop = qRound(blockBoundingGeometry(stateBlock).translated(contentOffset()).top());
+          int lh = fontMetrics().height();
+          int callY = callTop + lh/2;
+          int stateY = stateTop + lh/2;
+          int x = lineNumberArea->width() / 2;
+          QLinearGradient grad(x, callY, x, stateY);
+          grad.setColorAt(0.0, QColor(255, 30, 30, 200));
+          grad.setColorAt(0.5, QColor(255, 0, 0, 255));
+          grad.setColorAt(1.0, QColor(200, 0, 50, 200));
+          painter.setPen(QPen(QBrush(grad), 3));
+          painter.drawLine(x, callY, x, stateY);
+          painter.setBrush(QColor(255, 30, 30, 220));
+          painter.setPen(Qt::NoPen);
+          painter.drawEllipse(QPoint(x, callY), 4, 4);
+          painter.drawEllipse(QPoint(x, stateY), 4, 4);
+      }
+      painter.restore();
+  }
 }
 
 // ============================================================
@@ -375,8 +604,60 @@ void CodeEditor::setImagePreviewEnabled(bool enabled) {
         QToolTip::hideText();
 }
 
+void CodeEditor::setParanoiaMode(bool enabled) {
+    paranoiaMode = enabled;
+}
+
+void CodeEditor::setVulnScanEnabled(bool enabled) {
+    vulnScanEnabled = enabled;
+    if (enabled) {
+        connect(document(), &QTextDocument::contentsChanged, vulnScanTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
+        vulnScanTimer->start();
+    } else {
+        disconnect(document(), &QTextDocument::contentsChanged, vulnScanTimer, qOverload<>(&QTimer::start));
+        vulnScanTimer->stop();
+        vulnFindings.clear();
+        viewport()->update();
+    }
+}
+
+void CodeEditor::runVulnScan() {
+    if (!vulnScanEnabled) return;
+    vulnFindings = vulnScanner->scan(toPlainText(), currentLanguage, fileName);
+    viewport()->update();
+}
+
 void CodeEditor::mouseMoveEvent(QMouseEvent *event) {
-    if (imagePreviewEnabled) {
+    bool tooltipShown = false;
+    
+    // ── Vuln Scanner Hover HUD ──────────────────────────────────────────────
+    if (vulnScanEnabled && !vulnFindings.isEmpty()) {
+        QTextCursor cur = cursorForPosition(event->pos());
+        int line = cur.blockNumber();
+        int col = cur.positionInBlock();
+        
+        for (const auto &finding : vulnFindings) {
+            if (finding.line == line && col >= finding.colStart && col <= finding.colEnd) {
+                QString titleColor = "#ff2828";
+                if (finding.category == "SECRET") titleColor = "#ffb86c";
+                else if (finding.category == "SOLIDITY") titleColor = "#bd93f9";
+                
+                QString tip = QString(
+                    "<div style='background-color:#0d0d0d; border:1px solid %1; padding:6px; border-radius:4px; font-family:Consolas,monospace;'>"
+                    "<div style='color:%1; font-weight:bold; font-size:12px; margin-bottom:4px;'>[%2]</div>"
+                    "<div style='color:#cdd6f4; font-size:11px;'>%3</div>"
+                    "</div>"
+                ).arg(titleColor, finding.category, finding.description);
+                
+                QToolTip::showText(event->globalPosition().toPoint(), tip, this);
+                tooltipShown = true;
+                break;
+            }
+        }
+    }
+    
+    // ── Image Preview Hover ─────────────────────────────────────────────────
+    if (!tooltipShown && imagePreviewEnabled) {
         QTextCursor cur = cursorForPosition(event->pos());
         QString line = cur.block().text();
         int col = cur.positionInBlock();
@@ -405,9 +686,189 @@ void CodeEditor::mouseMoveEvent(QMouseEvent *event) {
                 break;
             }
         }
-        if (!shown)
+        if (shown) tooltipShown = true;
+        }
+
+        // ── EVM Opcode/Gas HUD (Solidity/Yul) ──────────────────────────────────────
+        if (!tooltipShown && (currentLanguage == Language::Solidity || currentLanguage == Language::Yul)) {
+            QTextCursor cur = cursorForPosition(event->pos());
+            QString lineText = cur.block().text();
+            int col = cur.positionInBlock();
+            // Extract the word under cursor
+            int wordStart = col;
+            int wordEnd = col;
+            while (wordStart > 0 && (lineText[wordStart-1].isLetterOrNumber() || lineText[wordStart-1] == '_')) --wordStart;
+            while (wordEnd < lineText.size() && (lineText[wordEnd].isLetterOrNumber() || lineText[wordEnd] == '_')) ++wordEnd;
+            QString word = lineText.mid(wordStart, wordEnd - wordStart).toUpper();
+
+            // EVM opcode gas cost map
+            static const QMap<QString,QPair<int,QString>> evmOps = {
+                {"SLOAD",   {100,  "Load from storage (warm: 100, cold: 2100)"}},
+                {"SSTORE",  {100,  "Write to storage (warm: 100, new: 20000, modify: 2900)"}},
+                {"MLOAD",   {3,    "Load 32 bytes from memory"}},
+                {"MSTORE",  {3,    "Write 32 bytes to memory"}},
+                {"MSTORE8", {3,    "Write 1 byte to memory"}},
+                {"KECCAK256",{30,  "Compute Keccak-256 hash (30 + 6/word)"}},
+                {"SHA3",    {30,   "Compute Keccak-256 hash (alias, 30 + 6/word)"}},
+                {"CALL",    {2600, "Message call (cold: 2600+, warm: 100+)"}},
+                {"STATICCALL",{2600,"Static call (cold: 2600+)"}},
+                {"DELEGATECALL",{2600,"Delegate call (cold: 2600+)"}},
+                {"BALANCE", {2600, "Get account balance (cold: 2600, warm: 100)"}},
+                {"EXTCODESIZE",{2600,"Get external code size (cold: 2600)"}},
+                {"LOG0",    {375,  "Emit log with 0 topics (375 + 8/byte)"}},
+                {"LOG1",    {750,  "Emit log with 1 topic"}},
+                {"LOG2",    {1125, "Emit log with 2 topics"}},
+                {"LOG3",    {1500, "Emit log with 3 topics"}},
+                {"LOG4",    {1875, "Emit log with 4 topics"}},
+                {"CREATE",  {32000,"Create new contract"}},
+                {"CREATE2", {32000,"Create contract with deterministic address"}},
+                {"SELFDESTRUCT",{5000,"Destroy contract and send ETH"}},
+                {"JUMP",    {8,    "Unconditional jump"}},
+                {"JUMPI",   {10,   "Conditional jump"}},
+                {"ADD",     {3,    "Addition"}},
+                {"MUL",     {5,    "Multiplication"}},
+                {"SUB",     {3,    "Subtraction"}},
+                {"DIV",     {5,    "Integer division"}},
+                {"MOD",     {5,    "Modulo"}},
+                {"EXP",     {50,   "Exponentiation (50 + 50/byte of exponent)"}},
+            };
+            QString lookupKey = word;
+            if (evmOps.contains(lookupKey)) {
+                auto [gas, desc] = evmOps[lookupKey];
+                QString tip = QString(
+                    "<div style='background:#0d0d1a;border:1px solid #00ff88;padding:8px;border-radius:4px;font-family:Consolas,monospace;'>"
+                    "<div style='color:#00ff88;font-weight:bold;font-size:13px;'>\u26a1 %1</div>"
+                    "<div style='color:#88ff88;font-size:11px;margin-top:2px;'>Gas: <b>~%2</b></div>"
+                    "<div style='color:#aaaaaa;font-size:10px;margin-top:4px;'>%3</div>"
+                    "</div>"
+                ).arg(lookupKey).arg(gas).arg(desc);
+                QToolTip::showText(event->globalPosition().toPoint(), tip, this);
+                tooltipShown = true;
+            }
+        }
+
+        // ── Decimal Expansion Tooltips ──────────────────────────────────────────
+        if (!tooltipShown) {
+            QTextCursor cur = cursorForPosition(event->pos());
+            QString lineText = cur.block().text();
+            int col = cur.positionInBlock();
+            static QRegularExpression numRe(R"((\b\d[\d_]*(?:\*\*\d+|e\d+)\b|0x[0-9A-Fa-f]{5,})\b)");
+            QRegularExpressionMatchIterator it = numRe.globalMatch(lineText);
+            while (it.hasNext()) {
+                QRegularExpressionMatch m = it.next();
+                if (col >= m.capturedStart() && col <= m.capturedEnd()) {
+                    QString token = m.captured(0);
+                    QString expanded;
+                    static QRegularExpression expRe(R"((\d+)e(\d+))");
+                    static QRegularExpression powRe(R"((\d+)\*\*(\d+))");
+                    static QRegularExpression hexRe2(R"(0x([0-9A-Fa-f]+))");
+                    QRegularExpressionMatch em;
+                    if ((em = expRe.match(token)).hasMatch()) {
+                        bool ok; quint64 base = em.captured(1).toULongLong(&ok);
+                        int exp = em.captured(2).toInt();
+                        if (ok && exp <= 18) {
+                            quint64 val = base;
+                            for (int i=0;i<exp;++i) val *= 10;
+                            expanded = QLocale().toString(val);
+                        } else if (ok) {
+                            expanded = em.captured(1) + " \u00d7 10^" + em.captured(2);
+                        }
+                    } else if ((em = powRe.match(token)).hasMatch()) {
+                        bool ok; quint64 base2 = em.captured(1).toULongLong(&ok);
+                        int exp2 = em.captured(2).toInt();
+                        if (ok && base2 == 2 && exp2 <= 63) {
+                            quint64 val = (quint64)1 << exp2;
+                            expanded = QLocale().toString(val);
+                        } else if (ok && exp2 <= 18) {
+                            quint64 val = base2;
+                            for (int i=1;i<exp2;++i) val *= base2;
+                            expanded = QLocale().toString(val);
+                        } else {
+                            expanded = em.captured(1) + "^" + em.captured(2) + " (too large)";
+                        }
+                    } else if ((em = hexRe2.match(token)).hasMatch()) {
+                        bool ok; quint64 val = em.captured(1).toULongLong(&ok, 16);
+                        if (ok) expanded = "= " + QLocale().toString(val) + " (decimal)";
+                    }
+                    if (!expanded.isEmpty()) {
+                        QString tip = QString(
+                            "<div style='background:#0d0d0d;border:1px solid #ffb86c;padding:6px;border-radius:4px;font-family:Consolas,monospace;'>"
+                            "<div style='color:#ffb86c;font-weight:bold;'>\U0001f522 %1</div>"
+                            "<div style='color:#f8f8f2;font-size:13px;margin-top:3px;'>%2</div>"
+                            "</div>"
+                        ).arg(token.toHtmlEscaped(), expanded);
+                        QToolTip::showText(event->globalPosition().toPoint(), tip, this);
+                        tooltipShown = true;
+                    }
+                    break;
+                }
+            }
+        }
+
+        // ── Cyber-Encoder Ring (Alt + hover) ────────────────────────────────────
+        if (!tooltipShown && (event->modifiers() & Qt::AltModifier)) {
+            QTextCursor cur = cursorForPosition(event->pos());
+            QString lineText = cur.block().text();
+            int col = cur.positionInBlock();
+            int tStart = col, tEnd = col;
+            if (col > 0 && col < lineText.size()) {
+                int sStart = col, sEnd = col;
+                for (int i = col-1; i >= 0; --i) {
+                    if (lineText[i] == '"' || lineText[i] == '\'') { sStart = i+1; break; }
+                    if (lineText[i].isSpace()) { sStart = i+1; break; }
+                }
+                for (int i = col; i < lineText.size(); ++i) {
+                    if (lineText[i] == '"' || lineText[i] == '\'') { sEnd = i; break; }
+                    if (lineText[i].isSpace()) { sEnd = i; break; }
+                }
+                tStart = sStart; tEnd = sEnd;
+            }
+            QString token = lineText.mid(tStart, tEnd - tStart).trimmed();
+            if (token.length() >= 4) {
+                QString decoded;
+                QString method;
+                // Try Base64
+                QByteArray b64 = QByteArray::fromBase64(token.toUtf8(), QByteArray::AbortOnBase64DecodingErrors);
+                if (!b64.isEmpty() && token.size() % 4 == 0) {
+                    bool printable = true;
+                    for (char c : b64) { if ((unsigned char)c < 32 && c != '\n' && c != '\r' && c != '\t') { printable = false; break; } }
+                    if (printable) { decoded = QString::fromUtf8(b64).left(200); method = "Base64"; }
+                }
+                // Try Hex
+                if (decoded.isEmpty()) {
+                    QString hexStr = token;
+                    if (hexStr.startsWith("0x", Qt::CaseInsensitive)) hexStr = hexStr.mid(2);
+                    static QRegularExpression hexOnly("^[0-9A-Fa-f]+$");
+                    if (hexOnly.match(hexStr).hasMatch() && hexStr.size() >= 8) {
+                        QByteArray hexBytes = QByteArray::fromHex(hexStr.toUtf8());
+                        bool printable = true;
+                        for (char c : hexBytes) { if ((unsigned char)c < 32 && c != '\n') { printable = false; break; } }
+                        if (printable) { decoded = QString::fromUtf8(hexBytes).left(200); method = "Hex"; }
+                        else { decoded = hexBytes.toHex(' ').toUpper(); method = "Hex bytes"; }
+                    }
+                }
+                // Try URL encoding
+                if (decoded.isEmpty() && token.contains('%')) {
+                    decoded = QUrl::fromPercentEncoding(token.toUtf8());
+                    if (decoded != token) method = "URL-decoded";
+                    else decoded.clear();
+                }
+                if (!decoded.isEmpty()) {
+                    QString tip = QString(
+                        "<div style='background:#0a0a1a;border:1px solid #ff79c6;padding:8px;border-radius:4px;font-family:Consolas,monospace;max-width:400px;'>"
+                        "<div style='color:#ff79c6;font-weight:bold;'>\U0001f510 Cyber-Encoder Ring \u2014 %1</div>"
+                        "<div style='color:#8be9fd;font-size:11px;margin-top:4px;word-break:break-all;'>%2</div>"
+                        "</div>"
+                    ).arg(method, decoded.toHtmlEscaped());
+                    QToolTip::showText(event->globalPosition().toPoint(), tip, this);
+                    tooltipShown = true;
+                }
+            }
+        }
+
+        if (!tooltipShown)
             QToolTip::hideText();
-    }
+
     QPlainTextEdit::mouseMoveEvent(event);
 }
 
@@ -595,6 +1056,74 @@ void CodeEditor::selectNextOccurrence() {
 }
 
 void CodeEditor::mousePressEvent(QMouseEvent *event) {
+    // Ctrl+Click on hex color code → open color picker
+    if ((event->modifiers() & Qt::ControlModifier) && event->button() == Qt::LeftButton) {
+        QTextCursor cur = cursorForPosition(event->pos());
+        QString line = cur.block().text();
+        int col = cur.positionInBlock();
+        static QRegularExpression hexRe("#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\\b");
+        QRegularExpressionMatchIterator it = hexRe.globalMatch(line);
+        while (it.hasNext()) {
+            QRegularExpressionMatch m = it.next();
+            if (col >= m.capturedStart() && col <= m.capturedEnd()) {
+                QColor initial(m.captured(0));
+                QColor chosen = QColorDialog::getColor(initial, this, "Pick Color",
+                    QColorDialog::ShowAlphaChannel);
+                if (chosen.isValid()) {
+                    QTextCursor tc = cur;
+                    tc.setPosition(cur.block().position() + m.capturedStart());
+                    tc.setPosition(cur.block().position() + m.capturedEnd(), QTextCursor::KeepAnchor);
+                    QString newHex = chosen.name().toUpper();
+                    tc.insertText(newHex);
+                }
+                event->accept();
+                return;
+            }
+        }
+    }
+
+    // ── Memory Pointer / Yul Tracer ─────────────────────────────────────────
+    if (memTraceEnabled && (currentLanguage == Language::Solidity || currentLanguage == Language::Yul)) {
+        QTextCursor cur2 = cursorForPosition(event->pos());
+        QString lineText2 = cur2.block().text();
+        int col2 = cur2.positionInBlock();
+        int wS = col2, wE = col2;
+        while (wS > 0 && (lineText2[wS-1].isLetterOrNumber() || lineText2[wS-1] == 'x')) --wS;
+        while (wE < lineText2.size() && (lineText2[wE].isLetterOrNumber())) ++wE;
+        QString token2 = lineText2.mid(wS, wE - wS);
+        bool isMemPtr = false;
+        quint64 targetOffset = 0;
+        if (token2.startsWith("0x", Qt::CaseInsensitive)) {
+            bool ok; targetOffset = token2.mid(2).toULongLong(&ok, 16);
+            isMemPtr = ok;
+        } else if (token2 == "64") {
+            targetOffset = 0x40; isMemPtr = true;
+        } else if (token2 == "96") {
+            targetOffset = 0x60; isMemPtr = true;
+        }
+        if (isMemPtr) {
+            QString offsetHex = QString("0x%1").arg(targetOffset, 0, 16);
+            QVector<int> matchLines;
+            QString docText = toPlainText();
+            QStringList docLines = docText.split('\n');
+            static QRegularExpression mloadRe(R"(\bmload\s*\()");
+            static QRegularExpression mstoreRe(R"(\bmstore\s*\()");
+            for (int li = 0; li < docLines.size(); ++li) {
+                const QString &dl = docLines[li];
+                if ((mloadRe.match(dl).hasMatch() || mstoreRe.match(dl).hasMatch()) &&
+                    dl.contains(offsetHex, Qt::CaseInsensitive)) {
+                    matchLines.append(li);
+                }
+            }
+            if (!matchLines.isEmpty()) {
+                highlightMemoryTraceLines(matchLines);
+                QToolTip::showText(event->globalPosition().toPoint(),
+                    QString("Memory tracer: %1 mload/mstore ops at %2").arg(matchLines.size()).arg(offsetHex),
+                    this, QRect(), 2000);
+            }
+        }
+    }
+
     if (event->modifiers() & Qt::AltModifier) {
         QTextCursor c = cursorForPosition(event->pos());
         addExtraCursor(c);
@@ -825,6 +1354,7 @@ void CodeEditor::startRecordingGhost() {
 }
 
 void CodeEditor::logGhostEvent(int pos, int charsRemoved, const QString &textAdded) {
+    if (paranoiaMode) return;
     GhostEvent event;
     event.timestampMs = QDateTime::currentMSecsSinceEpoch() - sessionStartTimeMs;
     event.position = pos;
@@ -920,9 +1450,50 @@ void CodeEditor::miniMapPaintEvent(QPaintEvent *event) {
                    QColor(0, 200, 100, 40));
   painter.setPen(QColor(0, 255, 120, 180));
   painter.drawRect(0, viewportY, miniMap->width() - 1, viewportHeight);
+
+  // Gas Topographic Overlay
+  if (gasMinimapEnabled) {
+      static QRegularExpression highGasRe(
+          R"(\b(sstore|SSTORE|sload|SLOAD|keccak256|KECCAK256|sha3|SHA3|delegatecall|DELEGATECALL|call\{|\.call\(|create|CREATE)\b)",
+          QRegularExpression::CaseInsensitiveOption);
+      static QRegularExpression loopRe(R"(\b(for|while|do)\s*\()");
+      QString docText = document()->toPlainText();
+      QStringList docLines2 = docText.split('\n');
+      int numLines2 = docLines2.size();
+      if (numLines2 == 0) return;
+      float lineH2 = (float)height() / numLines2;
+      for (int li = 0; li < numLines2; ++li) {
+          const QString &dl = docLines2[li];
+          QColor lineColor;
+          if (highGasRe.match(dl).hasMatch()) {
+              lineColor = QColor(255, 60, 30, 140);
+          } else if (loopRe.match(dl).hasMatch()) {
+              lineColor = QColor(255, 160, 0, 100);
+          } else if (dl.contains("view") || dl.contains("pure")) {
+              lineColor = QColor(30, 100, 255, 60);
+          } else {
+              continue;
+          }
+          float y2 = li * lineH2;
+          painter.fillRect(QRectF(0, y2, width(), qMax(1.0f, lineH2)), lineColor);
+      }
+      painter.setPen(QColor(255,80,80,200));
+      painter.drawText(2, height()-28, "\U0001f525 high gas");
+      painter.setPen(QColor(30,130,255,200));
+      painter.drawText(2, height()-14, "\U0001f9ca view/pure");
+  }
 }
 
 void CodeEditor::wheelEvent(QWheelEvent *event) {
+  // Kinetic scroll overrides the old animation when enabled
+  if (kineticScrollEnabled) {
+      int delta = event->angleDelta().y();
+      kineticVelocity -= delta * 0.08;
+      if (!kineticTimer->isActive()) kineticTimer->start();
+      event->accept();
+      return;
+  }
+
   if (!smoothScrollEnabled) {
     QPlainTextEdit::wheelEvent(event);
     return;
@@ -1130,4 +1701,158 @@ void CodeEditor::smartHome() {
                        QTextCursor::MoveAnchor);
   }
   setTextCursor(cursor);
+}
+
+// ── v0.8.0 QoL Feature Implementations ──────────────────────────────────────
+
+void CodeEditor::setStickyScrollEnabled(bool enabled) {
+    stickyScrollEnabled = enabled;
+    viewport()->update();
+}
+
+void CodeEditor::setInvisibleCharsEnabled(bool enabled) {
+    invisibleCharsEnabled = enabled;
+    viewport()->update();
+}
+
+void CodeEditor::setGitBlameEnabled(bool enabled) {
+    gitBlameEnabled = enabled;
+    if (enabled && !fileName.isEmpty())
+        fetchGitBlame();
+    else
+        blameCache.clear();
+    viewport()->update();
+}
+
+void CodeEditor::fetchGitBlame() {
+    if (fileName.isEmpty()) return;
+    if (blameProcess) {
+        blameProcess->kill();
+        blameProcess->deleteLater();
+    }
+    blameProcess = new QProcess(this);
+    blameProcess->setWorkingDirectory(QFileInfo(fileName).absolutePath());
+    QStringList args;
+    args << "blame" << "--porcelain" << QFileInfo(fileName).fileName();
+    connect(blameProcess, &QProcess::finished, this, [this]() {
+        blameCache.clear();
+        QByteArray data = blameProcess->readAllStandardOutput();
+        QStringList lines = QString::fromUtf8(data).split('\n');
+        int currentLine = -1;
+        QString author, timeAgo;
+        for (const QString &l : lines) {
+            // Porcelain format: hash SP orig-line SP final-line SP ...
+            static QRegularExpression hashLine("^[0-9a-f]{40} \\d+ (\\d+)");
+            QRegularExpressionMatch m = hashLine.match(l);
+            if (m.hasMatch()) {
+                currentLine = m.captured(1).toInt() - 1; // 0-based
+                author.clear(); timeAgo.clear();
+            } else if (l.startsWith("author ") && currentLine >= 0) {
+                author = l.mid(7).trimmed();
+                if (author.length() > 12) author = author.left(11) + ".";
+            } else if (l.startsWith("author-time ") && currentLine >= 0) {
+                qint64 ts = l.mid(12).trimmed().toLongLong();
+                qint64 now = QDateTime::currentSecsSinceEpoch();
+                qint64 diff = now - ts;
+                if (diff < 3600)      timeAgo = QString::number(diff/60) + "m ago";
+                else if (diff < 86400) timeAgo = QString::number(diff/3600) + "h ago";
+                else if (diff < 86400*30) timeAgo = QString::number(diff/86400) + "d ago";
+                else                  timeAgo = QString::number(diff/2592000) + "mo ago";
+                if (!author.isEmpty() && !timeAgo.isEmpty())
+                    blameCache[currentLine] = author + ", " + timeAgo;
+            }
+        }
+        blameProcess->deleteLater();
+        blameProcess = nullptr;
+        viewport()->update();
+    });
+    blameProcess->start("git", args);
+}
+
+void CodeEditor::setKineticScrollEnabled(bool enabled) {
+    kineticScrollEnabled = enabled;
+    if (!enabled) { kineticTimer->stop(); kineticVelocity = 0; }
+}
+
+// Smart Paste (auto-indent) + Visual URL Paste (Markdown)
+void CodeEditor::insertFromMimeData(const QMimeData *source) {
+    // Visual URL paste: if clipboard has a URL and there's a selection → Markdown link
+    if (source->hasUrls() || (source->hasText() &&
+        (source->text().startsWith("http://") || source->text().startsWith("https://")))) {
+        if (textCursor().hasSelection() &&
+            (currentLanguage == Language::Markdown || currentLanguage == Language::PlainText)) {
+            QString url = source->hasUrls() ? source->urls().first().toString() : source->text().trimmed();
+            QString sel = textCursor().selectedText();
+            textCursor().insertText("[" + sel + "](" + url + ")");
+            return;
+        }
+    }
+
+    // Smart paste: re-indent multi-line blocks to match current cursor indent
+    if (source->hasText()) {
+        QString pasted = source->text();
+        if (pasted.contains('\n')) {
+            // Determine current line's indent
+            QTextCursor cur = textCursor();
+            QString curLine = cur.block().text();
+            int targetIndent = 0;
+            for (QChar c : curLine) {
+                if (c == ' ') targetIndent++;
+                else if (c == '\t') targetIndent += 4;
+                else break;
+            }
+            // Determine pasted block's base indent
+            QStringList pastedLines = pasted.split('\n');
+            int baseIndent = INT_MAX;
+            for (const QString &pl : pastedLines) {
+                if (pl.trimmed().isEmpty()) continue;
+                int ind = 0;
+                for (QChar c : pl) {
+                    if (c == ' ') ind++;
+                    else if (c == '\t') ind += 4;
+                    else break;
+                }
+                baseIndent = qMin(baseIndent, ind);
+            }
+            if (baseIndent == INT_MAX) baseIndent = 0;
+            // Re-indent
+            QStringList result;
+            for (int i = 0; i < pastedLines.size(); ++i) {
+                const QString &pl = pastedLines[i];
+                if (pl.trimmed().isEmpty() && i > 0 && i < pastedLines.size()-1) {
+                    result << QString();
+                    continue;
+                }
+                int lineIndent = 0;
+                int charStart = 0;
+                for (QChar c : pl) {
+                    if (c == ' ') { lineIndent++; charStart++; }
+                    else if (c == '\t') { lineIndent += 4; charStart++; }
+                    else break;
+                }
+                int newIndent = (i == 0) ? targetIndent : targetIndent + (lineIndent - baseIndent);
+                newIndent = qMax(0, newIndent);
+                result << QString(' ').repeated(newIndent) + pl.mid(charStart);
+            }
+            cur.insertText(result.join('\n'));
+            return;
+        }
+    }
+
+    QPlainTextEdit::insertFromMimeData(source);
+}
+
+void CodeEditor::setGasMinimapEnabled(bool en) {
+    gasMinimapEnabled = en;
+    if (miniMap) miniMap->update();
+}
+
+void CodeEditor::setMemTraceEnabled(bool en) {
+    memTraceEnabled = en;
+    viewport()->update();
+}
+
+void CodeEditor::highlightMemoryTraceLines(const QVector<int> &lines) {
+    memTraceHighlightLines = lines;
+    viewport()->update();
 }

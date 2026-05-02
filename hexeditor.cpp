@@ -4,9 +4,13 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QContextMenuEvent>
 #include <QFile>
 #include <QFontMetrics>
 #include <QApplication>
+#include <QClipboard>
+#include <QInputDialog>
+#include <QMessageBox>
 
 HexEditor::HexEditor(QWidget *parent)
     : QWidget(parent)
@@ -375,4 +379,182 @@ QRect HexEditor::asciiAreaRect() const {
 
 int HexEditor::visibleLines() const {
     return (height() - 10) / (m_charHeight + 2);
+}
+
+// ---------------------------------------------------------------------------
+// patchBytes — overwrite m_data[address .. address+len-1] with newBytes
+// ---------------------------------------------------------------------------
+void HexEditor::patchBytes(qint64 address, const QByteArray &newBytes)
+{
+    if (address < 0 || address + newBytes.size() > m_data.size()) return;
+    for (int i = 0; i < newBytes.size(); ++i)
+        m_data[address + i] = newBytes[i];
+    setModified(true);
+    emit dataChanged();
+    update();
+}
+
+// ---------------------------------------------------------------------------
+// contextMenuEvent — right-click menu with copy / patch actions
+// ---------------------------------------------------------------------------
+void HexEditor::contextMenuEvent(QContextMenuEvent *event)
+{
+    if (m_data.isEmpty()) return;
+
+    static const QString menuStyle =
+        "QMenu { background-color: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; }"
+        "QMenu::item:selected { background-color: #094771; }";
+
+    QMenu menu(this);
+    menu.setStyleSheet(menuStyle);
+
+    QAction *copyHexAct    = menu.addAction("Copy Hex");
+    QAction *copyAddrAct   = menu.addAction("Copy Address");
+    menu.addSeparator();
+    QAction *patchBytesAct = menu.addAction("Patch Bytes...");
+    QAction *patchAsmAct   = menu.addAction("Patch Instruction (x86)...");
+
+    // Disable patch actions in read-only mode
+    patchBytesAct->setEnabled(!m_readOnly);
+    patchAsmAct->setEnabled(!m_readOnly);
+
+    QAction *chosen = menu.exec(event->globalPos());
+    if (!chosen) return;
+
+    // -------------------------------------------------------------------
+    // Copy Hex
+    // -------------------------------------------------------------------
+    if (chosen == copyHexAct) {
+        QByteArray bytes;
+        if (m_selectionStart >= 0 && m_selectionEnd >= m_selectionStart) {
+            bytes = m_data.mid(static_cast<int>(m_selectionStart),
+                               static_cast<int>(m_selectionEnd - m_selectionStart + 1));
+        } else {
+            bytes = m_data.mid(static_cast<int>(m_cursorPosition), 1);
+        }
+
+        QString hex;
+        for (int i = 0; i < bytes.size(); ++i) {
+            if (i > 0) hex += ' ';
+            hex += QString("%1").arg(static_cast<unsigned char>(bytes[i]), 2, 16, QChar('0')).toUpper();
+        }
+        QApplication::clipboard()->setText(hex);
+    }
+
+    // -------------------------------------------------------------------
+    // Copy Address
+    // -------------------------------------------------------------------
+    else if (chosen == copyAddrAct) {
+        QString addrStr = QString("%1").arg(m_cursorPosition, m_addressWidth, 16, QChar('0')).toUpper();
+        QApplication::clipboard()->setText(addrStr);
+    }
+
+    // -------------------------------------------------------------------
+    // Patch Bytes...
+    // -------------------------------------------------------------------
+    else if (chosen == patchBytesAct) {
+        // Show the current byte as a hint
+        unsigned char curByte = static_cast<unsigned char>(m_data[m_cursorPosition]);
+        QString curHex = QString("%1").arg(curByte, 2, 16, QChar('0')).toUpper();
+
+        bool ok = false;
+        QString input = QInputDialog::getText(
+            this,
+            "Patch Bytes",
+            QString("Current byte at 0x%1: %2\nEnter new hex bytes (e.g. \"90 90\" or \"9090\"):")
+                .arg(m_cursorPosition, m_addressWidth, 16, QChar('0')).toUpper()
+                .arg(curHex),
+            QLineEdit::Normal,
+            curHex,
+            &ok
+        );
+        if (!ok || input.trimmed().isEmpty()) return;
+
+        // Accept both "90 90" and "9090" formats
+        QString cleaned = input.simplified().remove(' ');
+        if (cleaned.length() % 2 != 0) {
+            QMessageBox::warning(this, "Patch Bytes", "Invalid hex input — odd number of nibbles.");
+            return;
+        }
+
+        QByteArray newBytes;
+        bool parseOk = true;
+        for (int i = 0; i < cleaned.length(); i += 2) {
+            bool byteOk = false;
+            unsigned char b = static_cast<unsigned char>(cleaned.mid(i, 2).toUInt(&byteOk, 16));
+            if (!byteOk) { parseOk = false; break; }
+            newBytes.append(static_cast<char>(b));
+        }
+        if (!parseOk || newBytes.isEmpty()) {
+            QMessageBox::warning(this, "Patch Bytes", "Invalid hex input — could not parse bytes.");
+            return;
+        }
+
+        if (m_cursorPosition + newBytes.size() > m_data.size()) {
+            QMessageBox::warning(this, "Patch Bytes", "Patch extends beyond end of data.");
+            return;
+        }
+
+        emit patchRequested(m_cursorPosition, newBytes);
+        patchBytes(m_cursorPosition, newBytes);
+    }
+
+    // -------------------------------------------------------------------
+    // Patch Instruction (x86)...
+    // -------------------------------------------------------------------
+    else if (chosen == patchAsmAct) {
+        bool ok = false;
+        QString mnemonic = QInputDialog::getText(
+            this,
+            "Patch x86 Instruction",
+            "Enter instruction mnemonic (NOP, INT3, RET, RETN):",
+            QLineEdit::Normal,
+            "NOP",
+            &ok
+        ).toUpper().trimmed();
+        if (!ok || mnemonic.isEmpty()) return;
+
+        // Map mnemonic to opcode byte
+        QMap<QString, unsigned char> opcodeMap;
+        opcodeMap["NOP"]  = 0x90;
+        opcodeMap["INT3"] = 0xCC;
+        opcodeMap["RET"]  = 0xC3;
+        opcodeMap["RETN"] = 0xC3;
+
+        if (!opcodeMap.contains(mnemonic)) {
+            QMessageBox::warning(this, "Patch Instruction",
+                                 QString("Unknown mnemonic '%1'.\nSupported: NOP, INT3, RET, RETN.").arg(mnemonic));
+            return;
+        }
+
+        unsigned char opcode = opcodeMap[mnemonic];
+
+        // For NOP, fill the entire selection if one exists
+        int patchLen = 1;
+        qint64 patchAddr = m_cursorPosition;
+        if (mnemonic == "NOP" && m_selectionStart >= 0 && m_selectionEnd >= m_selectionStart) {
+            patchAddr = m_selectionStart;
+            patchLen  = static_cast<int>(m_selectionEnd - m_selectionStart + 1);
+        }
+
+        if (patchAddr + patchLen > m_data.size()) {
+            QMessageBox::warning(this, "Patch Instruction", "Patch extends beyond end of data.");
+            return;
+        }
+
+        QByteArray newBytes(patchLen, static_cast<char>(opcode));
+        emit patchRequested(patchAddr, newBytes);
+        patchBytes(patchAddr, newBytes);
+
+        QMessageBox::information(
+            this,
+            "Patch Applied",
+            QString("Wrote %1 x %2 byte(s) of %3 (0x%4) at 0x%5.")
+                .arg(patchLen)
+                .arg(1)
+                .arg(mnemonic)
+                .arg(opcode, 2, 16, QChar('0')).toUpper()
+                .arg(patchAddr, m_addressWidth, 16, QChar('0')).toUpper()
+        );
+    }
 }

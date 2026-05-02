@@ -28,6 +28,8 @@ void SyntaxHighlighter::setupRules() {
     case Language::JSON:       setupJsonRules();       break;
     case Language::YAML:       setupYamlRules();       break;
     case Language::Markdown:   setupMarkdownRules();   break;
+    case Language::Solidity:   setupSolidityRules();   break;
+    case Language::Yul:        setupYulRules();        break;
     default:                   setupCppRules();        break;
     }
 }
@@ -273,6 +275,103 @@ void SyntaxHighlighter::setupMarkdownRules() {
     rule.pattern = QRegularExpression("^>\\s.*$"); rule.format = commentFormat; highlightingRules.append(rule);
 }
 
+// ── Solidity ──────────────────────────────────────────────────────────────────
+void SyntaxHighlighter::setupSolidityRules() {
+    HighlightingRule rule;
+    keywordFormat.setFontWeight(QFont::Bold);
+    QStringList kw = {
+        "\\bpragma\\b","\\bsolidity\\b","\\bimport\\b","\\bas\\b","\\bfrom\\b",
+        "\\bcontract\\b","\\binterface\\b","\\blibrary\\b","\\bis\\b",
+        "\\bstruct\\b","\\benum\\b","\\bmapping\\b","\\bevent\\b","\\berror\\b",
+        "\\bfunction\\b","\\bmodifier\\b","\\bconstructor\\b","\\bfallback\\b",
+        "\\breceive\\b","\\bpublic\\b","\\bprivate\\b","\\binternal\\b",
+        "\\bexternal\\b","\\bpure\\b","\\bview\\b","\\bpayable\\b",
+        "\\bvirtual\\b","\\boverride\\b","\\breturns\\b","\\breturn\\b",
+        "\\bif\\b","\\belse\\b","\\bfor\\b","\\bwhile\\b","\\bdo\\b",
+        "\\bbreak\\b","\\bcontinue\\b","\\bthrow\\b","\\bemit\\b",
+        "\\bunchecked\\b","\\bassembly\\b","\\btrue\\b","\\bfalse\\b"
+    };
+    for (const QString &p : kw) { rule.pattern = QRegularExpression(p); rule.format = keywordFormat; highlightingRules.append(rule); }
+
+    QTextCharFormat typeFmt;
+    typeFmt.setForeground(keywordFormat.foreground());
+    typeFmt.setFontWeight(QFont::Bold);
+    QStringList types = {
+        "\\baddress\\b","\\bbool\\b","\\bstring\\b","\\bbytes\\b",
+        "\\buint\\b","\\bint\\b","\\bbytes[1-9]\\b","\\bbytes1[0-9]\\b",
+        "\\bbytes2[0-9]\\b","\\bbytes3[0-2]\\b","\\buint[0-9]+\\b","\\bint[0-9]+\\b"
+    };
+    for (const QString &p : types) { rule.pattern = QRegularExpression(p); rule.format = typeFmt; highlightingRules.append(rule); }
+
+    QTextCharFormat builtinFmt;
+    builtinFmt.setForeground(functionFormat.foreground());
+    builtinFmt.setFontItalic(true);
+    QStringList builtins = {
+        "\\bmsg\\.sender\\b","\\bmsg\\.value\\b","\\bmsg\\.data\\b",
+        "\\bmsg\\.sig\\b","\\bblock\\.timestamp\\b","\\bblock\\.number\\b",
+        "\\bblock\\.coinbase\\b","\\bblock\\.difficulty\\b",
+        "\\bblock\\.gaslimit\\b","\\btx\\.origin\\b","\\btx\\.gasprice\\b",
+        "\\brequire\\b","\\brevert\\b","\\bassert\\b",
+        "\\babi\\.encode\\b","\\babi\\.encodePacked\\b",
+        "\\babi\\.encodeWithSignature\\b","\\babi\\.encodeWithSelector\\b",
+        "\\babi\\.decode\\b","\\bkeccak256\\b","\\bsha256\\b","\\bripemd160\\b",
+        "\\becrecover\\b","\\baddmod\\b","\\bmulmod\\b","\\bselfdestruct\\b",
+        "\\bsuper\\b","\\bthis\\b","\\btype\\b"
+    };
+    for (const QString &p : builtins) { rule.pattern = QRegularExpression(p); rule.format = builtinFmt; highlightingRules.append(rule); }
+
+    rule.pattern = QRegularExpression("\".*?\"|'.*?'"); rule.format = stringFormat; highlightingRules.append(rule);
+    rule.pattern = QRegularExpression("\\b0x[0-9a-fA-F]+\\b|\\b[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b"); rule.format = numberFormat; highlightingRules.append(rule);
+    functionFormat.setFontItalic(true);
+    rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()"); rule.format = functionFormat; highlightingRules.append(rule);
+    rule.pattern = QRegularExpression("//[^\n]*"); rule.format = commentFormat; highlightingRules.append(rule);
+    classFormat.setFontWeight(QFont::Bold);
+    rule.pattern = QRegularExpression("\\b[A-Z][A-Za-z0-9_]*\\b"); rule.format = classFormat; highlightingRules.append(rule);
+}
+
+// ── Yul ───────────────────────────────────────────────────────────────────────
+void SyntaxHighlighter::setupYulRules() {
+    HighlightingRule rule;
+    keywordFormat.setFontWeight(QFont::Bold);
+    QStringList kw = {
+        "\\blet\\b","\\bswitch\\b","\\bcase\\b","\\bdefault\\b",
+        "\\bfor\\b","\\bbreak\\b","\\bcontinue\\b","\\bleave\\b",
+        "\\bif\\b","\\bfunction\\b","\\btrue\\b","\\bfalse\\b"
+    };
+    for (const QString &p : kw) { rule.pattern = QRegularExpression(p); rule.format = keywordFormat; highlightingRules.append(rule); }
+
+    QTextCharFormat builtinFmt;
+    builtinFmt.setForeground(functionFormat.foreground());
+    builtinFmt.setFontItalic(true);
+    QStringList builtins = {
+        "\\bstop\\b","\\badd\\b","\\bsub\\b","\\bmul\\b","\\bdiv\\b",
+        "\\bsdiv\\b","\\bmod\\b","\\bsmod\\b","\\bexp\\b","\\bnot\\b",
+        "\\blt\\b","\\bgt\\b","\\bslt\\b","\\bsgt\\b","\\beq\\b","\\biszero\\b",
+        "\\band\\b","\\bor\\b","\\bxor\\b","\\bbyte\\b","\\bshl\\b","\\bshr\\b",
+        "\\bsar\\b","\\baddmod\\b","\\bmulmod\\b","\\bsignextend\\b",
+        "\\bkeccak256\\b","\\bpc\\b","\\bpop\\b","\\bmload\\b","\\bmstore\\b",
+        "\\bmstore8\\b","\\bsload\\b","\\bsstore\\b","\\bmsize\\b","\\bgas\\b",
+        "\\baddress\\b","\\bbalance\\b","\\bselfbalance\\b","\\bcaller\\b",
+        "\\bcallvalue\\b","\\bcalldataload\\b","\\bcalldatasize\\b",
+        "\\bcalldatacopy\\b","\\bcodesize\\b","\\bcodecopy\\b","\\bextcodesize\\b",
+        "\\bextcodecopy\\b","\\breturndatasize\\b","\\breturndatacopy\\b",
+        "\\bextcodehash\\b","\\bcreate\\b","\\bcreate2\\b","\\bcall\\b",
+        "\\bcallcode\\b","\\bdelegatecall\\b","\\bstaticcall\\b","\\breturn\\b",
+        "\\brevert\\b","\\bselfdestruct\\b","\\binvalid\\b","\\blog0\\b",
+        "\\blog1\\b","\\blog2\\b","\\blog3\\b","\\blog4\\b","\\bchainid\\b",
+        "\\bbasefee\\b","\\borigin\\b","\\bgasprice\\b","\\bblockhash\\b",
+        "\\bcoinbase\\b","\\btimestamp\\b","\\bnumber\\b","\\bdifficulty\\b",
+        "\\bgaslimit\\b"
+    };
+    for (const QString &p : builtins) { rule.pattern = QRegularExpression(p); rule.format = builtinFmt; highlightingRules.append(rule); }
+
+    rule.pattern = QRegularExpression("\".*?\"|'.*?'"); rule.format = stringFormat; highlightingRules.append(rule);
+    rule.pattern = QRegularExpression("\\b0x[0-9a-fA-F]+\\b|\\b[0-9]+\\b"); rule.format = numberFormat; highlightingRules.append(rule);
+    functionFormat.setFontItalic(true);
+    rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()"); rule.format = functionFormat; highlightingRules.append(rule);
+    rule.pattern = QRegularExpression("//[^\n]*"); rule.format = commentFormat; highlightingRules.append(rule);
+}
+
 // ── highlightBlock ────────────────────────────────────────────────────────────
 void SyntaxHighlighter::highlightBlock(const QString &text) {
     if (text.isEmpty()) { setCurrentBlockState(0); return; }
@@ -280,7 +379,8 @@ void SyntaxHighlighter::highlightBlock(const QString &text) {
     int startIndex = 0;
     if (currentLanguage == Language::CPP || currentLanguage == Language::JavaScript ||
         currentLanguage == Language::Rust || currentLanguage == Language::Go ||
-        currentLanguage == Language::CSS) {
+        currentLanguage == Language::CSS || currentLanguage == Language::Solidity ||
+        currentLanguage == Language::Yul) {
         if (previousBlockState() != 1)
             startIndex = text.indexOf(multiLineCommentStart);
         while (startIndex >= 0) {

@@ -5,6 +5,7 @@
 #include <QScrollBar>
 #include <QByteArray>
 #include <QFont>
+#include <QMenu>
 
 class HexEditor : public QWidget {
     Q_OBJECT
@@ -28,10 +29,16 @@ public:
     void setAddressWidth(int width) { m_addressWidth = width; update(); }
     void setBytesPerLine(int bytes) { m_bytesPerLine = bytes; updateScrollBar(); update(); }
 
+    // Overwrite bytes starting at address with newBytes.
+    // Emits dataChanged() and sets the modified flag.
+    void patchBytes(qint64 address, const QByteArray &newBytes);
+
 signals:
     void dataChanged();
     void modificationChanged(bool modified);
     void currentAddressChanged(qint64 address);
+    // Emitted when the user requests a patch via the context menu
+    void patchRequested(qint64 address, const QByteArray &newBytes);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -39,6 +46,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
 
 private:
     QByteArray m_data;

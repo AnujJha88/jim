@@ -10,7 +10,15 @@
 #include "aiautocomplete.h"
 #include "aisettingsdialog.h"
 #include "codegraph.h"
+#include "solidityanalyzer.h"
+#include "storageslotvisualizer.h"
 #include <QApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QProcess>
+#include <QTableWidget>
+#include <QNetworkRequest>
 #include <QCloseEvent>
 #include <QColorDialog>
 #include <QDir>
@@ -58,8 +66,13 @@
 #include <QWheelEvent>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QDrag>
+#include <QMimeData>
 #include <QRadialGradient>
+#include <QComboBox>
+#include <QDialogButtonBox>
 #include <QDialog>
+#include <QFontDatabase>
 #include <cmath>
 #include <algorithm>
 #include <functional>
@@ -91,6 +104,10 @@ Language TextEditor::detectLanguage(const QString &fileName) {
     return Language::YAML;
   if (ext == "md" || ext == "markdown" || ext == "mkd")
     return Language::Markdown;
+  if (ext == "sol")
+    return Language::Solidity;
+  if (ext == "yul")
+    return Language::Yul;
   return Language::PlainText;
 }
 
@@ -104,6 +121,107 @@ Language TextEditor::detectLanguage(const QString &fileName) {
 
 // GraveyardWidget / CRTOverlay / LaserParticleOverlay / HUDWidget implementation → overlays.cpp
 
+
+// ============================================================
+// Drag and Drop Split Panes Implementation
+// ============================================================
+
+DraggableTabBar::DraggableTabBar(QWidget *parent) : QTabBar(parent) {
+    setMovable(true); // Allow internal dragging by default
+}
+
+void DraggableTabBar::mousePressEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        dragStartPos = event->pos();
+    }
+    QTabBar::mousePressEvent(event);
+}
+
+void DraggableTabBar::mouseMoveEvent(QMouseEvent *event) {
+    if (!(event->buttons() & Qt::LeftButton)) {
+        QTabBar::mouseMoveEvent(event);
+        return;
+    }
+    if ((event->pos() - dragStartPos).manhattanLength() < QApplication::startDragDistance()) {
+        QTabBar::mouseMoveEvent(event);
+        return;
+    }
+    
+    // Check if the drag is moving outside the tab bar boundaries significantly
+    if (!rect().contains(event->pos())) {
+        int tabIdx = tabAt(dragStartPos);
+        if (tabIdx >= 0) {
+            QDrag *drag = new QDrag(this);
+            QMimeData *mimeData = new QMimeData();
+            
+            // Store the source widget pointer and tab index in mime data
+            QByteArray data;
+            QDataStream stream(&data, QIODevice::WriteOnly);
+            stream << reinterpret_cast<quintptr>(parentWidget()) << tabIdx;
+            mimeData->setData("application/x-jim-tab", data);
+            drag->setMimeData(mimeData);
+            
+            // Set drag pixmap
+            QPixmap pixmap = grab(tabRect(tabIdx));
+            drag->setPixmap(pixmap);
+            drag->setHotSpot(event->pos() - tabRect(tabIdx).topLeft());
+            
+            Qt::DropAction dropAction = drag->exec(Qt::MoveAction);
+            if (dropAction == Qt::MoveAction) {
+                // Drop was successful outside, we don't need to do anything here
+                // as the receiving widget will handle it.
+            }
+            return; // We consumed the drag
+        }
+    }
+    QTabBar::mouseMoveEvent(event);
+}
+
+DraggableTabWidget::DraggableTabWidget(QWidget *parent) : QTabWidget(parent) {
+    setTabBar(new DraggableTabBar(this));
+    setAcceptDrops(true);
+}
+
+void DraggableTabWidget::dragEnterEvent(QDragEnterEvent *event) {
+    if (event->mimeData()->hasFormat("application/x-jim-tab")) {
+        // Only accept if it comes from a different tab widget
+        QByteArray data = event->mimeData()->data("application/x-jim-tab");
+        QDataStream stream(&data, QIODevice::ReadOnly);
+        quintptr sourcePtr;
+        stream >> sourcePtr;
+        if (reinterpret_cast<QWidget*>(sourcePtr) != this) {
+            event->acceptProposedAction();
+            return;
+        }
+    }
+    QTabWidget::dragEnterEvent(event);
+}
+
+void DraggableTabWidget::dropEvent(QDropEvent *event) {
+    if (event->mimeData()->hasFormat("application/x-jim-tab")) {
+        QByteArray data = event->mimeData()->data("application/x-jim-tab");
+        QDataStream stream(&data, QIODevice::ReadOnly);
+        quintptr sourcePtr;
+        int tabIdx;
+        stream >> sourcePtr >> tabIdx;
+        
+        QTabWidget *sourceTabWidget = reinterpret_cast<QTabWidget*>(sourcePtr);
+        if (sourceTabWidget && sourceTabWidget != this) {
+            QWidget *page = sourceTabWidget->widget(tabIdx);
+            QString text = sourceTabWidget->tabText(tabIdx);
+            sourceTabWidget->removeTab(tabIdx);
+            
+            int insertIndex = tabBar()->tabAt(event->position().toPoint());
+            if (insertIndex < 0) insertIndex = count();
+            insertTab(insertIndex, page, text);
+            setCurrentIndex(insertIndex);
+            
+            event->acceptProposedAction();
+            return;
+        }
+    }
+    QTabWidget::dropEvent(event);
+}
 
 // TerminalWidget implementation → uiwidgets.cpp
 
@@ -132,6 +250,8 @@ TextEditor::TextEditor(QWidget *parent)
   setWindowTitle("Jim");
   resize(1200, 800);
   showWelcomeScreen();
+  // Install event filter for double-Shift Search Everywhere detection
+  qApp->installEventFilter(this);
 }
 
 TextEditor::~TextEditor() { writeSettings(); }
@@ -176,7 +296,7 @@ void TextEditor::setupUI() {
 
   // Main horizontal splitter for editor tabs
   mainSplitter = new QSplitter(Qt::Horizontal);
-  tabWidget = new QTabWidget();
+  tabWidget = new DraggableTabWidget();
   tabWidget->setTabsClosable(true);
   tabWidget->setMovable(true);
   tabWidget->setDocumentMode(true);
@@ -385,6 +505,7 @@ void TextEditor::hideWelcomeScreen() {
 }
 
 void TextEditor::watchFile(const QString &filePath) {
+  if (paranoiaMode) return;
   if (!filePath.isEmpty() && QFileInfo::exists(filePath))
     fileWatcher->addPath(filePath);
 }
@@ -651,6 +772,9 @@ void TextEditor::createActions() {
   connect(decreaseFontAct, &QAction::triggered, this,
           &TextEditor::decreaseFontSize);
 
+  selectFontAct = new QAction("Select Font...", this);
+  connect(selectFontAct, &QAction::triggered, this, &TextEditor::selectFont);
+
   wordWrapAct = new QAction("Word Wrap", this);
   wordWrapAct->setCheckable(true);
   wordWrapAct->setChecked(wordWrapEnabled);
@@ -793,6 +917,19 @@ void TextEditor::createActions() {
   todoAct->setStatusTip("Show panel listing all TODO, FIXME, HACK, NOTE, BUG tags in open files");
   connect(todoAct, &QAction::triggered, this, &TextEditor::toggleTodoPanel);
 
+  // Security Pack
+  paranoiaModeAct = new QAction("☣ Paranoia Mode", this);
+  paranoiaModeAct->setCheckable(true);
+  paranoiaModeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_P));
+  paranoiaModeAct->setStatusTip("Zero-trace mode: disables disk writes, history, and telemetry");
+  connect(paranoiaModeAct, &QAction::triggered, this, &TextEditor::toggleParanoiaMode);
+
+  vulnScanAct = new QAction("⚡ Vuln Scanner", this);
+  vulnScanAct->setCheckable(true);
+  vulnScanAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_X));
+  vulnScanAct->setStatusTip("Enable native regex scanner for secrets and dangerous patterns");
+  connect(vulnScanAct, &QAction::triggered, this, &TextEditor::toggleVulnScan);
+
   focusFadeAct = new QAction("Focus &Fade", this);
   focusFadeAct->setCheckable(true);
   focusFadeAct->setStatusTip("Dim all lines except the current line while editing");
@@ -828,6 +965,97 @@ void TextEditor::createActions() {
               flashTabLabel(idx);
           }
       }
+  });
+
+  // ── v0.8.0 QoL Actions ─────────────────────────────────────────────
+  switchHeaderSourceAct = new QAction("Switch Header/Source", this);
+  switchHeaderSourceAct->setShortcut(QKeySequence(Qt::ALT | Qt::Key_O));
+  switchHeaderSourceAct->setStatusTip("Toggle between .cpp and .h counterpart (Alt+O)");
+  connect(switchHeaderSourceAct, &QAction::triggered, this, &TextEditor::switchHeaderSource);
+
+  locateInTreeAct = new QAction("Locate File in Tree", this);
+  locateInTreeAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_L));
+  locateInTreeAct->setStatusTip("Reveal and highlight the current file in the file explorer");
+  connect(locateInTreeAct, &QAction::triggered, this, &TextEditor::locateCurrentFileInTree);
+
+  searchEverywhereAct = new QAction("Search Everywhere", this);
+  searchEverywhereAct->setStatusTip("Search files, actions, and history (double-Shift)");
+  connect(searchEverywhereAct, &QAction::triggered, this, &TextEditor::openSearchEverywhere);
+
+  stickyScrollAct = new QAction("Sticky Scroll", this);
+  stickyScrollAct->setCheckable(true);
+  stickyScrollAct->setStatusTip("Pin the enclosing scope definition to the top of the viewport");
+  connect(stickyScrollAct, &QAction::triggered, this, &TextEditor::toggleStickyScroll);
+
+  invisibleCharsAct = new QAction("Show Invisible Characters", this);
+  invisibleCharsAct->setCheckable(true);
+  invisibleCharsAct->setStatusTip("Render trailing spaces and tabs as visible markers");
+  connect(invisibleCharsAct, &QAction::triggered, this, &TextEditor::toggleInvisibleChars);
+
+  gitBlameAct = new QAction("Git Blame Annotations", this);
+  gitBlameAct->setCheckable(true);
+  gitBlameAct->setStatusTip("Show inline git blame (author, time) at end of each line");
+  connect(gitBlameAct, &QAction::triggered, this, &TextEditor::toggleGitBlame);
+
+  autoSaveFocusAct = new QAction("Auto-Save on Focus Lost", this);
+  autoSaveFocusAct->setCheckable(true);
+  autoSaveFocusAct->setStatusTip("Automatically save file when editor loses window focus");
+  connect(autoSaveFocusAct, &QAction::triggered, this, &TextEditor::toggleAutoSaveOnFocusLost);
+
+  sendToScratchpadAct = new QAction("Send Selection to Scratchpad", this);
+  sendToScratchpadAct->setStatusTip("Append selected code to Scratchpad with a timestamp");
+  connect(sendToScratchpadAct, &QAction::triggered, this, &TextEditor::sendSelectionToScratchpad);
+
+  // ── v0.9.0 Web3Sec Actions ──────────────────────────────────────────────
+  godViewAct = new QAction("\U0001F441 God View Contract", this);
+  godViewAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_G));
+  godViewAct->setStatusTip("Collapse all function bodies to spec-mode (signatures + NatSpec only)");
+  connect(godViewAct, &QAction::triggered, this, &TextEditor::triggerGodView);
+
+  extractABIAct = new QAction("\U0001F4CB Extract ABI/Bytecode", this);
+  extractABIAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
+  extractABIAct->setStatusTip("Run solc on current file and copy ABI to clipboard (Ctrl+Alt+C)");
+  connect(extractABIAct, &QAction::triggered, this, &TextEditor::extractABI);
+
+  resolveFourByteAct = new QAction("\U0001F50D Resolve 4-Byte Signature", this);
+  resolveFourByteAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F));
+  resolveFourByteAct->setStatusTip("Look up selected 4-byte hex selector in 4byte.directory");
+  connect(resolveFourByteAct, &QAction::triggered, this, &TextEditor::resolveFourByte);
+
+  panicButtonAct = new QAction("\U0001F480 PANIC BUTTON", this);
+  panicButtonAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_Delete));
+  panicButtonAct->setStatusTip("Anti-forensic killswitch: close editor, shred scratchpad, wipe history");
+  connect(panicButtonAct, &QAction::triggered, this, &TextEditor::triggerPanicButton);
+
+  storageSlotVizAct = new QAction("\U0001F5C4 Storage Slot Visualizer", this);
+  storageSlotVizAct->setStatusTip("Show Tetris-style 32-byte storage slot layout for .sol files");
+  connect(storageSlotVizAct, &QAction::triggered, this, &TextEditor::showStorageSlotVisualizer);
+
+  gasMiniMapAct = new QAction("\U0001F321 Gas Topographic Minimap", this);
+  gasMiniMapAct->setCheckable(true);
+  gasMiniMapAct->setStatusTip("Overlay gas consumption heatmap on minimap (red=expensive, blue=cheap)");
+  connect(gasMiniMapAct, &QAction::triggered, this, &TextEditor::toggleGasMinimap);
+
+  slitherOverlayAct = new QAction("\u2622 Slither/Foundry Overlays", this);
+  slitherOverlayAct->setStatusTip("Run slither or forge test and overlay findings on editor");
+  connect(slitherOverlayAct, &QAction::triggered, this, &TextEditor::toggleSlitherOverlay);
+
+  onChainTracerAct = new QAction("\u26D3 On-Chain Trace Explorer", this);
+  onChainTracerAct->setStatusTip("Paste a tx hash to replay execution trace against local .sol files");
+  connect(onChainTracerAct, &QAction::triggered, this, &TextEditor::showOnChainTracer);
+
+  proxyDiffAct = new QAction("\U0001F504 Proxy/Implementation Diff", this);
+  proxyDiffAct->setStatusTip("Compare storage layouts of two .sol files for proxy collision detection");
+  connect(proxyDiffAct, &QAction::triggered, this, &TextEditor::showProxyDiff);
+
+  memTraceAct = new QAction("\U0001F9E0 Memory Pointer Tracer", this);
+  memTraceAct->setCheckable(true);
+  memTraceAct->setStatusTip("Enable: click on 0x40/memory offsets in Yul to highlight all mload/mstore ops");
+  connect(memTraceAct, &QAction::triggered, this, [this](bool checked) {
+      int i = 0;
+      while (auto *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i++)))
+          ed->setMemTraceEnabled(checked);
+      if (tabWidget2) { int j = 0; while (auto *ed = qobject_cast<CodeEditor*>(tabWidget2->widget(j++))) ed->setMemTraceEnabled(checked); }
   });
 }
 
@@ -870,6 +1098,7 @@ void TextEditor::createMenus() {
   viewMenu->addSeparator();
   viewMenu->addAction(increaseFontAct);
   viewMenu->addAction(decreaseFontAct);
+  viewMenu->addAction(selectFontAct);
   viewMenu->addSeparator();
   viewMenu->addAction(wordWrapAct);
   viewMenu->addSeparator();
@@ -889,13 +1118,26 @@ void TextEditor::createMenus() {
   viewMenu->addSeparator();
   viewMenu->addAction(focusFadeAct);
   viewMenu->addAction(imagePreviewAct);
+  viewMenu->addSeparator();
+  viewMenu->addAction(stickyScrollAct);
+  viewMenu->addAction(invisibleCharsAct);
+  viewMenu->addAction(gitBlameAct);
+  viewMenu->addAction(autoSaveFocusAct);
 
   toolsMenu = customMenuBar->addMenu("&Tools");
   toolsMenu->addAction(commandPaletteAct);
+  toolsMenu->addAction(searchEverywhereAct);
+  toolsMenu->addSeparator();
+  toolsMenu->addAction(switchHeaderSourceAct);
+  toolsMenu->addAction(locateInTreeAct);
   toolsMenu->addSeparator();
   toolsMenu->addAction(scratchpadAct);
+  toolsMenu->addAction(sendToScratchpadAct);
   toolsMenu->addAction(sessionStatsAct);
   toolsMenu->addAction(todoAct);
+  toolsMenu->addSeparator();
+  toolsMenu->addAction(paranoiaModeAct);
+  toolsMenu->addAction(vulnScanAct);
   toolsMenu->addSeparator();
   toolsMenu->addAction(openHexAct);
   toolsMenu->addAction(disassembleAct);
@@ -907,6 +1149,26 @@ void TextEditor::createMenus() {
       "QMenu { background-color: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; }"
       "QMenu::item:selected { background-color: #094771; }"
       "QMenu::separator { background: #3c3c3c; height: 1px; margin: 2px 8px; }");
+
+  // ── v0.9.0 Web3Sec Menu ──────────────────────────────────────────────
+  QMenu *web3Menu = customMenuBar->addMenu("&Web3Sec");
+  web3Menu->addAction(godViewAct);
+  web3Menu->addAction(extractABIAct);
+  web3Menu->addAction(resolveFourByteAct);
+  web3Menu->addSeparator();
+  web3Menu->addAction(storageSlotVizAct);
+  web3Menu->addAction(gasMiniMapAct);
+  web3Menu->addAction(memTraceAct);
+  web3Menu->addSeparator();
+  web3Menu->addAction(slitherOverlayAct);
+  web3Menu->addAction(onChainTracerAct);
+  web3Menu->addAction(proxyDiffAct);
+  web3Menu->addSeparator();
+  web3Menu->addAction(panicButtonAct);
+  web3Menu->setStyleSheet(
+      "QMenu { background-color: #1a0a0a; color: #ff6666; border: 1px solid #ff3333; }"
+      "QMenu::item:selected { background-color: #3a0000; }"
+      "QMenu::separator { background: #ff3333; height: 1px; margin: 2px 8px; }");
 
   helpMenu = customMenuBar->addMenu("&Help");
   helpMenu->addAction(aboutAct);
@@ -967,26 +1229,50 @@ void TextEditor::clampToScreen() {
 }
 
 void TextEditor::createStatusBar() {
-  statusLabel = new QLabel("Line 1, Col 1");
+  static const char *kPill =
+      "background: #252526; color: #cccccc; padding: 1px 10px; "
+      "border-radius: 8px; font-size: 11px; margin: 2px 2px;";
+
   languageLabel = new QLabel("Plain Text");
   languageLabel->setStyleSheet(
-      "padding: 2px 12px; color: #ffffff; background-color: transparent;");
+      "background: #005f99; color: #e8f4fd; padding: 1px 10px; "
+      "border-radius: 8px; font-size: 11px; margin: 2px 2px;");
   statusBar()->addPermanentWidget(languageLabel);
-  
+
   sessionTimeLabel = new QLabel("⏱ 0m", this);
-  sessionTimeLabel->setStyleSheet("color: #888; padding: 0 10px;");
+  sessionTimeLabel->setStyleSheet(
+      "background: #252526; color: #777777; padding: 1px 10px; "
+      "border-radius: 8px; font-size: 11px; margin: 2px 2px;");
   statusBar()->addPermanentWidget(sessionTimeLabel);
-  
+
+  statusLabel = new QLabel("Ln 1, Col 1");
+  statusLabel->setStyleSheet(kPill);
   statusBar()->addPermanentWidget(statusLabel);
 
   vimModeLabel = new QLabel("  NORMAL  ");
   vimModeLabel->setStyleSheet(
       "color: #282c34; background-color: #c678dd; padding: 1px 8px; "
-      "font-family: Consolas; font-weight: bold; font-size: 10px;");
+      "font-family: Consolas; font-weight: bold; font-size: 10px; "
+      "border-radius: 8px; margin: 2px 2px;");
   vimModeLabel->setVisible(false);
   statusBar()->addPermanentWidget(vimModeLabel);
 
+  paranoiaLabel = new QLabel("  ☣ PARANOIA  ");
+  paranoiaLabel->setStyleSheet(
+      "color: #ffffff; background-color: #e81123; padding: 1px 8px; "
+      "font-family: Consolas; font-weight: bold; font-size: 10px; "
+      "border-radius: 8px; margin: 2px 2px;");
+  paranoiaLabel->setVisible(false);
+  statusBar()->addPermanentWidget(paranoiaLabel);
+
   statusBar()->showMessage("Ready");
+
+  // Lift the bar with a subtle upward shadow
+  auto *shadow = new QGraphicsDropShadowEffect(statusBar());
+  shadow->setBlurRadius(10);
+  shadow->setColor(QColor(0, 0, 0, 130));
+  shadow->setOffset(0, -3);
+  statusBar()->setGraphicsEffect(shadow);
 }
 
 void TextEditor::newFile() {
@@ -994,7 +1280,8 @@ void TextEditor::newFile() {
   CodeEditor *editor = new CodeEditor();
   SyntaxHighlighter *highlighter = new SyntaxHighlighter(editor->document());
   highlighters[editor] = highlighter;
-  QFont font("Consolas", fontSize);
+  QFont font(editorFontFamily, fontSize);
+  font.setStyleStrategy(QFont::PreferDefault);
   editor->setFont(font);
   editor->setLineWrapMode(wordWrapEnabled ? QPlainTextEdit::WidgetWidth
                                           : QPlainTextEdit::NoWrap);
@@ -1036,10 +1323,16 @@ void TextEditor::newFile() {
       editor->setCRTEnabled(true);
   if (vimModeAct && vimModeAct->isChecked())
       editor->setVimEnabled(true);
+  if (paranoiaModeAct && paranoiaModeAct->isChecked())
+      editor->setParanoiaMode(true);
+  if (vulnScanAct && vulnScanAct->isChecked())
+      editor->setVulnScanEnabled(true);
   if (focusFadeAct && focusFadeAct->isChecked())
       editor->setFocusFadeEnabled(true);
   if (imagePreviewAct && imagePreviewAct->isChecked())
       editor->setImagePreviewEnabled(true);
+  propagateV080Settings(editor);
+  propagateV090Settings(editor);
   connect(editor, &CodeEditor::keyPressed, this, &TextEditor::trackKeystroke);
   int index = tabWidget->addTab(editor, "Untitled");
   tabWidget->setCurrentIndex(index);
@@ -1348,6 +1641,89 @@ void TextEditor::decreaseFontSize() {
   }
 }
 
+void TextEditor::selectFont() {
+  // Build font list: featured ligature fonts first, then remaining monospace
+  static const QStringList kFeatured = {
+      "JetBrains Mono", "Fira Code", "Cascadia Code", "Cascadia Mono",
+      "Iosevka", "Iosevka Term", "Victor Mono", "Hack", "Inconsolata",
+      "Source Code Pro", "Consolas", "Courier New"
+  };
+
+  QStringList allFamilies = QFontDatabase::families();
+  QStringList fontList;
+  for (const QString &f : kFeatured)
+      if (allFamilies.contains(f))
+          fontList << f;
+  for (const QString &f : allFamilies)
+      if (QFontDatabase::isFixedPitch(f) && !fontList.contains(f))
+          fontList << f;
+
+  QDialog dlg(this);
+  dlg.setWindowTitle("Select Editor Font");
+  dlg.setMinimumWidth(420);
+  dlg.setStyleSheet(
+      "QDialog { background: #1e1e1e; color: #cccccc; }"
+      "QLabel  { color: #cccccc; }"
+      "QComboBox { background: #252526; color: #cccccc; border: 1px solid #3e3e42; "
+      "            border-radius: 4px; padding: 4px 8px; font-size: 12px; }"
+      "QComboBox::drop-down { border: none; }"
+      "QComboBox QAbstractItemView { background: #252526; color: #cccccc; "
+      "                              selection-background-color: #094771; }"
+      "QDialogButtonBox QPushButton { background: #313244; color: #cccccc; "
+      "  border: 1px solid #45475a; border-radius: 6px; padding: 5px 18px; }"
+      "QDialogButtonBox QPushButton:hover { background: #45475a; }");
+
+  auto *layout = new QVBoxLayout(&dlg);
+  layout->setSpacing(10);
+
+  auto *descLabel = new QLabel("Choose a monospace font. Ligature fonts (e.g. Fira Code, JetBrains Mono)\nrender <code>=>  !=  >=  -></code> as single glyphs when installed.");
+  descLabel->setTextFormat(Qt::RichText);
+  descLabel->setStyleSheet("color: #9e9e9e; font-size: 11px;");
+  layout->addWidget(descLabel);
+
+  auto *combo = new QComboBox;
+  combo->addItems(fontList);
+  int cur = fontList.indexOf(editorFontFamily);
+  if (cur >= 0) combo->setCurrentIndex(cur);
+  layout->addWidget(combo);
+
+  auto *previewLabel = new QLabel("fn => x != y && result >= 0 -> done");
+  previewLabel->setFont(QFont(editorFontFamily, 13));
+  previewLabel->setStyleSheet(
+      "padding: 10px 12px; background: #0d0d0d; color: #9cdcfe; "
+      "border-radius: 6px; font-size: 13px;");
+  layout->addWidget(previewLabel);
+
+  connect(combo, &QComboBox::currentTextChanged, previewLabel, [previewLabel](const QString &f) {
+      QFont pf(f, 13);
+      pf.setStyleStrategy(QFont::PreferDefault);
+      previewLabel->setFont(pf);
+  });
+
+  auto *noteLabel = new QLabel("Tip: Install Fira Code or JetBrains Mono for ligature support.");
+  noteLabel->setStyleSheet("color: #555; font-size: 10px;");
+  layout->addWidget(noteLabel);
+
+  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+  layout->addWidget(buttons);
+  connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+  if (dlg.exec() != QDialog::Accepted)
+      return;
+
+  editorFontFamily = combo->currentText();
+  for (int i = 0; i < tabWidget->count(); ++i) {
+      auto *editor = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+      if (editor) {
+          QFont f(editorFontFamily, fontSize);
+          f.setStyleStrategy(QFont::PreferDefault);
+          editor->setFont(f);
+      }
+  }
+  flashStatusMessage(QString("Font: %1").arg(editorFontFamily), QColor("#98c379"));
+}
+
 void TextEditor::toggleWordWrap() {
   wordWrapEnabled = !wordWrapEnabled;
   wordWrapAct->setChecked(wordWrapEnabled);
@@ -1612,14 +1988,17 @@ void TextEditor::readSettings() {
   QSettings settings("TextEditor", "Settings");
   recentFiles = settings.value("recentFiles").toStringList();
   fontSize = settings.value("fontSize", 11).toInt();
+  editorFontFamily = settings.value("editorFont", "Consolas").toString();
   wordWrapEnabled = settings.value("wordWrap", false).toBool();
   wordWrapAct->setChecked(wordWrapEnabled);
 }
 
 void TextEditor::writeSettings() {
+  if (paranoiaMode) return;
   QSettings settings("TextEditor", "Settings");
   settings.setValue("recentFiles", recentFiles);
   settings.setValue("fontSize", fontSize);
+  settings.setValue("editorFont", editorFontFamily);
   settings.setValue("wordWrap", wordWrapEnabled);
 }
 
@@ -1711,7 +2090,8 @@ void TextEditor::loadFile(const QString &fileName) {
     highlighter->setLanguage(lang);
     highlighters[editor] = highlighter;
 
-    QFont font("Consolas", fontSize);
+    QFont font(editorFontFamily, fontSize);
+    font.setStyleStrategy(QFont::PreferDefault);
     editor->setFont(font);
     editor->setLineWrapMode(wordWrapEnabled ? QPlainTextEdit::WidgetWidth
                                             : QPlainTextEdit::NoWrap);
@@ -1746,12 +2126,18 @@ void TextEditor::loadFile(const QString &fileName) {
         editor->setCRTEnabled(true);
     if (vimModeAct && vimModeAct->isChecked())
         editor->setVimEnabled(true);
+    if (paranoiaModeAct && paranoiaModeAct->isChecked())
+        editor->setParanoiaMode(true);
+    if (vulnScanAct && vulnScanAct->isChecked())
+        editor->setVulnScanEnabled(true);
     if (focusFadeAct && focusFadeAct->isChecked())
         editor->setFocusFadeEnabled(true);
     if (imagePreviewAct && imagePreviewAct->isChecked())
         editor->setImagePreviewEnabled(true);
+    propagateV080Settings(editor);
+    propagateV090Settings(editor);
     connect(editor, &CodeEditor::keyPressed, this, &TextEditor::trackKeystroke);
-    ++sessionFilesOpened;
+    if (!paranoiaMode) ++sessionFilesOpened;
 
     // Apply ambient tint immediately so the new editor matches others
     updateAmbientTheme();
@@ -1771,7 +2157,7 @@ void TextEditor::loadFile(const QString &fileName) {
   } else {
     QStringList langNames = {"Plain Text", "C++",  "Python",  "JavaScript",
                              "HTML",       "CSS",  "Rust",    "Go",
-                             "JSON",       "YAML", "Markdown"};
+                             "JSON",       "YAML", "Markdown", "Solidity", "Yul"};
     languageLabel->setText(langNames[static_cast<int>(lang)]);
   }
 
@@ -1871,6 +2257,7 @@ QString TextEditor::strippedName(const QString &fullFileName) {
 }
 
 void TextEditor::updateRecentFiles(const QString &fileName) {
+  if (paranoiaMode) return;
   recentFiles.removeAll(fileName);
   recentFiles.prepend(fileName);
   while (recentFiles.size() > 10)
@@ -1907,9 +2294,22 @@ void TextEditor::toggleSplitView() {
   splitViewAct->setChecked(splitViewEnabled);
   if (splitViewEnabled) {
     if (!tabWidget2) {
-      tabWidget2 = new QTabWidget();
+      tabWidget2 = new DraggableTabWidget();
       tabWidget2->setTabsClosable(true);
       tabWidget2->setMovable(true);
+      
+      connect(tabWidget2, &QTabWidget::tabCloseRequested, this, [this](int index) {
+          if (maybeSave(index)) {
+              CodeEditor *editor = qobject_cast<CodeEditor *>(tabWidget2->widget(index));
+              if (editor) {
+                  unwatchFile(editor->getFileName());
+                  highlighters.remove(editor);
+              }
+              tabWidget2->removeTab(index);
+          }
+      });
+      connect(tabWidget2, &QTabWidget::currentChanged, this, &TextEditor::tabChanged);
+      
       mainSplitter->addWidget(tabWidget2);
     }
     tabWidget2->show();
@@ -2219,7 +2619,9 @@ void TextEditor::flashStatusMessage(const QString &msg, const QColor &color, int
     statusBar()->showMessage(msg, ms);
     QString prev = statusLabel->styleSheet();
     statusLabel->setStyleSheet(
-        QString("color: %1; font-weight: bold;").arg(color.name()));
+        QString("color: %1; font-weight: bold; background: #252526; "
+                "padding: 1px 10px; border-radius: 8px; font-size: 11px; margin: 2px 2px;")
+        .arg(color.name()));
     QTimer::singleShot(ms, this, [this, prev]() {
         statusLabel->setStyleSheet(prev);
     });
@@ -2388,6 +2790,7 @@ void TextEditor::openScratchpad() {
 
         // Auto-save on every change
         connect(scratchpadEditor, &QPlainTextEdit::textChanged, this, [this]() {
+            if (paranoiaMode) return;
             QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
                            + "/jim_scratchpad.txt";
             QDir().mkpath(QFileInfo(path).absolutePath());
@@ -2428,6 +2831,7 @@ void TextEditor::toggleImagePreview() {
 }
 
 void TextEditor::trackKeystroke(int key, const QString &text) {
+    if (paranoiaMode) return;
     Q_UNUSED(text)
     sessionKeystrokes++;
     if (key == Qt::Key_Return || key == Qt::Key_Enter)
@@ -2594,6 +2998,37 @@ void TextEditor::toggleGraveyard() {
     bool visible = !graveyardDock->isVisible();
     graveyardDock->setVisible(visible);
     if (graveyardAct) graveyardAct->setChecked(visible);
+}
+
+// ── Security Pack Implementations ───────────────────────────────────────────
+
+void TextEditor::toggleParanoiaMode() {
+    paranoiaMode = paranoiaModeAct->isChecked();
+    if (paranoiaLabel) {
+        paranoiaLabel->setVisible(paranoiaMode);
+    }
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+        if (ed) ed->setParanoiaMode(paranoiaMode);
+    }
+    if (paranoiaMode) {
+        flashStatusMessage("PARANOIA MODE: ON — session leaves no trace", QColor("#e81123"), 3000);
+    } else {
+        flashStatusMessage("PARANOIA MODE: OFF", QColor("#569cd6"), 2000);
+    }
+}
+
+void TextEditor::toggleVulnScan() {
+    bool enabled = vulnScanAct->isChecked();
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor *>(tabWidget->widget(i));
+        if (ed) ed->setVulnScanEnabled(enabled);
+    }
+    if (enabled) {
+        flashStatusMessage("⚡ Vuln Scanner: ON — laser underlines active", QColor("#ff2828"), 3000);
+    } else {
+        flashStatusMessage("Vuln Scanner: OFF", QColor("#569cd6"), 2000);
+    }
 }
 
 void TextEditor::toggleCRT() {
@@ -2815,17 +3250,17 @@ void TextEditor::applyModernStyle() {
             background-color: #e81123;
         }
         QStatusBar {
-            background-color: #007acc;
-            color: #ffffff;
+            background-color: #141414;
+            color: #9e9e9e;
             border: none;
-            padding: 0px;
-            font-size: 12px;
+            border-top: 1px solid #2a2a2a;
+            padding: 2px 4px;
+            font-size: 11px;
         }
         QStatusBar QLabel {
             background-color: transparent;
-            color: #ffffff;
-            padding: 3px 10px;
-            font-size: 12px;
+            color: #cccccc;
+            font-size: 11px;
         }
         QDockWidget {
             color: #cccccc;
@@ -2956,4 +3391,1073 @@ void TextEditor::applyModernStyle() {
         }
     )";
   setStyleSheet(style);
+}
+
+// ── v0.8.0 QoL Implementations ───────────────────────────────────────────────
+
+void TextEditor::changeEvent(QEvent *e) {
+    QMainWindow::changeEvent(e);
+    if (e->type() == QEvent::ActivationChange && !isActiveWindow()) {
+        // Auto-save on focus lost
+        if (autoSaveFocusEnabled) {
+            for (int i = 0; i < tabWidget->count(); ++i) {
+                CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+                if (ed && ed->isModified() && !ed->getFileName().isEmpty())
+                    saveFileToPath(ed->getFileName());
+            }
+        }
+    }
+}
+
+bool TextEditor::eventFilter(QObject *obj, QEvent *event) {
+    // Double-Shift detection for Search Everywhere
+    if (event->type() == QEvent::KeyPress) {
+        QKeyEvent *ke = static_cast<QKeyEvent*>(event);
+        if (ke->key() == Qt::Key_Shift) {
+            qint64 now = QDateTime::currentMSecsSinceEpoch();
+            if (now - lastShiftPressMs < 400)
+                openSearchEverywhere();
+            lastShiftPressMs = now;
+        }
+    }
+    return QMainWindow::eventFilter(obj, event);
+}
+
+void TextEditor::switchHeaderSource() {
+    CodeEditor *ed = currentEditor();
+    if (!ed || ed->getFileName().isEmpty()) return;
+    QFileInfo fi(ed->getFileName());
+    QString ext = fi.suffix().toLower();
+    QString companion;
+    if (ext == "cpp" || ext == "cxx" || ext == "cc")
+        companion = fi.absolutePath() + "/" + fi.completeBaseName() + ".h";
+    else if (ext == "h" || ext == "hpp" || ext == "hxx")
+        companion = fi.absolutePath() + "/" + fi.completeBaseName() + ".cpp";
+    else {
+        flashStatusMessage("No header/source counterpart for this file type", QColor("#ffb86c"), 2000);
+        return;
+    }
+    if (QFileInfo::exists(companion)) {
+        loadFile(companion);
+    } else {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this, "Create Counterpart",
+            QString("'%1' doesn't exist. Create it?").arg(QFileInfo(companion).fileName()),
+            QMessageBox::Yes | QMessageBox::No);
+        if (reply == QMessageBox::Yes) {
+            QFile f(companion);
+            if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream s(&f);
+                if (companion.endsWith(".h")) {
+                    QString guard = QFileInfo(companion).completeBaseName().toUpper() + "_H";
+                    s << "#ifndef " << guard << "\n#define " << guard << "\n\n\n#endif // " << guard << "\n";
+                } else {
+                    s << "#include \"" << fi.completeBaseName() << ".h\"\n\n";
+                }
+            }
+            loadFile(companion);
+        }
+    }
+}
+
+void TextEditor::locateCurrentFileInTree() {
+    CodeEditor *ed = currentEditor();
+    if (!ed || ed->getFileName().isEmpty()) return;
+    // Ensure file tree is visible
+    if (!fileTreeDock->isVisible()) {
+        fileTreeDock->setVisible(true);
+        if (fileTreeAct) fileTreeAct->setChecked(true);
+    }
+    QModelIndex idx = fileSystemModel->index(ed->getFileName());
+    if (idx.isValid()) {
+        fileTree->scrollTo(idx, QAbstractItemView::PositionAtCenter);
+        fileTree->setCurrentIndex(idx);
+        flashStatusMessage("📁 Located: " + QFileInfo(ed->getFileName()).fileName(),
+                           QColor("#569cd6"), 2000);
+    }
+}
+
+void TextEditor::openSearchEverywhere() {
+    if (!searchEverywhere) {
+        searchEverywhere = new SearchEverywhere(this);
+        connect(searchEverywhere, &SearchEverywhere::fileRequested,
+                this, &TextEditor::loadFile);
+    }
+    // Gather all actions
+    QList<QAction*> allActs;
+    allActs << menuBar()->actions();
+    // Gather open files
+    QStringList openFiles;
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+        if (ed && !ed->getFileName().isEmpty())
+            openFiles << ed->getFileName();
+    }
+    searchEverywhere->populate(allActs, recentFiles, openFiles);
+    searchEverywhere->exec();
+}
+
+void TextEditor::toggleStickyScroll() {
+    stickyScrollEnabled = stickyScrollAct->isChecked();
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+        if (ed) ed->setStickyScrollEnabled(stickyScrollEnabled);
+    }
+}
+
+void TextEditor::toggleInvisibleChars() {
+    invisibleCharsEnabled = invisibleCharsAct->isChecked();
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+        if (ed) ed->setInvisibleCharsEnabled(invisibleCharsEnabled);
+    }
+}
+
+void TextEditor::toggleGitBlame() {
+    gitBlameEnabled = gitBlameAct->isChecked();
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+        if (ed) ed->setGitBlameEnabled(gitBlameEnabled);
+    }
+}
+
+void TextEditor::toggleAutoSaveOnFocusLost() {
+    autoSaveFocusEnabled = autoSaveFocusAct->isChecked();
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+        if (ed) ed->setAutoSaveOnFocusLost(autoSaveFocusEnabled);
+    }
+    if (autoSaveFocusEnabled)
+        flashStatusMessage("Auto-Save on Focus Lost: ON", QColor("#4ec9b0"), 2000);
+    else
+        flashStatusMessage("Auto-Save on Focus Lost: OFF", QColor("#569cd6"), 2000);
+}
+
+void TextEditor::sendSelectionToScratchpad() {
+    CodeEditor *ed = currentEditor();
+    if (!ed || !ed->textCursor().hasSelection()) {
+        flashStatusMessage("No selection to send", QColor("#ffb86c"), 1500);
+        return;
+    }
+    QString sel = ed->textCursor().selectedText()
+                      .replace(QChar::ParagraphSeparator, '\n');
+    QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                   + "/jim_scratchpad.txt";
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile f(path);
+    if (f.open(QIODevice::Append | QIODevice::Text)) {
+        QTextStream s(&f);
+        s << "\n\n--- " << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss")
+          << " [from " << (ed->getFileName().isEmpty() ? "untitled" : QFileInfo(ed->getFileName()).fileName())
+          << "] ---\n";
+        s << sel << "\n";
+        f.close();
+        flashStatusMessage("✓ Sent to Scratchpad", QColor("#4ec9b0"), 2000);
+    }
+}
+
+void TextEditor::applyPaneDimming() {
+    // Dim the non-active pane in split view
+    if (!splitViewEnabled || !tabWidget2) return;
+    bool pane1Active = tabWidget->currentWidget() && tabWidget->currentWidget()->hasFocus();
+    // Apply semi-transparent overlay on the inactive pane container
+    // We use GraphicsOpacityEffect on the entire inactive QTabWidget
+    QTabWidget *active = pane1Active ? tabWidget : tabWidget2;
+    QTabWidget *inactive = pane1Active ? tabWidget2 : tabWidget;
+    Q_UNUSED(active);
+    inactive->setWindowOpacity(0.65);
+}
+
+void TextEditor::propagateV080Settings(CodeEditor *ed) {
+    if (!ed) return;
+    ed->setStickyScrollEnabled(stickyScrollEnabled);
+    ed->setInvisibleCharsEnabled(invisibleCharsEnabled);
+    ed->setGitBlameEnabled(gitBlameEnabled);
+    ed->setAutoSaveOnFocusLost(autoSaveFocusEnabled);
+}
+
+// ── SearchEverywhere Dialog Implementation ────────────────────────────────────
+
+SearchEverywhere::SearchEverywhere(QWidget *parent) : QDialog(parent) {
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog | Qt::WindowStaysOnTopHint);
+    setAttribute(Qt::WA_TranslucentBackground);
+    setModal(true);
+
+    QVBoxLayout *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    QWidget *container = new QWidget();
+    container->setObjectName("seContainer");
+    container->setStyleSheet(
+        "#seContainer {"
+        "  background-color: #1a1a2e;"
+        "  border: 1px solid #569cd6;"
+        "  border-radius: 10px;"
+        "}"
+    );
+    QVBoxLayout *cl = new QVBoxLayout(container);
+    cl->setContentsMargins(10, 10, 10, 10);
+    cl->setSpacing(6);
+
+    searchBox = new QLineEdit();
+    searchBox->setPlaceholderText("🔍  Search files, actions, recent...");
+    searchBox->setStyleSheet(
+        "QLineEdit {"
+        "  background: #252540;"
+        "  color: #cdd6f4;"
+        "  border: none;"
+        "  border-radius: 6px;"
+        "  padding: 8px 12px;"
+        "  font-size: 15px;"
+        "  font-family: Consolas;"
+        "}"
+    );
+    cl->addWidget(searchBox);
+
+    resultList = new QListWidget();
+    resultList->setStyleSheet(
+        "QListWidget {"
+        "  background: transparent;"
+        "  color: #cdd6f4;"
+        "  border: none;"
+        "  font-family: Consolas;"
+        "  font-size: 12px;"
+        "}"
+        "QListWidget::item { padding: 4px 8px; border-radius: 4px; }"
+        "QListWidget::item:selected { background-color: #2d4a6e; color: #ffffff; }"
+        "QListWidget::item:hover { background-color: #1e3a5a; }"
+    );
+    resultList->setMaximumHeight(300);
+    cl->addWidget(resultList);
+
+    layout->addWidget(container);
+    setFixedWidth(580);
+
+    connect(searchBox, &QLineEdit::textChanged, this, &SearchEverywhere::filter);
+    connect(resultList, &QListWidget::itemDoubleClicked, this, &SearchEverywhere::runSelected);
+    searchBox->installEventFilter(this);
+
+    // Center on parent
+    if (parent) {
+        QPoint center = parent->geometry().center();
+        move(center.x() - width()/2, center.y() - height()/2 - 100);
+    }
+}
+
+void SearchEverywhere::populate(const QList<QAction*> &actions,
+                                const QStringList &recentFiles,
+                                const QStringList &openFiles) {
+    allActions = actions;
+    allRecent = recentFiles;
+    allFiles = openFiles;
+    searchBox->clear();
+    filter("");
+    searchBox->setFocus();
+}
+
+void SearchEverywhere::filter(const QString &text) {
+    resultList->clear();
+    QString q = text.trimmed().toLower();
+
+    // Open files
+    for (const QString &f : allFiles) {
+        QString bn = QFileInfo(f).fileName();
+        if (q.isEmpty() || bn.toLower().contains(q) || f.toLower().contains(q)) {
+            QListWidgetItem *item = new QListWidgetItem("📄  " + bn);
+            item->setData(Qt::UserRole, "file:" + f);
+            item->setToolTip(f);
+            resultList->addItem(item);
+        }
+    }
+    // Recent files (not already open)
+    for (const QString &f : allRecent) {
+        QString bn = QFileInfo(f).fileName();
+        if (allFiles.contains(f)) continue;
+        if (q.isEmpty() || bn.toLower().contains(q) || f.toLower().contains(q)) {
+            QListWidgetItem *item = new QListWidgetItem("🕐  " + bn + "  [recent]");
+            item->setData(Qt::UserRole, "file:" + f);
+            item->setForeground(QColor("#888888"));
+            resultList->addItem(item);
+        }
+    }
+    // Actions
+    for (QAction *act : allActions) {
+        if (act->isSeparator() || act->text().isEmpty()) continue;
+        QString name = act->text().remove('&');
+        if (q.isEmpty() || name.toLower().contains(q)) {
+            QListWidgetItem *item = new QListWidgetItem("⚡  " + name);
+            item->setData(Qt::UserRole, "action:" + name);
+            item->setForeground(QColor("#569cd6"));
+            resultList->addItem(item);
+        }
+    }
+
+    if (resultList->count() > 0)
+        resultList->setCurrentRow(0);
+}
+
+void SearchEverywhere::runSelected() {
+    QListWidgetItem *item = resultList->currentItem();
+    if (!item) return;
+    QString data = item->data(Qt::UserRole).toString();
+    if (data.startsWith("file:")) {
+        emit fileRequested(data.mid(5));
+        accept();
+    } else if (data.startsWith("action:")) {
+        QString name = data.mid(7);
+        for (QAction *act : allActions) {
+            if (act->text().remove('&') == name) {
+                act->trigger();
+                break;
+            }
+        }
+        accept();
+    }
+}
+
+void SearchEverywhere::keyPressEvent(QKeyEvent *event) {
+    if (event->key() == Qt::Key_Escape) { reject(); return; }
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+        runSelected(); return;
+    }
+    if (event->key() == Qt::Key_Down) {
+        int next = qMin(resultList->currentRow() + 1, resultList->count() - 1);
+        resultList->setCurrentRow(next); return;
+    }
+    if (event->key() == Qt::Key_Up) {
+        int prev = qMax(resultList->currentRow() - 1, 0);
+        resultList->setCurrentRow(prev); return;
+    }
+    QDialog::keyPressEvent(event);
+}
+
+bool SearchEverywhere::eventFilter(QObject *obj, QEvent *event) {
+    if (obj == searchBox && event->type() == QEvent::KeyPress) {
+        QKeyEvent *ke = static_cast<QKeyEvent*>(event);
+        if (ke->key() == Qt::Key_Down || ke->key() == Qt::Key_Up ||
+            ke->key() == Qt::Key_Return || ke->key() == Qt::Key_Enter ||
+            ke->key() == Qt::Key_Escape) {
+            keyPressEvent(ke);
+            return true;
+        }
+    }
+    return QDialog::eventFilter(obj, event);
+}
+
+// ============================================================
+// v0.9.0 — Web3Sec & Solidity Pack
+// ============================================================
+
+void TextEditor::propagateV090Settings(CodeEditor *ed) {
+    if (!ed) return;
+    ed->setGasMinimapEnabled(gasMiniMapEnabled);
+}
+
+void TextEditor::triggerGodView() {
+    CodeEditor *ed = currentEditor();
+    if (!ed) return;
+
+    Language lang = ed->getLanguage();
+
+    QTextBlock block = ed->document()->begin();
+    int collapsed = 0;
+    while (block.isValid()) {
+        if (ed->isFoldable(block) && !ed->isFolded(block)) {
+            QString text = block.text().trimmed();
+            bool isFunctionBody = text.contains("function ") ||
+                                  text.endsWith('{') ||
+                                  text.contains(") {") ||
+                                  text.contains(") public") ||
+                                  text.contains(") private") ||
+                                  text.contains(") external") ||
+                                  text.contains(") internal");
+            if (isFunctionBody || lang == Language::Solidity || lang == Language::CPP) {
+                ed->toggleFoldAt(block.blockNumber());
+                collapsed++;
+            }
+        }
+        block = block.next();
+    }
+
+    if (collapsed == 0) {
+        QTextBlock b = ed->document()->begin();
+        while (b.isValid()) {
+            if (ed->isFolded(b)) ed->toggleFoldAt(b.blockNumber());
+            b = b.next();
+        }
+        flashStatusMessage("God View: expanded all blocks");
+    } else {
+        flashStatusMessage(QString("God View: collapsed %1 function bodies").arg(collapsed));
+    }
+}
+
+void TextEditor::extractABI() {
+    CodeEditor *ed = currentEditor();
+    if (!ed) {
+        flashStatusMessage("No active editor");
+        return;
+    }
+    QString path = ed->getFileName();
+    if (path.isEmpty() || !path.endsWith(".sol", Qt::CaseInsensitive)) {
+        flashStatusMessage("Open a .sol file first");
+        return;
+    }
+
+    QProcess *proc = new QProcess(this);
+    proc->setWorkingDirectory(QFileInfo(path).absolutePath());
+
+    QStringList solcCandidates = {"solc", "solc-0.8", "/usr/local/bin/solc", "/usr/bin/solc"};
+    QString solcPath;
+    for (const QString &c : solcCandidates) {
+        QProcess test;
+        test.start(c, {"--version"});
+        test.waitForFinished(1000);
+        if (test.exitCode() == 0) { solcPath = c; break; }
+    }
+
+    if (solcPath.isEmpty()) {
+        flashStatusMessage("solc not found — install Solidity compiler");
+        proc->deleteLater();
+        return;
+    }
+
+    flashStatusMessage("⚡ Running solc...");
+
+    connect(proc, QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+    this, [this, proc, path](int exitCode, QProcess::ExitStatus) {
+        QByteArray out = proc->readAllStandardOutput();
+        QByteArray err = proc->readAllStandardError();
+        proc->deleteLater();
+
+        if (exitCode != 0) {
+            QMessageBox::warning(this, "solc Error",
+                QString("solc failed:\n%1").arg(QString::fromUtf8(err).left(1000)));
+            return;
+        }
+
+        QApplication::clipboard()->setText(QString::fromUtf8(out));
+
+        QPalette p = palette();
+        QPalette orig = p;
+        p.setColor(QPalette::Window, QColor(0, 80, 0));
+        setPalette(p);
+        QTimer::singleShot(300, this, [this, orig]() { setPalette(orig); });
+
+        flashStatusMessage(QString("✓ ABI copied to clipboard (%1 bytes)").arg(out.size()));
+
+        QDialog *dlg = new QDialog(this);
+        dlg->setWindowTitle("ABI / Bytecode — " + QFileInfo(path).fileName());
+        dlg->resize(700, 400);
+        auto *layout = new QVBoxLayout(dlg);
+        auto *te = new QPlainTextEdit(dlg);
+        te->setPlainText(QString::fromUtf8(out));
+        te->setStyleSheet("background:#0d0d0d;color:#00ff88;font-family:Consolas;font-size:11px;");
+        te->setReadOnly(true);
+        layout->addWidget(te);
+        auto *closeBtn = new QPushButton("Close", dlg);
+        connect(closeBtn, &QPushButton::clicked, dlg, &QDialog::accept);
+        layout->addWidget(closeBtn);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->show();
+    });
+
+    proc->start(solcPath, {"--abi", "--bin", "--optimize", path});
+}
+
+void TextEditor::resolveFourByte() {
+    CodeEditor *ed = currentEditor();
+    QString selectedText;
+    if (ed) {
+        QTextCursor cur = ed->textCursor();
+        selectedText = cur.selectedText().trimmed();
+    }
+
+    if (selectedText.isEmpty() || selectedText.length() > 10) {
+        bool ok;
+        selectedText = QInputDialog::getText(this, "4-Byte Signature Resolver",
+            "Enter 4-byte hex selector (e.g. 0xa9059cbb or a9059cbb):",
+            QLineEdit::Normal, selectedText.left(10), &ok);
+        if (!ok || selectedText.isEmpty()) return;
+    }
+
+    QString hex = selectedText;
+    if (hex.startsWith("0x", Qt::CaseInsensitive)) hex = hex.mid(2);
+    hex = hex.toLower().left(8);
+
+    if (hex.length() != 8) {
+        flashStatusMessage("Invalid selector — need exactly 4 bytes (8 hex chars)");
+        return;
+    }
+
+    flashStatusMessage(QString("\U0001F50D Looking up 0x%1 in 4byte.directory...").arg(hex));
+
+    QUrl url(QString("https://www.4byte.directory/api/v1/signatures/?hex_signature=0x%1").arg(hex));
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, "Jim-Editor/0.9.0");
+
+    QNetworkReply *reply = networkManager->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, hex, ed]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            flashStatusMessage("Network error: " + reply->errorString());
+            return;
+        }
+        QByteArray data = reply->readAll();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        QJsonObject obj = doc.object();
+        QJsonArray results = obj["results"].toArray();
+
+        if (results.isEmpty()) {
+            flashStatusMessage(QString("0x%1 — not found in 4byte.directory").arg(hex));
+            return;
+        }
+
+        QStringList sigs;
+        for (const QJsonValue &v : results)
+            sigs << v.toObject()["text_signature"].toString();
+
+        QString best = sigs.first();
+        flashStatusMessage(QString("0x%1 \u2192 %2").arg(hex, best));
+
+        QDialog *dlg = new QDialog(this);
+        dlg->setWindowTitle(QString("4-Byte: 0x%1").arg(hex));
+        dlg->setFixedSize(480, 200);
+        dlg->setStyleSheet("background:#0a0a1a;color:#00ffff;border:2px solid #00ffff;");
+        auto *layout = new QVBoxLayout(dlg);
+        auto *title = new QLabel(QString("<div style='color:#00ff88;font-size:16px;font-weight:bold;'>0x%1</div>").arg(hex), dlg);
+        title->setTextFormat(Qt::RichText);
+        layout->addWidget(title);
+        for (const QString &sig : sigs) {
+            auto *lbl = new QLabel(sig, dlg);
+            lbl->setStyleSheet("color:#ffffff;font-family:Consolas;font-size:13px;padding:2px;");
+            lbl->setTextInteractionFlags(Qt::TextSelectableByMouse);
+            layout->addWidget(lbl);
+        }
+        auto *copyBtn = new QPushButton("Copy: " + best, dlg);
+        copyBtn->setStyleSheet("background:#003333;color:#00ffcc;border:1px solid #00ffcc;padding:4px;");
+        connect(copyBtn, &QPushButton::clicked, [best, dlg]() {
+            QApplication::clipboard()->setText(best);
+            dlg->accept();
+        });
+        layout->addWidget(copyBtn);
+
+        if (ed) {
+            QTextCursor cur = ed->textCursor();
+            if (cur.hasSelection()) {
+                auto *replaceBtn = new QPushButton("Replace selection with: " + best, dlg);
+                replaceBtn->setStyleSheet("background:#003300;color:#00ff88;border:1px solid #00ff88;padding:4px;");
+                connect(replaceBtn, &QPushButton::clicked, [ed, best, dlg]() {
+                    ed->textCursor().insertText(best);
+                    dlg->accept();
+                });
+                layout->addWidget(replaceBtn);
+            }
+        }
+
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->show();
+    });
+}
+
+void TextEditor::triggerPanicButton() {
+    QMessageBox::StandardButton reply = QMessageBox::warning(this,
+        "\u26A0 PANIC BUTTON — CONFIRM",
+        "This will:\n"
+        "\u2022 Immediately close Jim\n"
+        "\u2022 Overwrite scratchpad with zeroes (unrecoverable)\n"
+        "\u2022 Clear all recent files history\n"
+        "\u2022 Clear editor settings\n\n"
+        "Are you absolutely sure?",
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+    if (reply != QMessageBox::Yes) return;
+
+    QString scratchPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/jim_scratchpad.txt";
+    QFile scratchFile(scratchPath);
+    if (scratchFile.exists()) {
+        qint64 sz = scratchFile.size();
+        if (sz > 0 && scratchFile.open(QIODevice::WriteOnly)) {
+            QByteArray zeroes(sz, '\0');
+            for (int pass = 0; pass < 3; ++pass) {
+                scratchFile.seek(0);
+                scratchFile.write(zeroes);
+                scratchFile.flush();
+                if (pass == 1) {
+                    zeroes.fill('\xFF');
+                } else if (pass == 2) {
+                    for (char &c : zeroes) c = (char)(qrand() % 256);
+                }
+            }
+            scratchFile.close();
+        }
+        scratchFile.remove();
+    }
+
+    recentFiles.clear();
+    QSettings settings;
+    settings.remove("recentFiles");
+    settings.remove("geometry");
+    settings.remove("windowState");
+    settings.sync();
+
+    QApplication::quit();
+}
+
+void TextEditor::showStorageSlotVisualizer() {
+    CodeEditor *ed = currentEditor();
+    if (!ed) { flashStatusMessage("No active editor"); return; }
+
+    QString code = ed->toPlainText();
+    Language lang = ed->getLanguage();
+
+    bool isSolidity = lang == Language::Solidity ||
+                      ed->getFileName().endsWith(".sol", Qt::CaseInsensitive) ||
+                      code.contains("pragma solidity") || code.contains("contract ");
+
+    if (!isSolidity) {
+        flashStatusMessage("Storage Slot Visualizer: open a .sol file first");
+        return;
+    }
+
+    if (!slotVisualizerDock) {
+        slotVisualizerWidget = new StorageSlotVisualizerWidget(this);
+        slotVisualizerDock = new QDockWidget("\U0001F5C4 Storage Slots", this);
+        slotVisualizerDock->setWidget(slotVisualizerWidget);
+        slotVisualizerDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea | Qt::BottomDockWidgetArea);
+        addDockWidget(Qt::RightDockWidgetArea, slotVisualizerDock);
+        slotVisualizerDock->setStyleSheet(
+            "QDockWidget { background:#1a0030; color:#cc88ff; }"
+            "QDockWidget::title { background:#2a0050; padding:4px; }");
+
+        connect(slotVisualizerWidget, &StorageSlotVisualizerWidget::jumpToVariable,
+        this, [this](const QString &varName) {
+            CodeEditor *activeEd = currentEditor();
+            if (!activeEd) return;
+            QTextDocument *doc = activeEd->document();
+            QTextCursor found = doc->find(varName);
+            if (!found.isNull()) {
+                activeEd->setTextCursor(found);
+                activeEd->centerCursor();
+            }
+        });
+    }
+
+    slotVisualizerWidget->analyzeCode(code);
+    slotVisualizerDock->show();
+    slotVisualizerDock->raise();
+
+    auto vars = SolidityAnalyzer::parseStorageSlots(code);
+    flashStatusMessage(QString("Storage Slots: %1 variables in %2 slots analyzed")
+        .arg(vars.size())
+        .arg(vars.isEmpty() ? 0 : vars.last().slot + 1));
+}
+
+void TextEditor::toggleGasMinimap() {
+    gasMiniMapEnabled = !gasMiniMapEnabled;
+    if (gasMiniMapAct) gasMiniMapAct->setChecked(gasMiniMapEnabled);
+
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        if (auto *ed = qobject_cast<CodeEditor*>(tabWidget->widget(i)))
+            ed->setGasMinimapEnabled(gasMiniMapEnabled);
+    }
+    if (tabWidget2) {
+        for (int i = 0; i < tabWidget2->count(); ++i) {
+            if (auto *ed = qobject_cast<CodeEditor*>(tabWidget2->widget(i)))
+                ed->setGasMinimapEnabled(gasMiniMapEnabled);
+        }
+    }
+    flashStatusMessage(gasMiniMapEnabled ? "\U0001F321 Gas Minimap ON" : "Gas Minimap OFF");
+}
+
+void TextEditor::toggleSlitherOverlay() {
+    CodeEditor *ed = currentEditor();
+    if (!ed) { flashStatusMessage("No active editor"); return; }
+
+    QString path = ed->getFileName();
+    if (path.isEmpty()) { flashStatusMessage("Save file first"); return; }
+
+    bool hasSlither = false, hasForge = false;
+    {
+        QProcess test;
+        test.start("slither", {"--version"});
+        test.waitForFinished(1500);
+        hasSlither = (test.exitCode() == 0);
+    }
+    {
+        QProcess test;
+        test.start("forge", {"--version"});
+        test.waitForFinished(1500);
+        hasForge = (test.exitCode() == 0);
+    }
+
+    if (!hasSlither && !hasForge) {
+        QMessageBox::information(this, "Slither/Foundry Overlays",
+            "Neither slither nor forge was found in PATH.\n\n"
+            "Install with:\n  pip install slither-analyzer\n  curl -L https://foundry.paradigm.xyz | bash\n\nfoundryup");
+        return;
+    }
+
+    QDialog *toolDialog = new QDialog(this);
+    toolDialog->setWindowTitle("Run Analysis Tool");
+    toolDialog->setStyleSheet("background:#0d0d0d;color:#d4d4d4;");
+    auto *layout = new QVBoxLayout(toolDialog);
+    layout->addWidget(new QLabel(QString("File: %1").arg(QFileInfo(path).fileName()), toolDialog));
+
+    QComboBox *toolCombo = new QComboBox(toolDialog);
+    if (hasSlither) toolCombo->addItem("slither (static analysis)");
+    if (hasForge) toolCombo->addItem("forge test (unit tests)");
+    layout->addWidget(toolCombo);
+
+    auto *runBtn = new QPushButton("\u25B6 Run", toolDialog);
+    auto *cancelBtn = new QPushButton("Cancel", toolDialog);
+    auto *btns = new QHBoxLayout();
+    btns->addWidget(runBtn);
+    btns->addWidget(cancelBtn);
+    layout->addLayout(btns);
+
+    connect(cancelBtn, &QPushButton::clicked, toolDialog, &QDialog::reject);
+    connect(runBtn, &QPushButton::clicked, toolDialog, [=]() {
+        toolDialog->accept();
+        QString tool = toolCombo->currentText().contains("slither") ? "slither" : "forge";
+
+        QProcess *proc = new QProcess(this);
+        proc->setWorkingDirectory(QFileInfo(path).absolutePath());
+
+        QStringList args;
+        QString outFile = QDir::temp().filePath("jim_analysis.json");
+        if (tool == "slither") {
+            args << path << "--json" << outFile;
+        } else {
+            args << "test" << "--json-summary";
+        }
+
+        flashStatusMessage(QString("\u2699 Running %1...").arg(tool));
+
+        connect(proc, QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+        this, [this, proc, outFile, tool, ed](int, QProcess::ExitStatus) {
+            proc->deleteLater();
+
+            QVector<VulnScanner::Finding> findings;
+
+            QFile jf(outFile);
+            if (jf.open(QIODevice::ReadOnly)) {
+                QByteArray jsonData = jf.readAll();
+                jf.close();
+                QJsonDocument jdoc = QJsonDocument::fromJson(jsonData);
+                if (!jdoc.isNull()) {
+                    QJsonObject root = jdoc.object();
+                    QJsonArray detectors = root["results"].toObject()["detectors"].toArray();
+                    for (const QJsonValue &det : detectors) {
+                        QJsonObject d = det.toObject();
+                        QString check = d["check"].toString();
+                        QString impact = d["impact"].toString();
+                        QJsonArray elements = d["elements"].toArray();
+                        for (const QJsonValue &el : elements) {
+                            QJsonObject src = el.toObject()["source_mapping"].toObject();
+                            int line = src["lines"].toArray().first().toInt() - 1;
+                            VulnScanner::Finding f;
+                            f.line = line;
+                            f.colStart = 0;
+                            f.colEnd = 5;
+                            f.category = "SLITHER";
+                            f.description = check + " [" + impact + "] " + d["description"].toString().left(100);
+                            findings.append(f);
+                        }
+                    }
+                }
+            }
+
+            QByteArray stdErr = proc->readAllStandardError();
+            if (findings.isEmpty() && !stdErr.isEmpty()) {
+                static QRegularExpression lineRe(R"(\((\d+)\))");
+                QStringList errLines = QString::fromUtf8(stdErr).split('\n');
+                for (const QString &el : errLines) {
+                    QRegularExpressionMatch m = lineRe.match(el);
+                    if (m.hasMatch()) {
+                        VulnScanner::Finding f;
+                        f.line = m.captured(1).toInt() - 1;
+                        f.colStart = 0; f.colEnd = 5;
+                        f.category = "SLITHER";
+                        f.description = el.left(120);
+                        findings.append(f);
+                    }
+                }
+            }
+
+            if (findings.isEmpty()) {
+                flashStatusMessage(QString("\u2713 %1: No issues found").arg(tool));
+            } else {
+                ed->vulnFindings.append(findings);
+                ed->viewport()->update();
+                ed->update();
+                flashStatusMessage(QString("\u2622 %1: %2 findings overlaid on editor").arg(tool).arg(findings.size()));
+            }
+        });
+
+        proc->start(tool, args);
+    });
+
+    toolDialog->exec();
+    toolDialog->deleteLater();
+}
+
+void TextEditor::showOnChainTracer() {
+    QDialog *dlg = new QDialog(this);
+    dlg->setWindowTitle("\u26D3 On-Chain Trace Explorer");
+    dlg->resize(800, 600);
+    dlg->setStyleSheet("background:#080818;color:#00ffaa;");
+
+    auto *layout = new QVBoxLayout(dlg);
+
+    auto *header = new QLabel(
+        "<div style='color:#00ffaa;font-size:16px;font-weight:bold;'>\u26D3 Time-Travel On-Chain Trace Explorer</div>"
+        "<div style='color:#888;font-size:11px;'>Paste a mainnet tx hash to replay execution against local .sol files</div>",
+        dlg);
+    header->setTextFormat(Qt::RichText);
+    layout->addWidget(header);
+
+    auto *rpcRow = new QHBoxLayout();
+    rpcRow->addWidget(new QLabel("RPC Endpoint:", dlg));
+    auto *rpcInput = new QLineEdit("https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY", dlg);
+    rpcInput->setStyleSheet("background:#0a0a20;color:#aaffaa;border:1px solid #004400;padding:4px;font-family:Consolas;");
+    rpcRow->addWidget(rpcInput, 1);
+    layout->addLayout(rpcRow);
+
+    auto *txRow = new QHBoxLayout();
+    txRow->addWidget(new QLabel("Tx Hash:", dlg));
+    auto *txInput = new QLineEdit(dlg);
+    txInput->setPlaceholderText("0x...");
+    txInput->setStyleSheet("background:#0a0a20;color:#aaffaa;border:1px solid #004400;padding:4px;font-family:Consolas;");
+    auto *fetchBtn = new QPushButton("\u25B6 Fetch Trace", dlg);
+    fetchBtn->setStyleSheet("background:#003300;color:#00ff88;border:1px solid #00ff88;padding:6px 12px;");
+    txRow->addWidget(txInput, 1);
+    txRow->addWidget(fetchBtn);
+    layout->addLayout(txRow);
+
+    auto *traceOutput = new QPlainTextEdit(dlg);
+    traceOutput->setReadOnly(true);
+    traceOutput->setPlaceholderText("Trace will appear here...");
+    traceOutput->setStyleSheet("background:#050510;color:#00cc88;font-family:Consolas,monospace;font-size:11px;border:1px solid #003333;");
+    layout->addWidget(traceOutput, 1);
+
+    auto *statusLbl = new QLabel("Ready", dlg);
+    statusLbl->setStyleSheet("color:#666;font-size:10px;");
+    layout->addWidget(statusLbl);
+
+    auto *closeBtnRow = new QHBoxLayout();
+    auto *closeBtn2 = new QPushButton("Close", dlg);
+    closeBtn2->setStyleSheet("background:#1a0000;color:#ff6666;border:1px solid #ff3333;padding:4px 12px;");
+    connect(closeBtn2, &QPushButton::clicked, dlg, &QDialog::accept);
+    closeBtnRow->addStretch();
+    closeBtnRow->addWidget(closeBtn2);
+    layout->addLayout(closeBtnRow);
+
+    connect(fetchBtn, &QPushButton::clicked, dlg, [=]() {
+        QString txHash = txInput->text().trimmed();
+        QString rpcUrl = rpcInput->text().trimmed();
+
+        if (txHash.isEmpty() || rpcUrl.isEmpty()) {
+            statusLbl->setText("Enter RPC URL and tx hash");
+            return;
+        }
+
+        statusLbl->setText("Fetching trace...");
+        fetchBtn->setEnabled(false);
+        traceOutput->clear();
+
+        QJsonObject rpcCall;
+        rpcCall["jsonrpc"] = "2.0";
+        rpcCall["method"] = "debug_traceTransaction";
+        rpcCall["id"] = 1;
+        QJsonArray params;
+        params.append(txHash);
+        QJsonObject opts;
+        opts["disableStorage"] = false;
+        opts["disableMemory"] = true;
+        opts["disableStack"] = false;
+        params.append(opts);
+        rpcCall["params"] = params;
+
+        QNetworkRequest req(QUrl(rpcUrl));
+        req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        req.setHeader(QNetworkRequest::UserAgentHeader, "Jim-Editor/0.9.0");
+
+        QNetworkReply *reply = networkManager->post(req, QJsonDocument(rpcCall).toJson());
+
+        connect(reply, &QNetworkReply::finished, dlg, [=]() {
+            reply->deleteLater();
+            fetchBtn->setEnabled(true);
+
+            if (reply->error() != QNetworkReply::NoError) {
+                statusLbl->setText("Error: " + reply->errorString());
+                return;
+            }
+
+            QByteArray data = reply->readAll();
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            QJsonObject obj = doc.object();
+
+            if (obj.contains("error")) {
+                statusLbl->setText("RPC Error: " + obj["error"].toObject()["message"].toString());
+                traceOutput->setPlainText(QString::fromUtf8(data).left(2000));
+                return;
+            }
+
+            QJsonObject result = obj["result"].toObject();
+            QJsonArray structLogs = result["structLogs"].toArray();
+
+            if (structLogs.isEmpty()) {
+                statusLbl->setText("No trace data (check tx hash and RPC endpoint)");
+                traceOutput->setPlainText(QString::fromUtf8(data).left(1000));
+                return;
+            }
+
+            QString traceText;
+            traceText += QString("Transaction Trace: %1\n").arg(txHash);
+            traceText += QString("Gas Used: %1\n").arg(result["gas"].toInt());
+            traceText += QString("Steps: %1\n\n").arg(structLogs.size());
+            traceText += QString("%-6s  %-16s  %-8s  %s\n").arg("PC", "OPCODE", "GAS", "STACK TOP");
+            traceText += QString("-").repeated(70) + "\n";
+
+            int maxSteps = qMin(structLogs.size(), 500);
+            for (int i = 0; i < maxSteps; ++i) {
+                QJsonObject step = structLogs[i].toObject();
+                int pc = step["pc"].toInt();
+                QString op = step["op"].toString();
+                int gas = step["gas"].toInt();
+                QJsonArray stack = step["stack"].toArray();
+                QString stackTop = stack.isEmpty() ? "" : stack.last().toString().right(16);
+                traceText += QString("%-6d  %-16s  %-8d  %s\n").arg(pc).arg(op).arg(gas).arg(stackTop);
+            }
+            if (structLogs.size() > maxSteps)
+                traceText += QString("... (%1 more steps)\n").arg(structLogs.size() - maxSteps);
+
+            traceOutput->setPlainText(traceText);
+            statusLbl->setText(QString("\u2713 Loaded %1 execution steps").arg(structLogs.size()));
+        });
+    });
+
+    dlg->exec();
+    dlg->deleteLater();
+}
+
+void TextEditor::showProxyDiff() {
+    QStringList files = QFileDialog::getOpenFileNames(this,
+        "Select Two .sol Files for Proxy/Implementation Diff",
+        currentFolder, "Solidity (*.sol);;All Files (*)");
+
+    if (files.size() < 2) {
+        CodeEditor *ed = currentEditor();
+        if (ed && ed->getFileName().endsWith(".sol")) {
+            files.clear();
+            files << ed->getFileName();
+            QString second = QFileDialog::getOpenFileName(this,
+                "Select Implementation .sol to compare against", currentFolder, "Solidity (*.sol)");
+            if (second.isEmpty()) return;
+            files << second;
+        } else {
+            flashStatusMessage("Select two .sol files to compare");
+            return;
+        }
+    }
+
+    QDialog *dlg = new QDialog(this);
+    dlg->setWindowTitle("\U0001F504 Proxy/Implementation Storage Diff");
+    dlg->resize(1000, 600);
+    dlg->setStyleSheet("background:#0a0a0a;color:#d4d4d4;");
+
+    auto *mainLayout = new QVBoxLayout(dlg);
+
+    auto *header = new QLabel(
+        "<b style='color:#00aaff;'>Proxy/Implementation Storage Slot Comparison</b><br>"
+        "<span style='color:#888;font-size:10px;'>Mismatches indicate storage collision risk</span>",
+        dlg);
+    header->setTextFormat(Qt::RichText);
+    mainLayout->addWidget(header);
+
+    QStringList contents;
+    QStringList names;
+    for (const QString &f : files.mid(0, 2)) {
+        QFile file(f);
+        if (file.open(QIODevice::ReadOnly))
+            contents << QString::fromUtf8(file.readAll());
+        else
+            contents << "";
+        names << QFileInfo(f).fileName();
+    }
+
+    auto slots1 = SolidityAnalyzer::parseStorageSlots(contents[0]);
+    auto slots2 = SolidityAnalyzer::parseStorageSlots(contents[1]);
+
+    auto *table = new QTableWidget(dlg);
+    int maxSlots = qMax(slots1.size(), slots2.size());
+    table->setRowCount(maxSlots);
+    table->setColumnCount(5);
+    table->setHorizontalHeaderLabels({names[0] + " Name", names[0] + " Type/Slot",
+                                       "\u26A1",
+                                       names[1] + " Name", names[1] + " Type/Slot"});
+    table->setStyleSheet(
+        "QTableWidget { background:#0d0d0d; color:#d4d4d4; gridline-color:#333; }"
+        "QHeaderView::section { background:#1a1a1a; color:#aaaaaa; border:1px solid #333; }"
+        "QTableWidget::item { padding:4px; }");
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->verticalHeader()->hide();
+
+    for (int i = 0; i < maxSlots; ++i) {
+        bool hasCollision = false;
+        if (i < slots1.size() && i < slots2.size()) {
+            hasCollision = (slots1[i].slot != slots2[i].slot ||
+                           slots1[i].byteSize != slots2[i].byteSize);
+        } else {
+            hasCollision = true;
+        }
+
+        QString v1Name = i < slots1.size() ? slots1[i].name : "";
+        QString v1Type = i < slots1.size() ?
+            QString("%1 (slot %2)").arg(slots1[i].typeName).arg(slots1[i].slot) : "";
+        QString v2Name = i < slots2.size() ? slots2[i].name : "";
+        QString v2Type = i < slots2.size() ?
+            QString("%1 (slot %2)").arg(slots2[i].typeName).arg(slots2[i].slot) : "";
+
+        table->setItem(i, 0, new QTableWidgetItem(v1Name));
+        table->setItem(i, 1, new QTableWidgetItem(v1Type));
+        auto *flagItem = new QTableWidgetItem(hasCollision ? "\u26A0 COLLISION" : "\u2713 OK");
+        flagItem->setForeground(hasCollision ? QColor(255, 80, 80) : QColor(80, 255, 80));
+        table->setItem(i, 2, flagItem);
+        table->setItem(i, 3, new QTableWidgetItem(v2Name));
+        table->setItem(i, 4, new QTableWidgetItem(v2Type));
+
+        if (hasCollision) {
+            for (int c = 0; c < 5; ++c) {
+                if (table->item(i, c))
+                    table->item(i, c)->setBackground(QColor(60, 10, 10));
+            }
+        }
+    }
+
+    mainLayout->addWidget(table, 1);
+
+    int collisions = 0;
+    for (int i = 0; i < maxSlots; ++i) {
+        bool coll = false;
+        if (i < slots1.size() && i < slots2.size())
+            coll = (slots1[i].slot != slots2[i].slot || slots1[i].byteSize != slots2[i].byteSize);
+        else coll = true;
+        if (coll) ++collisions;
+    }
+
+    auto *summary = new QLabel(collisions > 0 ?
+        QString("<b style='color:#ff4444;'>\u26A0 WARNING: %1 storage collision(s) detected!</b>").arg(collisions) :
+        "<b style='color:#44ff44;'>\u2713 No storage collisions detected</b>", dlg);
+    summary->setTextFormat(Qt::RichText);
+    mainLayout->addWidget(summary);
+
+    auto *closeBtn3 = new QPushButton("Close", dlg);
+    closeBtn3->setStyleSheet("background:#1a0000;color:#ff6666;border:1px solid #ff3333;padding:4px 12px;");
+    connect(closeBtn3, &QPushButton::clicked, dlg, &QDialog::accept);
+    mainLayout->addWidget(closeBtn3);
+
+    dlg->exec();
+    dlg->deleteLater();
 }

@@ -2,13 +2,13 @@
 
 > A lightweight, fast code editor built with C++ and Qt6.
 
-## v1.0 — Released
+## v0.0.0 — Released
 
 **Core**: Syntax highlighting (C++, Python), line numbers, auto-indentation, bracket/quote auto-pairing, tabs, split view, minimap, word wrap, find & replace, go-to-line, recent files, file tree, themes (Light/Dark), CLI support.
 
 ---
 
-## v1.1
+## v0.1.0
 
 ### Implemented
 - [x] Welcome Screen with recent files and quick actions
@@ -30,7 +30,7 @@
 
 ---
 
-## v1.2 — Line Editing Power (COMPLETED)
+## v0.2.0 — Line Editing Power (COMPLETED)
 Focuses on making the editor more productive for keyboard-centric developers.
 - [x] **Line Manipulation:** Duplicate, move up/down, delete lines using standard shortcuts (`Ctrl+D`, `Alt+Up/Down`, `Ctrl+Shift+K`).
 - [x] **Smart Navigation:** Smart Home key (jumps to first non-whitespace character, then start of line).
@@ -38,7 +38,7 @@ Focuses on making the editor more productive for keyboard-centric developers.
 - [x] **Formatting:** Automatic trimming of trailing whitespace on save.
 - [x] **UI Polish:** Custom Frameless Window Title Bar with matching dark aesthetics and draggable mechanics.
 
-## v1.2.1 — Hex Editor & Binary Support (COMPLETED)
+## v0.2.1 — Hex Editor & Binary Support (COMPLETED)
 - [x] **Hex Editor:** Integrated hex/ASCII viewer for binary files.
 - [x] **Auto-Detection:** Automatic binary file detection (checks for null bytes).
 - [x] **Dual View:** Side-by-side hex and ASCII display with address column.
@@ -46,7 +46,7 @@ Focuses on making the editor more productive for keyboard-centric developers.
 - [x] **Editing:** Hex and ASCII editing modes with Tab to switch.
 - [x] **Tab Integration:** Binary files open with `[HEX]` prefix.
 
-## v1.2.2 — Visuals & Precision (COMPLETED)
+## v0.2.2 — Visuals & Precision (COMPLETED)
 - [x] **Animation Cycler:** Matrix, Particles, Waves, and Pulse effects in a dedicated dockable panel (`Ctrl+A` to cycle).
 - [x] **Hex Editor Persistence:** Save modifications back to binary files with full disk writing support.
 - [x] **State Awareness:** Asterisk `*` in tab titles for unsaved changes in both text and hex editors.
@@ -56,7 +56,7 @@ Focuses on making the editor more productive for keyboard-centric developers.
 
 ---
 
-## v1.3 — Search, Replace & Navigation (COMPLETED)
+## v0.3.0 — Search, Replace & Navigation (COMPLETED)
 Focuses on enhancing the ability to find and move through code quickly.
 - [x] **Advanced Search:** Regex support, match case, match whole word in Find/Replace.
 - [x] **AI Autocomplete:** Configurable AI-powered completions via OpenAI-compatible APIs.
@@ -65,7 +65,7 @@ Focuses on enhancing the ability to find and move through code quickly.
 
 ---
 
-## v1.4 — Heavy Tools & Visuals (COMPLETED)
+## v0.4.0 — Heavy Tools & Visuals (COMPLETED)
 - [x] **Markdown Preview:** Live split-panel rendered preview (`Ctrl+Shift+M`).
 - [x] **Disassembler:** Integrated assembly view via `objdump`/`llvm-objdump` (`Ctrl+Shift+D`).
 - [x] **Binary Inspector:** ELF/PE parser for headers, sections, imports (`Ctrl+Shift+I`).
@@ -74,7 +74,7 @@ Focuses on enhancing the ability to find and move through code quickly.
 
 ---
 
-## v1.5 — Precision & Intelligence (COMPLETED)
+## v0.4.5 — Precision & Intelligence (COMPLETED)
 - [x] **Find All Matches:** Simultaneous highlighting with golden-accent current selection.
 - [x] **Enhanced Syntax Highlighting:** Expanded rules for C++20, Python 3.12, ES2024.
 - [x] **Breadcrumb Symbol Detection:** Real-time function/class detection in breadcrumbs.
@@ -83,7 +83,7 @@ Focuses on enhancing the ability to find and move through code quickly.
 
 ---
 
-## v1.6 — The "Edgy" Feature Pack (COMPLETED)
+## v0.5.0 — The "Edgy" Feature Pack (COMPLETED)
 - [x] **Multi-Cursor Editing:** `Alt+Click` to place multiple cursors and `Ctrl+D` to select next occurrence.
 - [x] **Zen Mode:** Distraction-free writing with `Ctrl+Shift+Z`.
 - [x] **Secret DJ Mode:** System-audio reactive visualizer in the animation dock (`Ctrl+Shift+J`).
@@ -95,7 +95,7 @@ Focuses on enhancing the ability to find and move through code quickly.
 
 ---
 
-## v1.7 — The "Cyberpunk" Pack (COMPLETED)
+## v0.6.0 — The "Cyberpunk" Pack (COMPLETED)
 - [x] **CRT & Cyberpunk Post-Processing:** Scanlines, vignette, chromatic aberration (red/cyan edge fringe), and phosphor bloom overlay toggled via View menu.
 - [x] **The Code Graveyard:** Dockable panel that automatically catches deleted code blocks (>3 lines via cut/delete/backspace) with timestamps and one-click resurrection.
 - [x] ~~**Audio-Reactive Syntax Highlighting**~~ — removed (too distracting during heavy music).
@@ -107,7 +107,7 @@ Focuses on enhancing the ability to find and move through code quickly.
 
 ---
 
-## v1.8 — The "Hacker" Pack (COMPLETED)
+## v0.7.0 — The "Hacker" Pack (COMPLETED)
 - [x] **Bracket Pair Colorization:** Opening and closing `()`, `[]`, `{}` are coloured in three rotating neon colours (cyan/magenta/yellow) with depth-tracking — painted directly in `paintEvent` for zero-lag rendering.
 - [x] **Vim Mode:** Full modal editing with Normal/Insert/Visual parity — `hjkl`, `w/b`, `0/$`, `G/gg`, `dd`, `yy`, `i/a/A/I/o/O/s/C`, `u`, `Ctrl+R`, `p/P`, `Ctrl+D/U`. Status-bar pill updates on every mode transition. (`Ctrl+Alt+V`)
 - [x] **Keystroke Heatmap Overlay:** QWERTY keyboard rendered as a floating overlay, each key tinted from dark-grey (cold) through blue/teal/yellow to red (hot) by typing frequency. Click to dismiss. (`Ctrl+Alt+K`)
@@ -119,7 +119,7 @@ Focuses on enhancing the ability to find and move through code quickly.
 
 ---
 
-## v1.8.1 — Productivity & Ambient Pack (COMPLETED — all items shipped)
+## v0.7.1 — Productivity & Ambient Pack (COMPLETED — all items shipped)
 - [x] **Indent-Based Folding** — fold Python, YAML, and Markdown blocks by indentation level in addition to the existing brace-based folding for C++/JS/etc.
 - [x] **Persistent Scratchpad** — a special always-available tab (`Ctrl+Alt+S`) for mid-session notes; auto-saved to disk so nothing is lost between sessions.
 - [x] **Focus Fade** — All lines outside the current block dim while editing, snapping back instantly when the cursor moves. Pure `paintEvent` overlay — zero layout changes. Toggle via View menu.
@@ -130,11 +130,134 @@ Focuses on enhancing the ability to find and move through code quickly.
 
 ---
 
-## v1.9 — Planned
+## v0.8.0 — The Flow State Pack (Quality of Life)
+
+Focusing on buttery-smooth UX, preventing papercuts, and keeping you in the zone.
+
+### 1. Sticky Scroll (Context Headers)
+- [x] As you scroll down large functions or classes, the definition line "sticks" to the top edge of the editor so you never forget what scope you are in.
+
+### 2. Double-Shift "Search Everywhere"
+- [x] Tap `Shift` twice quickly to instantly summon a unified floating search bar that queries files, symbols, command palette actions, and recent history all at once.
+
+### 3. Smart Paste (Auto-Indent)
+- [x] When pasting a block of code, automatically adjust the indentation of the entire pasted block to perfectly match the surrounding scope.
+
+### 4. Kinetic Smooth Scrolling
+- [x] Replace chunky line-by-line wheel scrolling with a buttery-smooth physics-based kinetic scroll with easing.
+
+### 5. Auto-Save on Focus Lost
+- [x] Automatically save the active file whenever the editor window loses focus or you switch to the terminal.
+
+### 6. Invisible Character Rendering
+- [x] Optionally render trailing whitespaces, mixed tabs, and zero-width characters as faint, styled red dots to catch formatting errors before committing.
+
+### 7. Drag-and-Drop Split Panes
+- [ ] *(Skipped)* Grab any tab and drag it to the left/right/bottom edge of the editor to instantly split the view visually.
+
+### 8. Quick-Switch Header/Source (`Alt+O`)
+- [x] Instantly toggle between `file.cpp` and `file.h`. Ask to create from template if it doesn't exist.
+
+### 9. In-Line Git Blame Annotations
+- [x] Toggle "Blame Mode" to render faint, greyed-out text at the end of the current line showing who last modified it and when (e.g., `Anuj, 2 days ago • "fixed null pointer"`).
+
+### 10. Scratchpad "Send-To"
+- [x] Context menu option to instantly copy highlighted code and append it to `jim_scratchpad.txt` with a timestamp without breaking flow.
+
+### 11. Dim Inactive Panes
+- [x] In Split View (`Ctrl+\`), slightly dim the pane that does not have cursor focus to provide a subconscious visual anchor.
+
+### 12. Tear-Off Tabs (Multi-Window Support)
+- [ ] *(Deferred)* Click and drag any tab outside the main Jim editor to spawn a new floating window that shares the same backend state.
+
+### 13. "Locate Current File" in Tree
+- [x] Shortcut (`Ctrl+Alt+L`) to instantly snap the File Explorer open, scroll to, and highlight the currently active file.
+
+### 14. Visual URL Paste (Markdown/Doc Mode)
+- [x] Pasting a URL over a highlighted word in Markdown formats it automatically: `[highlighted_word](https://...)`.
+
+### 15. Hex Color Picker Pop-up
+- [x] `Ctrl+Click` an inline hex code (`#FF5733`) to spawn a sleek native color wheel. Dragging updates the hex string in the code in real-time.
 
 ---
 
-## v2.0 — Intelligence & Ecosystem
+## v0.9.0 — The Web3Sec & Solidity Pack (COMPLETED)
+
+The ultimate expansion for smart contract auditors, hackers, and security researchers.
+
+### 1. Storage Slot Visualizer (Tetris for State Variables)
+- [x] Parse state variables in the active `.sol` file and visually stack them into a 32-byte grid diagram dock.
+- [x] Highlight wasted/unpacked bytes in red, and tightly packed combinations (`uint128`/`bool`) in green.
+- [x] Warn on upgradeable proxy storage collisions natively (via Proxy/Implementation Diff).
+
+### 2. Native Reentrancy Heatmap
+- [x] Lightweight AST parse to detect Checks-Effects-Interactions pattern failures.
+- [x] Draw a glowing red "bloodline" down the left gutter connecting external calls (`call.value()`) to vulnerable state changes that occur *after* the call.
+
+### 3. EVM Opcode/Gas HUD
+- [x] Hover over `sload`, `mstore`, `keccak256` etc. in Solidity/Yul files to see a holographic dark-mode tooltip showing exact Gas cost and description.
+- [x] 30+ EVM opcodes mapped with post-EIP-2929 warm-access gas costs.
+
+### 4. Zero-Click ABI/Bytecode Extractor
+- [x] Keyboard shortcut (`Ctrl+Alt+C`) runs `solc` in the background on the current file.
+- [x] Flash the screen green (Matrix style) and dump the ABI JSON or bytecode directly to the clipboard without leaving the editor.
+
+### 5. Slither / Foundry Native Overlays
+- [x] Native, asynchronous hooking into `slither` or `forge test`.
+- [x] Parse JSON output and draw laser underline findings from Slither directly on editor lines.
+
+### 6. Four-Byte Signature Resolver (Hex-Translator)
+- [x] Select any 4-byte hex string (e.g., `0xa9059cbb`), hit `Ctrl+Alt+F`.
+- [x] Jim hits the 4byte.directory API and renders a holographic popup showing `transfer(address,uint256)` with one-click replacement.
+
+### 7. State-Shadowing Radar
+- [x] Lightweight background scope-check to detect shadowing of state variables by local ones.
+- [x] Flagged via vuln scanner with SHADOWING category and laser underline.
+
+### 8. Precision & Decimal Expansion Tooltips
+- [x] Hover over math operations involving exponents (e.g., `1e18` or `10**18`) to see a tooltip with the fully expanded numeric value (`1,000,000,000,000,000,000`).
+- [x] Detect division operators occurring *before* multiplication and flag as DIV_BEFORE_MUL.
+
+### 9. "God View" Contract Collapse (Spec-Mode)
+- [x] `Ctrl+Alt+G` collapses every foldable function body, leaving only NatSpec comments, function signatures, and modifiers.
+- [x] Turns massive monolithic contracts into instantly readable, high-level architectural spec documents.
+
+### 10. Memory Pointer / Yul Tracer
+- [x] Click on `0x40` (free memory pointer) or any specific memory offset in a Yul block.
+- [x] Simultaneously highlight every `mload` and `mstore` that touches that exact offset with a cyan highlight.
+
+### 11. "Time-Travel" On-Chain Trace Explorer
+- [x] Paste a mainnet Tx Hash + RPC endpoint to fetch exact execution traces via `debug_traceTransaction`.
+- [x] Displays formatted step-by-step opcode execution trace (PC, opcode, gas, stack top).
+
+### 12. Gas Cost Topographic Minimap
+- [x] Toggle minimap into a heat map of gas consumption (`Web3Sec > Gas Topographic Minimap`).
+- [x] Unbounded loops or heavy storage writes (`sstore`, `keccak256`, `call`) glow bright red; view functions remain cool blue.
+
+### 13. ERC Strict-Interface Enforcer
+- [x] Background check against EIP specs for `is ERC20`, `is ERC721`, `is ERC1155`.
+- [x] Missing required functions reported via vuln scanner with ERC_MISSING category.
+
+### 14. Proxy/Implementation Sync Diff
+- [x] Side-by-side storage slot comparison table when auditing two `.sol` files.
+- [x] Collision rows highlighted red with `⚠ COLLISION` marker.
+
+### 15. Cyber-Encoder Ring (Live JWT/Base64/Hex Decoding)
+- [x] Hold `Alt` over any Base64, URL-encoded payload, or Hex to see a floating HUD with decoded plaintext.
+- [x] Supports Base64, hex (`0x...`), and URL percent-encoding in the same tooltip.
+
+### 16. "Panic Button" (Anti-Forensic Killswitch)
+- [x] `Ctrl+Alt+Shift+Delete` instantly closes Jim, shreds the `jim_scratchpad.txt` file (3-pass DoD overwrite then delete), and wipes the recent files registry.
+
+### 17. Live Binary Patching (Hex Editor)
+- [x] Right-click any byte in the Hex Editor → "Patch Bytes..." or "Patch Instruction (x86)...".
+- [x] Supports NOP (0x90), INT3 (0xCC), RET (0xC3), and arbitrary hex byte patching.
+
+### 18. Regex ReDoS (Catastrophic Backtracking) Scanner
+- [x] Static analysis to find RegEx Denial of Service vulnerabilities in JS/Python files.
+- [x] Detects nested quantifier patterns (like `(a+)+$`) and flags with REDOS category.
+
+## v0.10.0 — Intelligence & Ecosystem
 - [ ] Snippet support (user-defined templates)
 - [ ] Bracket completion for multi-line blocks
 - [ ] Emmet abbreviation expansion (HTML/CSS)
@@ -192,7 +315,7 @@ Since Jim is a dynamically compiled native C++ application (unlike memory-heavy 
 
 ---
 
-## v2.0 — Developer Ecosystem
+## v0.10.1 — Developer Ecosystem
 
 ### LSP Integration
 - [ ] Language Server Protocol client
@@ -230,7 +353,7 @@ Since Jim is a dynamically compiled native C++ application (unlike memory-heavy 
 
 ---
 
-## v2.5 — Project Intelligence
+## v0.10.5 — Project Intelligence
 
 ### Fuzzy Finder
 - [ ] Quick file open (`Ctrl+P`)
@@ -263,7 +386,7 @@ Since Jim is a dynamically compiled native C++ application (unlike memory-heavy 
 
 ---
 
-## v3.0 — Extensibility
+## v0.10.8 — Extensibility
 
 ### Plugin System
 - [ ] Lua scripting API for plugins
@@ -280,7 +403,7 @@ Since Jim is a dynamically compiled native C++ application (unlike memory-heavy 
 
 ---
 
-## v3.5 — AI & Assistance (Brainstormed)
+## v0.10.9 — AI & Assistance (Brainstormed)
 
 ### Generative AI Integration
 - [ ] Inline code completions (Ghost text)
@@ -297,7 +420,7 @@ Since Jim is a dynamically compiled native C++ application (unlike memory-heavy 
 
 ---
 
-## v4.0 — Collaborative Editing (Brainstormed)
+## v1.0.0 — Collaborative Editing (Brainstormed)
 
 ### Real-Time Sync
 - [ ] Host/Join collaborative coding sessions
@@ -308,7 +431,7 @@ Since Jim is a dynamically compiled native C++ application (unlike memory-heavy 
 
 ---
 
-## v4.5 — Advanced Debugging (Brainstormed)
+## v1.1.0 — Advanced Debugging (Brainstormed)
 
 ### Integrated Debugger Protocol (DAP)
 - [ ] Breakpoint toggling in gutter

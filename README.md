@@ -1,6 +1,6 @@
 # Jim
 
-A lightweight, native code editor built with C++ and Qt6. Fast, distraction-free, and genuinely useful for developers and researchers who live in their editor.
+A lightweight, native code editor built with C++ and Qt6. Fast, zero-trace, and purpose-built with deep, native functionalities for hackers, auditors, and Web3 security researchers above everyone else.
 
 **Note:** This project was vibecoded — built through natural conversation and iteration with AI assistance.
 
@@ -48,15 +48,26 @@ A lightweight, native code editor built with C++ and Qt6. Fast, distraction-free
 - **Persistent Scratchpad** — always-available tab (`Ctrl+Alt+S`) for mid-session notes; auto-saved to disk (`v1.8.1`)
 - **Focus Fade** — all lines outside the current block dim while editing; snaps back on cursor move. Pure `paintEvent` overlay, toggle in View menu (`v1.8.1`)
 - **Inline Image Preview** — hover over any image path string literal to see a thumbnail tooltip; resolved relative to the current file (`v1.8.1`)
+- **Sticky Scroll** — as you scroll, the definition line sticks to the top edge of the editor so you never forget what scope you are in (`v0.8.0`)
+- **Smart Paste** — automatically adjust the indentation of the pasted block to perfectly match the surrounding scope (`v0.8.0`)
+- **Kinetic Smooth Scrolling** — buttery-smooth physics-based kinetic scroll with easing (`v0.8.0`)
+- **Auto-Save on Focus Lost** — automatically save the active file whenever the editor window loses focus (`v0.8.0`)
+- **Invisible Character Rendering** — optionally render trailing whitespaces, mixed tabs, and zero-width characters as faint dots (`v0.8.0`)
+- **In-Line Git Blame** — toggle to render faint text at the end of the line showing who last modified it (`v0.8.0`)
+- **Visual URL Paste** — pasting a URL over a highlighted word in Markdown formats it automatically (`v0.8.0`)
+- **Hex Color Picker** — `Ctrl+Click` an inline hex code (`#FF5733`) to spawn a color wheel and edit in real-time (`v0.8.0`)
 
 ### Navigation
 - **File Tree** — Browse and open files from a sidebar (`Ctrl+B`)
+- **Search Everywhere** — tap `Shift` twice quickly to instantly summon a unified search bar for files, symbols, command palette actions, and recent history (`v0.8.0`)
 - **Breadcrumb Navigation** — Shows `folder > file > function` context below the tab bar
 - **Go to Line** — Jump to any line instantly (`Ctrl+G`)
 - **Find & Replace** — Inline find bar with "Find All Matches" (simultaneous highlighting), match count, and golden-accent current selection
 - **Command Palette** — Fuzzy-search every editor action by name; arrow keys to navigate, Enter to trigger (`Ctrl+Shift+P`, `v1.8.1`)
 - **Recent Files** — Access recently opened files from the File menu
 - **Mini Map Navigation** — Click anywhere to jump to that part of your code
+- **Quick-Switch Header/Source** — `Alt+O` to instantly toggle between `file.cpp` and `file.h` (`v0.8.0`)
+- **Locate Current File** — `Ctrl+Alt+L` to snap the File Explorer open and highlight the active file (`v0.8.0`)
 
 ### Developer Tools
 - **Integrated Terminal** — Embedded shell panel with animated slide-in/out (`Ctrl+\``)
@@ -68,6 +79,8 @@ A lightweight, native code editor built with C++ and Qt6. Fast, distraction-free
 - **Ghost Replay Mode** — Replays every insertion and deletion made since the file was opened, letting you watch the session back event-by-event (`Ctrl+Shift+G`)
 - **File Watcher** — Detects external file changes and prompts to reload
 - **AI Autocomplete** — Configurable AI-powered completions via any OpenAI-compatible API; explicit support for Groq, OpenRouter, and Together AI (Plugins menu)
+- **Zero-Trace Paranoia Mode** — Global toggle that suppresses all disk persistence (recent files, session stats, auto-saves, file watching) for sensitive security sessions. Shows a glowing `☣ PARANOIA` pill in the status bar (`Ctrl+Alt+P`, `v2.0`)
+- **Laser Vuln Underlines** — Native background regex scanner flags hardcoded secrets, unsafe C/C++ functions, and Solidity anti-patterns with glowing red laser underlines and a cyber-HUD tooltip (`Ctrl+Alt+X`, `v2.0`)
 
 ### Binary Analysis Suite
 Jim has a native binary analysis workflow requiring no external tools:
@@ -99,6 +112,8 @@ Right-click any file in the Explorer to access all three tools directly.
 - **Trailing Whitespace** — Automatically trimmed on save
 - **Session Statistics** — Tracks keystrokes, lines written, files opened, active time, and peak WPM; view as a styled stats card via `Tools > Session Statistics` (`v1.8.1`)
 - **TODO/FIXME Panel** — Dockable panel scanning all open editors for `TODO`, `FIXME`, `HACK`, `NOTE`, `BUG` tags; colour-coded by type, double-click to jump (`v1.8.1`)
+- **Scratchpad Send-To** — right-click to instantly copy highlighted code and append it to `jim_scratchpad.txt` with a timestamp (`v0.8.0`)
+- **Dim Inactive Panes** — in split view, slightly dim the pane that does not have cursor focus (`v0.8.0`)
 - **Command Line Support** — Open files and folders from terminal
 - **Comprehensive Shortcuts** — All common operations keyboard-accessible
 
@@ -245,6 +260,8 @@ jim /path/to/project       # open a specific folder
 | `Ctrl+Alt+S` | Open Persistent Scratchpad |
 | `Ctrl+Alt+V` | Toggle Vim Mode |
 | `Ctrl+Alt+K` | Keystroke Heatmap Overlay |
+| `Ctrl+Alt+P` | Toggle Paranoia Mode |
+| `Ctrl+Alt+X` | Toggle Vuln Scanner |
 
 ---
 
@@ -265,7 +282,11 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 
 ## Recent Updates
 
-### v1.8.1 (Current)
+### v0.7.2 (Current)
+- Added **Zero-Trace Paranoia Mode** (`Ctrl+Alt+P`) — a global toggle for sensitive auditing sessions. When active, it suppresses all disk writes (recent files, telemetry, ghost replay logs, file watcher, scratchpad auto-save) and shows a glowing red `☣ PARANOIA` pill in the status bar.
+- Added **Laser Vuln Underlines** (`Ctrl+Alt+X`) — a native, background regex scanner that flags hardcoded secrets (AWS keys, tokens), dangerous C/C++ functions (`strcpy`, `system`), and Solidity anti-patterns (`tx.origin`). Vulnerabilities are highlighted with glowing red laser underlines and a styled cyber-HUD tooltip on hover.
+
+### v0.7.1
 - Added **Command Palette** (`Ctrl+Shift+P`) — fuzzy-searchable frameless popup listing every editor action; arrow keys to navigate, Enter to trigger, Escape to dismiss.
 - Added **TODO/FIXME Panel** — dockable panel that scans all open editors for `TODO`, `FIXME`, `HACK`, `NOTE`, `BUG` tags; colour-coded by type, double-click to jump to file+line (`Tools > TODO/FIXME Panel`).
 - Added **Indent-Based Folding** — fold Python, YAML, and Markdown blocks by indentation level, alongside existing brace-based folding for C++/JS/etc.
@@ -274,7 +295,7 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 - Added **Inline Image Preview** — hover over any image path string literal (`.png`, `.jpg`, `.svg`, `.gif`, `.bmp`, `.webp`, `.ico`) to see a thumbnail tooltip resolved relative to the current file. Toggle in View menu.
 - Added **Session Statistics** — tracks keystrokes, lines written, files opened, active coding time, and peak WPM for the session; displayed as a styled stats card (`Tools > Session Statistics`).
 
-### v1.8.0
+### v0.7.0
 - Added **Bracket Pair Colorization** — `()`, `[]`, `{}` coloured in rotating neon hues (cyan/magenta/yellow) with depth-tracking, painted in `paintEvent` for zero lag.
 - Added **Vim Mode** — Full modal Normal/Insert editing: `hjkl/w/b/0/$`, `G/gg`, `dd/yy`, `i/a/A/I/o/O/s/C`, undo/redo, paste, half-page scroll. Status-bar pill shows current mode. (`Ctrl+Alt+V`)
 - Added **Keystroke Heatmap Overlay** — Floating QWERTY keyboard rendered over the editor, each key tinted dark-grey to red by typing frequency; click to dismiss. (`Ctrl+Alt+K`)
@@ -284,7 +305,7 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 - **Major Refactor** — `texteditor.cpp` split into `codeeditor.cpp`, `animationwidget.cpp`, `uiwidgets.cpp`, and `overlays.cpp`.
 - **Bug fix** — DJ Mode dock no longer pushes the window off-screen; `maximumHeight` is clamped to available screen height before the dock attaches.
 
-### v1.7.0
+### v0.6.0
 - Added **CRT Post-Processing** — scanline overlay, vignette, chromatic aberration fringe, and phosphor bloom; toggle in View menu.
 - Added **Deleted Code History** — dockable panel that auto-captures deleted blocks of ≥3 lines with timestamps; double-click or "Paste Selected" to restore (`Ctrl+Alt+G`).
 - Added **Data Waterfall Minimap** — Matrix-style animated digital rain rendered as the minimap background with the code overview overlaid on top.
@@ -293,7 +314,7 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 - Added **Neural Code Graph** — force-directed `#include` dependency graph for the open workspace, with physics simulation and draggable nodes (`Ctrl+Shift+N`).
 - Added **Ghost Replay Mode** — records every insertion and deletion from the moment a file is opened; replay plays the session back event-by-event (`Ctrl+Shift+G`).
 
-### v1.6.0
+### v0.5.0
 - Added **Multi-cursor Editing** — `Alt+Click` to place multiple cursors; `Ctrl+D` now selects the next occurrence of the current word for simultaneous editing.
 - Added **Secret DJ Mode** — An edgy system-audio reactive visualizer built into the animation dock (`Ctrl+Shift+J`).
 - Added **Zen Mode** — Pure distraction-free writing: hides the explorer, terminal, tabs, and status bar instantly (`Ctrl+Shift+Z`).
@@ -303,12 +324,12 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 - Added **Inline Color Previews** — Real-time color swatches rendered next to hex codes (`#RRGGBB`).
 - Added **Session Time Tracker** — Status bar shows total coding time, persisted across sessions.
 
-### v1.5.0
+### v0.4.5
 - Added **Find All Matches** — simultaneous highlighting of all search matches with a golden accent for the current choice; updates in real-time as you navigate.
 - Added **Enhanced Syntax Highlighting** — significantly expanded keyword sets for C++20, Python 3.12, JavaScript/TypeScript, Rust, and Go.
 - Added **Breadcrumb Symbol Detection** — Real-time regex-based function and class detection in the breadcrumb bar.
 
-### v1.4.0
+### v0.4.0
 - Added **Markdown Preview** — live split-panel rendered preview (`Ctrl+Shift+M`). Supports headers, tables, code blocks with language labels, images, task lists, blockquotes, strikethrough, highlights, and raw HTML passthrough. Updates with 400 ms debounce as you type. No external libraries.
 - Added **Disassembler** — wraps `objdump`/`llvm-objdump`, displays assembly with full syntax highlighting, parsed function list with click-to-jump (`Ctrl+Shift+D`)
 - Added **Binary Inspector** — pure native ELF and PE parser (`Ctrl+Shift+I`): headers, sections, imports, MD5 hash, extracted strings. Handles ELF32/64 LE/BE and PE32/PE32+
@@ -318,31 +339,31 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 - Added **welcome screen fade** — opacity animation on show/hide
 - Added **tab flash** — accent colour flash when a new tab opens
 
-### v1.3.0
+### v0.3.0
 - Added **AI Autocomplete** — configurable via any OpenAI-compatible API (Plugins menu)
 - Added **inline Find bar** — shows match count, previous/next navigation, live highlight
 - Added **Animation Cycler** expanded — Starfield, Rain, Snow, Fire added to Matrix/Particles/Waves/Pulse
 
-### v1.2.2
+### v0.2.2
 - Added **Animation Cycler** (`Ctrl+Shift+A`)
 - Improved **Hex Editor** — full save support, modification tracking (asterisk in tab)
 - Enhanced **build system** — unified `GNUmakefile`, improved `build.ps1`
 - Added **Smart Home Key**
 
-### v1.2.1
+### v0.2.1
 - Added **Hex Editor** — automatic binary detection, integrated hex/ASCII viewer
 
-### v1.2.0
+### v0.2.0
 - Added **Line Editing Power**: Duplicate, Move Up/Down, Delete, Toggle Comment
 - Added **Trailing Whitespace** removal on save
 - Added **custom frameless title bar**
 
-### v1.1.0
+### v0.1.0
 - Welcome screen, Breadcrumb navigation, Integrated terminal
 - Code folding, 11-language syntax highlighting, Language auto-detection
 - File watcher, Monokai theme, modernised VS Code-inspired UI
 
-### v1.0.0
+### v0.0.0
 - Multi-tab editor, syntax highlighting, auto-pairing, minimap, split view
 
 ---

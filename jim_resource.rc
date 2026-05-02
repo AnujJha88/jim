@@ -1,6 +1,6 @@
 #include <windows.h>
 
-IDI_ICON1	ICON	"D:\\fun stuff\\jim\\logo.ico"
+IDI_ICON1	ICON	"D:/fun stuff/jim/logo.ico"
 
 VS_VERSION_INFO VERSIONINFO
 	FILEVERSION 0,0,0,0
