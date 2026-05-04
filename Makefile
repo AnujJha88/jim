@@ -72,7 +72,11 @@ SOURCES       = texteditor.cpp \
 		overlays.cpp \
 		vulnscanner.cpp \
 		solidityanalyzer.cpp \
-		storageslotvisualizer.cpp moc_texteditor.cpp \
+		storageslotvisualizer.cpp \
+		storyparser.cpp \
+		storygraph.cpp \
+		storyplaytest.cpp \
+		storyexporter.cpp moc_texteditor.cpp \
 		moc_linenumberarea.cpp \
 		moc_hexeditor.cpp \
 		moc_aiautocomplete.cpp \
@@ -86,7 +90,9 @@ SOURCES       = texteditor.cpp \
 		moc_keyheatmap.cpp \
 		moc_vimmode.cpp \
 		moc_vulnscanner.cpp \
-		moc_storageslotvisualizer.cpp
+		moc_storageslotvisualizer.cpp \
+		moc_storygraph.cpp \
+		moc_storyplaytest.cpp
 OBJECTS       = texteditor.o \
 		linenumberarea.o \
 		hexeditor.o \
@@ -108,6 +114,10 @@ OBJECTS       = texteditor.o \
 		vulnscanner.o \
 		solidityanalyzer.o \
 		storageslotvisualizer.o \
+		storyparser.o \
+		storygraph.o \
+		storyplaytest.o \
+		storyexporter.o \
 		moc_texteditor.o \
 		moc_linenumberarea.o \
 		moc_hexeditor.o \
@@ -122,7 +132,9 @@ OBJECTS       = texteditor.o \
 		moc_keyheatmap.o \
 		moc_vimmode.o \
 		moc_vulnscanner.o \
-		moc_storageslotvisualizer.o
+		moc_storageslotvisualizer.o \
+		moc_storygraph.o \
+		moc_storyplaytest.o
 DIST          = /usr/lib/x86_64-linux-gnu/qt6/mkspecs/features/spec_pre.prf \
 		/usr/lib/x86_64-linux-gnu/qt6/mkspecs/common/unix.conf \
 		/usr/lib/x86_64-linux-gnu/qt6/mkspecs/common/linux.conf \
@@ -216,7 +228,11 @@ DIST          = /usr/lib/x86_64-linux-gnu/qt6/mkspecs/features/spec_pre.prf \
 		vimmode.h \
 		vulnscanner.h \
 		solidityanalyzer.h \
-		storageslotvisualizer.h texteditor.cpp \
+		storageslotvisualizer.h \
+		storyparser.h \
+		storygraph.h \
+		storyplaytest.h \
+		storyexporter.h texteditor.cpp \
 		linenumberarea.cpp \
 		hexeditor.cpp \
 		main.cpp \
@@ -236,7 +252,11 @@ DIST          = /usr/lib/x86_64-linux-gnu/qt6/mkspecs/features/spec_pre.prf \
 		overlays.cpp \
 		vulnscanner.cpp \
 		solidityanalyzer.cpp \
-		storageslotvisualizer.cpp
+		storageslotvisualizer.cpp \
+		storyparser.cpp \
+		storygraph.cpp \
+		storyplaytest.cpp \
+		storyexporter.cpp
 QMAKE_TARGET  = jim
 DESTDIR       = 
 TARGET        = jim
@@ -432,8 +452,8 @@ distdir: FORCE
 	@test -d $(DISTDIR) || mkdir -p $(DISTDIR)
 	$(COPY_FILE) --parents $(DIST) $(DISTDIR)/
 	$(COPY_FILE) --parents /usr/lib/x86_64-linux-gnu/qt6/mkspecs/features/data/dummy.cpp $(DISTDIR)/
-	$(COPY_FILE) --parents texteditor.h linenumberarea.h hexeditor.h aiautocomplete.h aisettingsdialog.h disassembler.h binaryinspector.h markdownviewer.h audiomonitor.h codegraph.h syntaxhighlighter.h keyheatmap.h vimmode.h vulnscanner.h solidityanalyzer.h storageslotvisualizer.h $(DISTDIR)/
-	$(COPY_FILE) --parents texteditor.cpp linenumberarea.cpp hexeditor.cpp main.cpp aiautocomplete.cpp aisettingsdialog.cpp disassembler.cpp binaryinspector.cpp markdownviewer.cpp audiomonitor.cpp codegraph.cpp syntaxhighlighter.cpp keyheatmap.cpp vimmode.cpp codeeditor.cpp animationwidget.cpp uiwidgets.cpp overlays.cpp vulnscanner.cpp solidityanalyzer.cpp storageslotvisualizer.cpp $(DISTDIR)/
+	$(COPY_FILE) --parents texteditor.h linenumberarea.h hexeditor.h aiautocomplete.h aisettingsdialog.h disassembler.h binaryinspector.h markdownviewer.h audiomonitor.h codegraph.h syntaxhighlighter.h keyheatmap.h vimmode.h vulnscanner.h solidityanalyzer.h storageslotvisualizer.h storyparser.h storygraph.h storyplaytest.h storyexporter.h $(DISTDIR)/
+	$(COPY_FILE) --parents texteditor.cpp linenumberarea.cpp hexeditor.cpp main.cpp aiautocomplete.cpp aisettingsdialog.cpp disassembler.cpp binaryinspector.cpp markdownviewer.cpp audiomonitor.cpp codegraph.cpp syntaxhighlighter.cpp keyheatmap.cpp vimmode.cpp codeeditor.cpp animationwidget.cpp uiwidgets.cpp overlays.cpp vulnscanner.cpp solidityanalyzer.cpp storageslotvisualizer.cpp storyparser.cpp storygraph.cpp storyplaytest.cpp storyexporter.cpp $(DISTDIR)/
 
 
 clean: compiler_clean 
@@ -465,9 +485,9 @@ compiler_moc_predefs_clean:
 moc_predefs.h: /usr/lib/x86_64-linux-gnu/qt6/mkspecs/features/data/dummy.cpp
 	g++ -pipe -O2 -std=gnu++1z -Wall -Wextra -dM -E -o moc_predefs.h /usr/lib/x86_64-linux-gnu/qt6/mkspecs/features/data/dummy.cpp
 
-compiler_moc_header_make_all: moc_texteditor.cpp moc_linenumberarea.cpp moc_hexeditor.cpp moc_aiautocomplete.cpp moc_aisettingsdialog.cpp moc_disassembler.cpp moc_binaryinspector.cpp moc_markdownviewer.cpp moc_audiomonitor.cpp moc_codegraph.cpp moc_syntaxhighlighter.cpp moc_keyheatmap.cpp moc_vimmode.cpp moc_vulnscanner.cpp moc_storageslotvisualizer.cpp
+compiler_moc_header_make_all: moc_texteditor.cpp moc_linenumberarea.cpp moc_hexeditor.cpp moc_aiautocomplete.cpp moc_aisettingsdialog.cpp moc_disassembler.cpp moc_binaryinspector.cpp moc_markdownviewer.cpp moc_audiomonitor.cpp moc_codegraph.cpp moc_syntaxhighlighter.cpp moc_keyheatmap.cpp moc_vimmode.cpp moc_vulnscanner.cpp moc_storageslotvisualizer.cpp moc_storygraph.cpp moc_storyplaytest.cpp
 compiler_moc_header_clean:
-	-$(DEL_FILE) moc_texteditor.cpp moc_linenumberarea.cpp moc_hexeditor.cpp moc_aiautocomplete.cpp moc_aisettingsdialog.cpp moc_disassembler.cpp moc_binaryinspector.cpp moc_markdownviewer.cpp moc_audiomonitor.cpp moc_codegraph.cpp moc_syntaxhighlighter.cpp moc_keyheatmap.cpp moc_vimmode.cpp moc_vulnscanner.cpp moc_storageslotvisualizer.cpp
+	-$(DEL_FILE) moc_texteditor.cpp moc_linenumberarea.cpp moc_hexeditor.cpp moc_aiautocomplete.cpp moc_aisettingsdialog.cpp moc_disassembler.cpp moc_binaryinspector.cpp moc_markdownviewer.cpp moc_audiomonitor.cpp moc_codegraph.cpp moc_syntaxhighlighter.cpp moc_keyheatmap.cpp moc_vimmode.cpp moc_vulnscanner.cpp moc_storageslotvisualizer.cpp moc_storygraph.cpp moc_storyplaytest.cpp
 moc_texteditor.cpp: texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QMainWindow \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qmainwindow.h \
@@ -794,6 +814,24 @@ moc_texteditor.cpp: texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QWidget \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollArea \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollarea.h \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		storygraph.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsView \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsscene.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsScene \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsEllipseItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsLineItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QVector2D \
+		storyplaytest.h \
+		storyexporter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QDialog \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qdialog.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QTreeWidget \
@@ -3855,6 +3893,482 @@ moc_storageslotvisualizer.cpp: storageslotvisualizer.h \
 		/usr/lib/qt6/libexec/moc
 	/usr/lib/qt6/libexec/moc $(DEFINES) --include '/mnt/d/fun stuff/jim/moc_predefs.h' -I/usr/lib/x86_64-linux-gnu/qt6/mkspecs/linux-g++ -I'/mnt/d/fun stuff/jim' -I/usr/include/x86_64-linux-gnu/qt6 -I/usr/include/x86_64-linux-gnu/qt6/QtWidgets -I/usr/include/x86_64-linux-gnu/qt6/QtMultimedia -I/usr/include/x86_64-linux-gnu/qt6/QtGui -I/usr/include/x86_64-linux-gnu/qt6/QtNetwork -I/usr/include/x86_64-linux-gnu/qt6/QtCore -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++ -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32 -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/backward -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include-fixed -IC:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include storageslotvisualizer.h -o moc_storageslotvisualizer.cpp
 
+moc_storygraph.cpp: storygraph.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QWidget \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qwidget.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgetsglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtguiglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversionchecks.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfiginclude.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconfig.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcore-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfigmacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationdefinitions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompilerdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qprocessordetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsystemdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationmarkers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtclasshelpermacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtpreprocessorsupport.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qassert.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtnoop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypes.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversion.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypeinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsysinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlogging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qflags.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasicatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic_cxx11.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qgenericatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qyieldcpu.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconstructormacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdarwinhelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qexceptionhandling.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qforeach.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttypetraits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobalstatic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmalloc.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qminmax.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnumeric.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qoverload.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qswap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtenvironmentvariables.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtresource.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttranslation.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qversiontagging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtgui-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtguiexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgets-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgetsexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qwindowdefs.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnamespace.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstdlibdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcomparehelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20type_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtmetamacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionaltools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstring.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qchar.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrefcount.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpair.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydatapointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydataops.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainertools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qxptype_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20functional.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q17memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringliteral.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlatin1stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qanystringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qutf8stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringtokenizer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringbuilder.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter_base.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhashfunctions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearraylist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringmatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreevent.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasictimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qabstracteventdispatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qeventloop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdeadlinetimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qelapsedtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetatype.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdatastream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiodevicebase.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfloat16.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtformat_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterable.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetacontainer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtaggedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopeguard.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbindingstorage.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmargins.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q23utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qaction.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qkeysequence.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qicon.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsize.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpixmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpaintdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrect.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpoint.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qcolor.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qrgb.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qrgba64.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qimage.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpixelformat.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtransform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpolygon.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qregion.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qspan.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20iterator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qline.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvariant.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdebug.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtextstream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontiguouscache.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qset.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhash.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvarlengtharray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpalette.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qbrush.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfont.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qendian.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontmetrics.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontvariableaxis.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qsizepolicy.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qcursor.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qbitmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qevent.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiodevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qurl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qeventpoint.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qvector2d.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qvectornd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpointingdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qinputdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qscreen.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QList \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QObject \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QRect \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSize \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSizeF \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QTransform \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnativeinterface.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qscreen_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qguiapplication.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreapplication.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreapplication_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfuture.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfutureinterface.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmutex.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtsan_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qresultstore.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfuture_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qthreadpool.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qthread.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrunnable.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qexception.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpromise.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qinputmethod.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlocale.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qguiapplication_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsView \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextoption.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpen.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollarea.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractscrollarea.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qframe.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsscene.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsScene \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsEllipseItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsLineItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QMap \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QVector2D \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QString \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QVector \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvector.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		moc_predefs.h \
+		/usr/lib/qt6/libexec/moc
+	/usr/lib/qt6/libexec/moc $(DEFINES) --include '/mnt/d/fun stuff/jim/moc_predefs.h' -I/usr/lib/x86_64-linux-gnu/qt6/mkspecs/linux-g++ -I'/mnt/d/fun stuff/jim' -I/usr/include/x86_64-linux-gnu/qt6 -I/usr/include/x86_64-linux-gnu/qt6/QtWidgets -I/usr/include/x86_64-linux-gnu/qt6/QtMultimedia -I/usr/include/x86_64-linux-gnu/qt6/QtGui -I/usr/include/x86_64-linux-gnu/qt6/QtNetwork -I/usr/include/x86_64-linux-gnu/qt6/QtCore -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++ -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32 -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/backward -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include-fixed -IC:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include storygraph.h -o moc_storygraph.cpp
+
+moc_storyplaytest.cpp: storyplaytest.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QWidget \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qwidget.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgetsglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtguiglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversionchecks.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfiginclude.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconfig.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcore-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfigmacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationdefinitions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompilerdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qprocessordetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsystemdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationmarkers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtclasshelpermacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtpreprocessorsupport.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qassert.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtnoop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypes.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversion.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypeinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsysinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlogging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qflags.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasicatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic_cxx11.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qgenericatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qyieldcpu.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconstructormacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdarwinhelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qexceptionhandling.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qforeach.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttypetraits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobalstatic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmalloc.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qminmax.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnumeric.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qoverload.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qswap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtenvironmentvariables.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtresource.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttranslation.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qversiontagging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtgui-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtguiexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgets-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgetsexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qwindowdefs.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnamespace.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstdlibdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcomparehelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20type_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtmetamacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionaltools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstring.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qchar.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrefcount.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpair.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydatapointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydataops.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainertools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qxptype_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20functional.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q17memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringliteral.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlatin1stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qanystringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qutf8stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringtokenizer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringbuilder.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter_base.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhashfunctions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearraylist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringmatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreevent.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasictimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qabstracteventdispatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qeventloop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdeadlinetimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qelapsedtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetatype.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdatastream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiodevicebase.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfloat16.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtformat_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterable.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetacontainer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtaggedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopeguard.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbindingstorage.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmargins.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q23utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qaction.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qkeysequence.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qicon.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsize.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpixmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpaintdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrect.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpoint.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qcolor.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qrgb.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qrgba64.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qimage.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpixelformat.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtransform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpolygon.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qregion.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qspan.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20iterator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qline.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvariant.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdebug.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtextstream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontiguouscache.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qset.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhash.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvarlengtharray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpalette.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qbrush.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfont.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qendian.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontmetrics.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontvariableaxis.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qsizepolicy.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qcursor.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qbitmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qevent.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiodevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qurl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qeventpoint.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qvector2d.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qvectornd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpointingdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qinputdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qscreen.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QList \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QObject \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QRect \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSize \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSizeF \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QTransform \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnativeinterface.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qscreen_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qguiapplication.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreapplication.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreapplication_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfuture.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfutureinterface.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmutex.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtsan_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qresultstore.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfuture_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qthreadpool.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qthread.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrunnable.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qexception.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpromise.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qinputmethod.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlocale.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qguiapplication_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QPlainTextEdit \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qplaintextedit.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtextedit.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractscrollarea.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qframe.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextdocument.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextoption.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextcursor.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextformat.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpen.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qabstracttextdocumentlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qglyphrun.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qrawfont.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontdatabase.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QListWidget \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlistwidget.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlistview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractitemview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qabstractitemmodel.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qitemselectionmodel.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractitemdelegate.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qstyleoption.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractspinbox.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qvalidator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qregularexpression.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qslider.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractslider.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qstyle.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtabbar.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtabwidget.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qrubberband.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QLabel \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlabel.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpicture.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QPushButton \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qpushbutton.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractbutton.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QVBoxLayout \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qboxlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlayoutitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgridlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QMap \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QString \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QVector \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvector.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		moc_predefs.h \
+		/usr/lib/qt6/libexec/moc
+	/usr/lib/qt6/libexec/moc $(DEFINES) --include '/mnt/d/fun stuff/jim/moc_predefs.h' -I/usr/lib/x86_64-linux-gnu/qt6/mkspecs/linux-g++ -I'/mnt/d/fun stuff/jim' -I/usr/include/x86_64-linux-gnu/qt6 -I/usr/include/x86_64-linux-gnu/qt6/QtWidgets -I/usr/include/x86_64-linux-gnu/qt6/QtMultimedia -I/usr/include/x86_64-linux-gnu/qt6/QtGui -I/usr/include/x86_64-linux-gnu/qt6/QtNetwork -I/usr/include/x86_64-linux-gnu/qt6/QtCore -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++ -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32 -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/backward -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include -IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include-fixed -IC:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include storyplaytest.h -o moc_storyplaytest.cpp
+
 compiler_moc_objc_header_make_all:
 compiler_moc_objc_header_clean:
 compiler_moc_source_make_all:
@@ -4197,6 +4711,24 @@ texteditor.o: texteditor.cpp texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QWidget \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollArea \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollarea.h \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		storygraph.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsView \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsscene.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsScene \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsEllipseItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsLineItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QVector2D \
+		storyplaytest.h \
+		storyexporter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QDialog \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qdialog.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QTreeWidget \
@@ -4230,8 +4762,6 @@ texteditor.o: texteditor.cpp texteditor.h \
 		markdownviewer.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QTextBrowser \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtextbrowser.h \
-		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
-		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
 		linenumberarea.h \
 		aiautocomplete.h \
 		aisettingsdialog.h \
@@ -4240,16 +4770,6 @@ texteditor.o: texteditor.cpp texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QCheckBox \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qcheckbox.h \
 		codegraph.h \
-		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsView \
-		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsview.h \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
-		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsscene.h \
-		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsScene \
-		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsEllipseItem \
-		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsitem.h \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
-		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsLineItem \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/QVector2D \
 		/usr/include/x86_64-linux-gnu/qt6/QtCore/QJsonDocument \
 		/usr/include/x86_64-linux-gnu/qt6/QtCore/qjsondocument.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtCore/qjsonparseerror.h \
@@ -4646,6 +5166,24 @@ linenumberarea.o: linenumberarea.cpp linenumberarea.h \
 		storageslotvisualizer.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollArea \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollarea.h \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		storygraph.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsView \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsscene.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsScene \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsEllipseItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsLineItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QVector2D \
+		storyplaytest.h \
+		storyexporter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QDialog \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qdialog.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QTreeWidget \
@@ -4653,7 +5191,6 @@ linenumberarea.o: linenumberarea.cpp linenumberarea.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtreewidgetitemiterator.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QKeyEvent \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QPainter \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QTextBlock \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollBar \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollbar.h
@@ -5222,6 +5759,24 @@ main.o: main.cpp /usr/include/x86_64-linux-gnu/qt6/QtWidgets/QApplication \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QWidget \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollArea \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollarea.h \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		storygraph.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsView \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsscene.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsScene \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsEllipseItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsLineItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QVector2D \
+		storyplaytest.h \
+		storyexporter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QDialog \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qdialog.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QTreeWidget \
@@ -7897,6 +8452,24 @@ codeeditor.o: codeeditor.cpp texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QWidget \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollArea \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollarea.h \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		storygraph.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsView \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsscene.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsScene \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsEllipseItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsLineItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QVector2D \
+		storyplaytest.h \
+		storyexporter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QDialog \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qdialog.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QTreeWidget \
@@ -7912,15 +8485,11 @@ codeeditor.o: codeeditor.cpp texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/qclipboard.h \
 		linenumberarea.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QPainter \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QPainterPath \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPropertyAnimation \
 		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpropertyanimation.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QTextBlock \
 		/usr/include/x86_64-linux-gnu/qt6/QtCore/QFileInfo \
-		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
-		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QToolTip \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtooltip.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtCore/QLocale \
@@ -8256,6 +8825,24 @@ animationwidget.o: animationwidget.cpp texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QWidget \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollArea \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollarea.h \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		storygraph.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsView \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsscene.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsScene \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsEllipseItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsLineItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QVector2D \
+		storyplaytest.h \
+		storyexporter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QDialog \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qdialog.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QTreeWidget \
@@ -8266,11 +8853,7 @@ animationwidget.o: animationwidget.cpp texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtCore/QThread \
 		/usr/include/x86_64-linux-gnu/qt6/QtCore/QMutex \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QPainter \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/QPainterPath \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
-		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
-		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QPainterPath
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o animationwidget.o animationwidget.cpp
 
 uiwidgets.o: uiwidgets.cpp texteditor.h \
@@ -8599,6 +9182,24 @@ uiwidgets.o: uiwidgets.cpp texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QWidget \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollArea \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollarea.h \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		storygraph.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsView \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsscene.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsScene \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsEllipseItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsLineItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QVector2D \
+		storyplaytest.h \
+		storyexporter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QDialog \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qdialog.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QTreeWidget \
@@ -8606,9 +9207,7 @@ uiwidgets.o: uiwidgets.cpp texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtreewidgetitemiterator.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QKeyEvent \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QPainter \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QPainterPath \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QHBoxLayout \
 		/usr/include/x86_64-linux-gnu/qt6/QtCore/QProcessEnvironment \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollBar \
@@ -8945,6 +9544,24 @@ overlays.o: overlays.cpp texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QWidget \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollArea \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollarea.h \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		storygraph.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsView \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsscene.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsScene \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsEllipseItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsLineItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QVector2D \
+		storyplaytest.h \
+		storyexporter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QDialog \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qdialog.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QTreeWidget \
@@ -8958,9 +9575,7 @@ overlays.o: overlays.cpp texteditor.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QLinearGradient \
 		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QListWidgetItem \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QPainter \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QPainterPath \
-		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtGui/QRadialGradient
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o overlays.o overlays.cpp
 
@@ -9534,6 +10149,787 @@ storageslotvisualizer.o: storageslotvisualizer.cpp storageslotvisualizer.h \
 		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPoint
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o storageslotvisualizer.o storageslotvisualizer.cpp
 
+storyparser.o: storyparser.cpp storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QString \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstring.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qchar.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversionchecks.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfiginclude.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconfig.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcore-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfigmacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationdefinitions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompilerdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qprocessordetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsystemdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationmarkers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtclasshelpermacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtpreprocessorsupport.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qassert.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtnoop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypes.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversion.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypeinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsysinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlogging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qflags.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasicatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic_cxx11.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qgenericatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qyieldcpu.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconstructormacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdarwinhelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qexceptionhandling.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qforeach.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttypetraits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobalstatic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmalloc.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qminmax.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnumeric.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qoverload.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qswap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtenvironmentvariables.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtresource.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttranslation.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qversiontagging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstdlibdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcomparehelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20type_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrefcount.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnamespace.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtmetamacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpair.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydatapointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydataops.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainertools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qxptype_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20functional.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q17memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringliteral.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlatin1stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qanystringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qutf8stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringtokenizer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringbuilder.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter_base.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QVector \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvector.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhashfunctions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearraylist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringmatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QMap \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qset.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhash.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QRegularExpression \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qregularexpression.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvariant.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetatype.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdatastream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiodevicebase.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfloat16.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtformat_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterable.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetacontainer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtaggedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionaltools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopeguard.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdebug.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtextstream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontiguouscache.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvarlengtharray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q23utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreevent.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasictimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qabstracteventdispatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qeventloop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdeadlinetimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qelapsedtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbindingstorage.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QStringList \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QQueue \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qqueue.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o storyparser.o storyparser.cpp
+
+storygraph.o: storygraph.cpp storygraph.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QWidget \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qwidget.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgetsglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtguiglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversionchecks.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfiginclude.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconfig.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcore-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfigmacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationdefinitions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompilerdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qprocessordetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsystemdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationmarkers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtclasshelpermacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtpreprocessorsupport.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qassert.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtnoop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypes.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversion.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypeinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsysinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlogging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qflags.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasicatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic_cxx11.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qgenericatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qyieldcpu.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconstructormacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdarwinhelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qexceptionhandling.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qforeach.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttypetraits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobalstatic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmalloc.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qminmax.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnumeric.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qoverload.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qswap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtenvironmentvariables.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtresource.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttranslation.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qversiontagging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtgui-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtguiexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgets-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgetsexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qwindowdefs.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnamespace.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstdlibdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcomparehelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20type_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtmetamacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionaltools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstring.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qchar.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrefcount.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpair.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydatapointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydataops.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainertools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qxptype_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20functional.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q17memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringliteral.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlatin1stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qanystringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qutf8stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringtokenizer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringbuilder.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter_base.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhashfunctions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearraylist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringmatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreevent.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasictimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qabstracteventdispatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qeventloop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdeadlinetimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qelapsedtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetatype.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdatastream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiodevicebase.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfloat16.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtformat_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterable.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetacontainer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtaggedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopeguard.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbindingstorage.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmargins.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q23utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qaction.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qkeysequence.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qicon.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsize.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpixmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpaintdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrect.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpoint.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qcolor.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qrgb.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qrgba64.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qimage.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpixelformat.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtransform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpolygon.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qregion.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qspan.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20iterator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qline.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvariant.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdebug.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtextstream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontiguouscache.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qset.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhash.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvarlengtharray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpalette.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qbrush.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfont.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qendian.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontmetrics.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontvariableaxis.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qsizepolicy.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qcursor.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qbitmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qevent.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiodevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qurl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qeventpoint.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qvector2d.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qvectornd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpointingdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qinputdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qscreen.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QList \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QObject \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QRect \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSize \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSizeF \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QTransform \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnativeinterface.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qscreen_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qguiapplication.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreapplication.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreapplication_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfuture.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfutureinterface.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmutex.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtsan_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qresultstore.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfuture_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qthreadpool.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qthread.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrunnable.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qexception.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpromise.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qinputmethod.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlocale.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qguiapplication_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsView \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextoption.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpen.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollarea.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractscrollarea.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qframe.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsscene.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsScene \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsEllipseItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicsitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpainterpath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsLineItem \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QTimer \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QMap \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QVector2D \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QString \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QVector \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvector.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QVBoxLayout \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qboxlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlayoutitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgridlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QHBoxLayout \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QLabel \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlabel.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpicture.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextdocument.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QPainter \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QGraphicsSceneMouseEvent \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgraphicssceneevent.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QWheelEvent \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QQueue \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qqueue.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o storygraph.o storygraph.cpp
+
+storyplaytest.o: storyplaytest.cpp storyplaytest.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QWidget \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qwidget.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgetsglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtguiglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversionchecks.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfiginclude.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconfig.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcore-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfigmacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationdefinitions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompilerdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qprocessordetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsystemdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationmarkers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtclasshelpermacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtpreprocessorsupport.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qassert.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtnoop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypes.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversion.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypeinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsysinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlogging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qflags.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasicatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic_cxx11.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qgenericatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qyieldcpu.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconstructormacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdarwinhelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qexceptionhandling.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qforeach.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttypetraits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobalstatic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmalloc.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qminmax.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnumeric.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qoverload.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qswap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtenvironmentvariables.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtresource.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttranslation.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qversiontagging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtgui-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtguiexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgets-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtwidgetsexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qwindowdefs.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnamespace.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstdlibdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcomparehelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20type_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtmetamacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionaltools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstring.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qchar.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrefcount.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpair.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydatapointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydataops.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainertools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qxptype_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20functional.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q17memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringliteral.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlatin1stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qanystringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qutf8stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringtokenizer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringbuilder.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter_base.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhashfunctions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearraylist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringmatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreevent.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasictimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qabstracteventdispatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qeventloop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdeadlinetimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qelapsedtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetatype.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdatastream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiodevicebase.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfloat16.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtformat_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterable.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetacontainer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtaggedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopeguard.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbindingstorage.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmargins.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q23utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qaction.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qkeysequence.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qicon.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsize.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpixmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpaintdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrect.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpoint.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qcolor.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qrgb.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qrgba64.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qimage.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpixelformat.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtransform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpolygon.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qregion.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qspan.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20iterator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qline.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvariant.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdebug.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtextstream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontiguouscache.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qset.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhash.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvarlengtharray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpalette.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qbrush.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfont.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qendian.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontmetrics.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontvariableaxis.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qsizepolicy.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qcursor.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qbitmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qevent.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiodevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qurl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qeventpoint.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qvector2d.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qvectornd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpointingdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qinputdevice.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qscreen.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QList \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QObject \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QRect \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSize \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSizeF \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/QTransform \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnativeinterface.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qscreen_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qguiapplication.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreapplication.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreapplication_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfuture.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfutureinterface.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmutex.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtsan_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qresultstore.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfuture_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qthreadpool.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qthread.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrunnable.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qexception.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpromise.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qinputmethod.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlocale.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qguiapplication_platform.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QPlainTextEdit \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qplaintextedit.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtextedit.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractscrollarea.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qframe.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextdocument.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextoption.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextcursor.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextformat.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpen.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qabstracttextdocumentlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qtextlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qglyphrun.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qrawfont.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qfontdatabase.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QListWidget \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlistwidget.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlistview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractitemview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qabstractitemmodel.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qitemselectionmodel.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractitemdelegate.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qstyleoption.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractspinbox.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qvalidator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qregularexpression.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qslider.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractslider.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qstyle.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtabbar.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qtabwidget.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qrubberband.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QLabel \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlabel.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtGui/qpicture.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QPushButton \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qpushbutton.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qabstractbutton.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QVBoxLayout \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qboxlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qlayoutitem.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qgridlayout.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QMap \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QString \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QVector \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvector.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QHBoxLayout \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollArea \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollarea.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QRegularExpression \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/QScrollBar \
+		/usr/include/x86_64-linux-gnu/qt6/QtWidgets/qscrollbar.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o storyplaytest.o storyplaytest.cpp
+
+storyexporter.o: storyexporter.cpp storyexporter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QString \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstring.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qchar.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreglobal.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversionchecks.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfiginclude.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconfig.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcore-config.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtconfigmacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationdefinitions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompilerdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qprocessordetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsystemdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtcoreexports.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtdeprecationmarkers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtclasshelpermacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtpreprocessorsupport.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qassert.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtnoop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypes.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtversion.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtypeinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsysinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlogging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qflags.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasicatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qatomic_cxx11.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qgenericatomic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qyieldcpu.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qconstructormacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdarwinhelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qexceptionhandling.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qforeach.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttypetraits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qglobalstatic.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmalloc.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qminmax.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnumeric.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qoverload.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qswap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtenvironmentvariables.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtresource.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qttranslation.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qversiontagging.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcompare.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstdlibdetection.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcomparehelpers.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20type_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qrefcount.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qnamespace.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtmetamacros.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qpair.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydatapointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qarraydataops.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainertools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qxptype_traits.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20functional.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q17memory.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearrayview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringfwd.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringliteral.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlatin1stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qanystringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qutf8stringview.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringtokenizer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringbuilder.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringconverter_base.h \
+		storyparser.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QVector \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvector.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhashfunctions.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterator.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbytearraylist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringlist.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qalgorithms.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qstringmatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QMap \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmap.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qshareddata_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QSet \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qset.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qhash.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QPair \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QJsonObject \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qjsonobject.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qjsonvalue.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcborvalue.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcborcommon.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobjectdefs_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfunctionaltools_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetatype.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdatastream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiodevicebase.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qfloat16.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmath.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtformat_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qiterable.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qmetacontainer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontainerinfo.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtaggedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qscopeguard.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdatetime.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcalendar.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qlocale.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvariant.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdebug.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qtextstream.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcontiguouscache.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qsharedpointer_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qvarlengtharray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q23utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/q20utility.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qcoreevent.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbasictimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qabstracteventdispatcher.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qeventloop.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qdeadlinetimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qelapsedtimer.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qobject_impl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qbindingstorage.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qregularexpression.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qurl.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/quuid.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qendian.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qjsondocument.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qjsonparseerror.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QJsonArray \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/qjsonarray.h \
+		/usr/include/x86_64-linux-gnu/qt6/QtCore/QJsonDocument
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o storyexporter.o storyexporter.cpp
+
 moc_texteditor.o: moc_texteditor.cpp 
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o moc_texteditor.o moc_texteditor.cpp
 
@@ -9578,6 +10974,12 @@ moc_vulnscanner.o: moc_vulnscanner.cpp
 
 moc_storageslotvisualizer.o: moc_storageslotvisualizer.cpp 
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o moc_storageslotvisualizer.o moc_storageslotvisualizer.cpp
+
+moc_storygraph.o: moc_storygraph.cpp 
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o moc_storygraph.o moc_storygraph.cpp
+
+moc_storyplaytest.o: moc_storyplaytest.cpp 
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o moc_storyplaytest.o moc_storyplaytest.cpp
 
 ####### Install
 

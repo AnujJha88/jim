@@ -26,10 +26,12 @@ SOURCES += texteditor.cpp linenumberarea.cpp hexeditor.cpp main.cpp \
            markdownviewer.cpp audiomonitor.cpp codegraph.cpp \
            syntaxhighlighter.cpp keyheatmap.cpp vimmode.cpp \
            codeeditor.cpp animationwidget.cpp uiwidgets.cpp overlays.cpp vulnscanner.cpp \
-           solidityanalyzer.cpp storageslotvisualizer.cpp
+           solidityanalyzer.cpp storageslotvisualizer.cpp \
+           storyparser.cpp storygraph.cpp storyplaytest.cpp storyexporter.cpp
 HEADERS += texteditor.h linenumberarea.h hexeditor.h \
            aiautocomplete.h aisettingsdialog.h \
            disassembler.h binaryinspector.h \
            markdownviewer.h audiomonitor.h codegraph.h \
            syntaxhighlighter.h keyheatmap.h vimmode.h vulnscanner.h \
-           solidityanalyzer.h storageslotvisualizer.h
+           solidityanalyzer.h storageslotvisualizer.h \
+           storyparser.h storygraph.h storyplaytest.h storyexporter.h

@@ -14,6 +14,7 @@ public:
         int line;           // 0-indexed block number
         int colStart;
         int colEnd;
+        int stateLine = -1; // for REENTRANCY: the line where the state change occurs
         // category values:
         //   "SECRET"          — hardcoded credentials / API tokens
         //   "DANGEROUS_FUNC"  — unsafe C/C++ stdlib calls

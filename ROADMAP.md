@@ -257,11 +257,58 @@ The ultimate expansion for smart contract auditors, hackers, and security resear
 - [x] Static analysis to find RegEx Denial of Service vulnerabilities in JS/Python files.
 - [x] Detects nested quantifier patterns (like `(a+)+$`) and flags with REDOS category.
 
+## v0.9.1 — The Narrative Engine ✦ (COMPLETED)
+
+Jim now ships a full interactive fiction engine. Write branching stories, game dialogue trees, or interactive tutorials in plain text — no Twine, no Electron, no browser required.
+
+### Format
+Twine-compatible `.story` / `.tw` / `.twee` plain-text format:
+```
+:: Start
+You wake up in a dark room. The door is ajar.
+
+[[Go through the door -> Hallway]]
+[[Stay and wait -> WaitScene]]
+
+:: Hallway [ending]
+You escape into the light.
+
+:: WaitScene
+Nothing happens. You wait more.
+[[Eventually leave -> Hallway]]
+```
+
+### Features
+- [x] **Story Syntax Highlighting** — passage headers (`:: Name`) in green, `[[choice links]]` in magenta, `$variables` in yellow, macros in orange, comments in grey. Auto-detected from `.story`/`.tw`/`.twee` extension.
+- [x] **Story Graph Dock** (`Ctrl+Alt+N`) — force-directed node graph of every passage and choice link. Color-coded: 🟢 start · 🔵 normal · 🔴 dead end · 🟡 ending · ⚫ unreachable. Click any node to jump the editor cursor to that passage. Refreshes live as you type.
+- [x] **Playtest Panel** (`Ctrl+Alt+P`) — terminal-style interactive reader docked beside the editor. Navigate choices by clicking, track your breadcrumb trail, watch `$variable` state update in real time.
+- [x] **Export Engine** (`Ctrl+Alt+E`) — four formats from one dialog:
+  - **HTML** — self-contained, playable in any browser, dark-mode styled, animated fade between passages
+  - **JSON** — structured data for Unity, Godot, or any custom engine
+  - **Ink** — `.ink` format for Inkle Studio / Inky
+  - **Markdown** — flat linear version for review or documentation
+- [x] **Story Linter** — warns on unreachable passages, dead ends without `[ending]` tag, broken `[[links]]`, undefined `$variables`, and passages over 500 words
+- [x] **Story Statistics** — passage count, word count, branching factor, dead end count, estimated read time, longest path
+- [x] **`Story ✦`** language label in the status bar when a story file is active
+- [x] **Narrative menu** in the menu bar with all story actions
+
+---
+
 ## v0.10.0 — Intelligence & Ecosystem
 - [ ] Snippet support (user-defined templates)
 - [ ] Bracket completion for multi-line blocks
 - [ ] Emmet abbreviation expansion (HTML/CSS)
 - [ ] Column selection mode (`Shift+Alt+Drag`)
+
+### Assembly Integration
+- [ ] Inline assembly syntax highlighting (x86-64, ARM, RISC-V)
+- [ ] Disassembly view for binary files
+- [ ] Register usage tracking in C/C++ code
+
+### Network Protocol Debugging
+- [ ] Packet structure visualizer
+- [ ] Protocol dissectors (TCP/IP, USB, PCIe)
+- [ ] Endianness visualization
 
 ### Typography & Fonts
 - [ ] Configurable font family and fallback fonts

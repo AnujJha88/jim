@@ -21,7 +21,8 @@ enum class Language {
     YAML,
     Markdown,
     Solidity,
-    Yul
+    Yul,
+    Story
 };
 
 struct ColorTheme {
@@ -91,6 +92,7 @@ private:
     void setupMarkdownRules();
     void setupSolidityRules();
     void setupYulRules();
+    void setupStoryRules();
 };
 
 #endif // SYNTAXHIGHLIGHTER_H

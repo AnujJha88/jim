@@ -82,6 +82,28 @@ A lightweight, native code editor built with C++ and Qt6. Fast, zero-trace, and 
 - **Zero-Trace Paranoia Mode** — Global toggle that suppresses all disk persistence (recent files, session stats, auto-saves, file watching) for sensitive security sessions. Shows a glowing `☣ PARANOIA` pill in the status bar (`Ctrl+Alt+P`, `v2.0`)
 - **Laser Vuln Underlines** — Native background regex scanner flags hardcoded secrets, unsafe C/C++ functions, and Solidity anti-patterns with glowing red laser underlines and a cyber-HUD tooltip (`Ctrl+Alt+X`, `v2.0`)
 
+### Narrative Engine ✦
+Jim has a full built-in interactive fiction engine. Open any `.story`, `.tw`, or `.twee` file to activate it.
+
+| Feature | Shortcut | What it does |
+|---------|----------|--------------|
+| Story Graph | `Ctrl+Alt+N` | Live force-directed passage graph — click nodes to jump to passages |
+| Playtest | `Ctrl+Alt+P` | Interactive reader panel — navigate choices, track variables |
+| Export | `Ctrl+Alt+E` | Export to HTML, JSON, Ink, or Markdown |
+
+**Syntax:** Twine-compatible plain text format.
+```
+:: Start
+You wake up in a dark room.
+
+[[Go through the door -> Hallway]]
+[[Stay and wait -> WaitScene]]
+
+:: Hallway [ending]
+You escape into the light. ✦ The End
+```
+Node colors in the graph: 🟢 start · 🔵 normal · 🔴 dead end · 🟡 ending · ⚫ unreachable
+
 ### Binary Analysis Suite
 Jim has a native binary analysis workflow requiring no external tools:
 
@@ -262,6 +284,8 @@ jim /path/to/project       # open a specific folder
 | `Ctrl+Alt+K` | Keystroke Heatmap Overlay |
 | `Ctrl+Alt+P` | Toggle Paranoia Mode |
 | `Ctrl+Alt+X` | Toggle Vuln Scanner |
+| `Ctrl+Alt+N` | Story Graph |
+| `Ctrl+Alt+E` | Export Story |
 
 ---
 
@@ -282,7 +306,17 @@ Config location: `~/.config/TextEditor/Settings.conf` (Linux/macOS) or the regis
 
 ## Recent Updates
 
-### v0.7.2 (Current)
+### v0.9.0 — The Narrative Engine ✦ (Current)
+Jim now speaks story. Open any `.story`, `.tw`, or `.twee` file and a whole new creative mode activates — syntax highlighting, a live force-directed passage graph, an interactive playtest panel, and one-click export to HTML, JSON, Ink, or Markdown. Write branching fiction, game dialogue, or interactive tutorials right inside your code editor, no Twine required.
+
+- **Story Graph** (`Ctrl+Alt+N`) — force-directed node graph of every passage and choice link. Color-coded: green = start, cyan = normal, red = dead end, yellow = ending, grey = unreachable. Click any node to jump the editor cursor to that passage. Updates live as you type.
+- **Playtest Panel** (`Ctrl+Alt+P`) — terminal-style interactive reader. Navigate choices by clicking, track your breadcrumb trail, and watch variable state update in real time — all without leaving the editor.
+- **Export** (`Ctrl+Alt+E`) — one dialog, four formats: self-contained HTML (playable in any browser), structured JSON (drop into Unity/Godot/custom engine), Ink (`.ink` for Inkle Studio), or flat Markdown for review.
+- **Syntax Highlighting** — passage headers (`:: Name`) in green, `[[choice links]]` in magenta, `$variables` in yellow, macros in orange, comments in grey.
+- **Story ✦** language label in the status bar when a story file is active.
+- Twine-compatible `.story`/`.tw`/`.twee` file format — existing Twine stories open directly.
+
+### v0.8.0
 - Added **Zero-Trace Paranoia Mode** (`Ctrl+Alt+P`) — a global toggle for sensitive auditing sessions. When active, it suppresses all disk writes (recent files, telemetry, ghost replay logs, file watcher, scratchpad auto-save) and shows a glowing red `☣ PARANOIA` pill in the status bar.
 - Added **Laser Vuln Underlines** (`Ctrl+Alt+X`) — a native, background regex scanner that flags hardcoded secrets (AWS keys, tokens), dangerous C/C++ functions (`strcpy`, `system`), and Solidity anti-patterns (`tx.origin`). Vulnerabilities are highlighted with glowing red laser underlines and a styled cyber-HUD tooltip on hover.
 

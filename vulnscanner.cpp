@@ -119,6 +119,7 @@ QVector<VulnScanner::Finding> VulnScanner::scanSolidity(const QString &text, con
                     f.line     = i;
                     f.colStart = extCallRe.match(lines[i]).capturedStart();
                     f.colEnd   = extCallRe.match(lines[i]).capturedEnd();
+                    f.stateLine   = j;
                     f.category    = "REENTRANCY";
                     f.description = "External call followed by state change on line "
                                     + QString::number(j + 1) + " (classic reentrancy pattern)";

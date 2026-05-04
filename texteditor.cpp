@@ -108,6 +108,8 @@ Language TextEditor::detectLanguage(const QString &fileName) {
     return Language::Solidity;
   if (ext == "yul")
     return Language::Yul;
+  if (ext == "story" || ext == "tw" || ext == "twee")
+    return Language::Story;
   return Language::PlainText;
 }
 
@@ -435,6 +437,29 @@ void TextEditor::setupUI() {
                   flashStatusMessage("Pasted from deleted code history", QColor("#4ec9b0"), 2500);
               }
           });
+
+  // ── Narrative Engine docks ────────────────────────────────────────────────
+  storyGraph = new StoryGraph(this);
+  storyGraphDock = new QDockWidget("Story Graph ✦", this);
+  storyGraphDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea | Qt::BottomDockWidgetArea);
+  storyGraphDock->setWidget(storyGraph);
+  storyGraphDock->setMinimumWidth(320);
+  storyGraphDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+  addDockWidget(Qt::RightDockWidgetArea, storyGraphDock);
+  storyGraphDock->hide();
+  connect(storyGraph, &StoryGraph::passageClicked, this, &TextEditor::onStoryPassageClicked);
+
+  storyPlaytest = new StoryPlaytest(this);
+  storyPlaytestDock = new QDockWidget("Playtest ▶", this);
+  storyPlaytestDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea | Qt::BottomDockWidgetArea);
+  storyPlaytestDock->setWidget(storyPlaytest);
+  storyPlaytestDock->setMinimumWidth(360);
+  storyPlaytestDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+  addDockWidget(Qt::RightDockWidgetArea, storyPlaytestDock);
+  storyPlaytestDock->hide();
+  connect(storyPlaytest, &StoryPlaytest::passageChanged, this, [this](const QString &name) {
+      if (storyGraph) storyGraph->setCurrentPassage(name);
+  });
 
   // Cybernetic HUD widget in status bar
   hudWidget = new HUDWidget(statusBar());
@@ -1183,6 +1208,28 @@ void TextEditor::createMenus() {
   connect(aiToggleAct, &QAction::toggled, this, &TextEditor::toggleAIAutocomplete);
   pluginsMenu->addAction(aiToggleAct);
 
+  // ── Narrative Engine Menu ─────────────────────────────────────────────────
+  QMenu *narrativeMenu = customMenuBar->addMenu("&Narrative");
+
+  storyGraphAct = new QAction("✦ Story Graph", this);
+  storyGraphAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_N));
+  storyGraphAct->setCheckable(true);
+  connect(storyGraphAct, &QAction::triggered, this, &TextEditor::toggleStoryGraph);
+  narrativeMenu->addAction(storyGraphAct);
+
+  storyPlaytestAct = new QAction("▶ Playtest Story", this);
+  storyPlaytestAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_P));
+  storyPlaytestAct->setCheckable(true);
+  connect(storyPlaytestAct, &QAction::triggered, this, &TextEditor::toggleStoryPlaytest);
+  narrativeMenu->addAction(storyPlaytestAct);
+
+  narrativeMenu->addSeparator();
+
+  storyExportAct = new QAction("Export Story...", this);
+  storyExportAct->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_E));
+  connect(storyExportAct, &QAction::triggered, this, &TextEditor::exportStory);
+  narrativeMenu->addAction(storyExportAct);
+
   updateRecentFilesMenu();
 }
 
@@ -1603,6 +1650,13 @@ void TextEditor::goToLine() {
 
 void TextEditor::documentWasModified() {
   tabChanged(tabWidget->currentIndex());
+  // Refresh story panels live as the user types
+  CodeEditor *ed = currentEditor();
+  if (ed && ed->getLanguage() == Language::Story) {
+      if ((storyGraphDock && storyGraphDock->isVisible()) ||
+          (storyPlaytestDock && storyPlaytestDock->isVisible()))
+          refreshStoryPanels();
+  }
 }
 
 void TextEditor::updateStatusBar() {
@@ -2158,7 +2212,7 @@ void TextEditor::loadFile(const QString &fileName) {
   } else {
     QStringList langNames = {"Plain Text", "C++",  "Python",  "JavaScript",
                              "HTML",       "CSS",  "Rust",    "Go",
-                             "JSON",       "YAML", "Markdown", "Solidity", "Yul"};
+                             "JSON",       "YAML", "Markdown", "Solidity", "Yul", "Story ✦"};
     languageLabel->setText(langNames[static_cast<int>(lang)]);
   }
 
@@ -4461,4 +4515,100 @@ void TextEditor::showProxyDiff() {
 
     dlg->exec();
     dlg->deleteLater();
+}
+
+// ============================================================
+// Narrative Engine
+// ============================================================
+
+void TextEditor::toggleStoryGraph() {
+    if (!storyGraphDock) return;
+    bool show = !storyGraphDock->isVisible();
+    storyGraphDock->setVisible(show);
+    if (storyGraphAct) storyGraphAct->setChecked(show);
+    if (show) refreshStoryPanels();
+}
+
+void TextEditor::toggleStoryPlaytest() {
+    if (!storyPlaytestDock) return;
+    bool show = !storyPlaytestDock->isVisible();
+    storyPlaytestDock->setVisible(show);
+    if (storyPlaytestAct) storyPlaytestAct->setChecked(show);
+    if (show) refreshStoryPanels();
+}
+
+void TextEditor::refreshStoryPanels() {
+    CodeEditor *ed = currentEditor();
+    if (!ed) return;
+    if (ed->getLanguage() != Language::Story) return;
+
+    QString text = ed->toPlainText();
+    if (storyGraph && storyGraphDock->isVisible())
+        storyGraph->refresh(text);
+    if (storyPlaytest && storyPlaytestDock->isVisible())
+        storyPlaytest->loadStory(text);
+}
+
+void TextEditor::onStoryPassageClicked(const QString &passageName) {
+    // Jump editor cursor to the passage header
+    CodeEditor *ed = currentEditor();
+    if (!ed) return;
+
+    QVector<StoryPassage> passages = StoryParser::parse(ed->toPlainText());
+    for (const auto &p : passages) {
+        if (p.name == passageName) {
+            QTextBlock block = ed->document()->findBlockByNumber(p.lineNumber);
+            if (block.isValid()) {
+                QTextCursor cursor(block);
+                ed->setTextCursor(cursor);
+                ed->centerCursor();
+                ed->setFocus();
+            }
+            break;
+        }
+    }
+}
+
+void TextEditor::exportStory() {
+    CodeEditor *ed = currentEditor();
+    if (!ed || ed->getLanguage() != Language::Story) {
+        flashStatusMessage("Open a .story file to export");
+        return;
+    }
+
+    QStringList formats = {"HTML (self-contained)", "JSON (game engine)", "Ink (.ink)", "Markdown"};
+    bool ok;
+    QString choice = QInputDialog::getItem(this, "Export Story", "Export format:", formats, 0, false, &ok);
+    if (!ok) return;
+
+    QVector<StoryPassage> passages = StoryParser::parse(ed->toPlainText());
+    QString title = QFileInfo(ed->getFileName()).baseName();
+    if (title.isEmpty()) title = "Story";
+
+    QString content, ext, filter;
+    if (choice.startsWith("HTML")) {
+        content = StoryExporter::toHTML(passages, title);
+        ext = ".html"; filter = "HTML Files (*.html)";
+    } else if (choice.startsWith("JSON")) {
+        content = StoryExporter::toJSON(passages);
+        ext = ".json"; filter = "JSON Files (*.json)";
+    } else if (choice.startsWith("Ink")) {
+        content = StoryExporter::toInk(passages);
+        ext = ".ink"; filter = "Ink Files (*.ink)";
+    } else {
+        content = StoryExporter::toMarkdown(passages);
+        ext = ".md"; filter = "Markdown Files (*.md)";
+    }
+
+    QString defaultPath = QFileInfo(ed->getFileName()).dir().absoluteFilePath(title + ext);
+    QString savePath = QFileDialog::getSaveFileName(this, "Export Story", defaultPath, filter);
+    if (savePath.isEmpty()) return;
+
+    QFile f(savePath);
+    if (f.open(QFile::WriteOnly | QFile::Text)) {
+        QTextStream(&f) << content;
+        flashStatusMessage("Exported to " + QFileInfo(savePath).fileName(), QColor("#50fa7b"));
+    } else {
+        flashStatusMessage("Export failed: " + f.errorString(), QColor("#ff5555"));
+    }
 }

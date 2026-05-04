@@ -30,6 +30,7 @@ void SyntaxHighlighter::setupRules() {
     case Language::Markdown:   setupMarkdownRules();   break;
     case Language::Solidity:   setupSolidityRules();   break;
     case Language::Yul:        setupYulRules();        break;
+    case Language::Story:      setupStoryRules();      break;
     default:                   setupCppRules();        break;
     }
 }
@@ -438,4 +439,56 @@ void SyntaxHighlighter::applyTheme(const ColorTheme &theme) {
 void SyntaxHighlighter::setAudioPulse(float intensity) {
     audioPulseIntensity = qBound(0.f, intensity, 1.f);
     rehighlight();
+}
+
+// ── Story ─────────────────────────────────────────────────────────────────────
+void SyntaxHighlighter::setupStoryRules() {
+    // Passage header: :: Name  or  :: Name [tags]
+    QTextCharFormat headerFmt;
+    headerFmt.setForeground(QColor("#50fa7b"));
+    headerFmt.setFontWeight(QFont::Bold);
+    highlightingRules.append({QRegularExpression(R"(^::\s*.+)"), headerFmt});
+
+    // Tags in header: [tag1 tag2]
+    QTextCharFormat tagFmt;
+    tagFmt.setForeground(QColor("#6272a4"));
+    highlightingRules.append({QRegularExpression(R"(\[[^\]]+\])"), tagFmt});
+
+    // Choice links: [[text -> target]] or [[target]]
+    QTextCharFormat choiceFmt;
+    choiceFmt.setForeground(QColor("#ff79c6"));
+    choiceFmt.setFontWeight(QFont::Bold);
+    highlightingRules.append({QRegularExpression(R"(\[\[.*?\]\])"), choiceFmt});
+
+    // Arrow inside choices
+    QTextCharFormat arrowFmt;
+    arrowFmt.setForeground(QColor("#bd93f9"));
+    highlightingRules.append({QRegularExpression(R"(->)"), arrowFmt});
+
+    // Variables: $varName
+    QTextCharFormat varFmt;
+    varFmt.setForeground(QColor("#f1fa8c"));
+    highlightingRules.append({QRegularExpression(R"(\$\w+)"), varFmt});
+
+    // Conditionals: (if:), (set:), (unless:), (either:)
+    QTextCharFormat macroFmt;
+    macroFmt.setForeground(QColor("#ffb86c"));
+    macroFmt.setFontItalic(true);
+    highlightingRules.append({QRegularExpression(R"(\((?:if|set|unless|either|print|display|goto|link|button)\s*:)"), macroFmt});
+
+    // Comments: // line comment
+    QTextCharFormat commentFmt;
+    commentFmt.setForeground(QColor("#6272a4"));
+    commentFmt.setFontItalic(true);
+    highlightingRules.append({QRegularExpression(R"(//[^\n]*)"), commentFmt});
+
+    // Numbers
+    QTextCharFormat numFmt;
+    numFmt.setForeground(QColor("#bd93f9"));
+    highlightingRules.append({QRegularExpression(R"(\b\d+\.?\d*\b)"), numFmt});
+
+    // Quoted strings
+    QTextCharFormat strFmt;
+    strFmt.setForeground(QColor("#f1fa8c"));
+    highlightingRules.append({QRegularExpression(R"("(?:[^"\\]|\\.)*")"), strFmt});
 }

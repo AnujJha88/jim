@@ -68,6 +68,17 @@
 | `AIAutocomplete` | `QObject` | Sends context to any OpenAI-compatible API (Groq, OpenRouter, etc.) via custom base URL configuration, emits suggestion signal |
 | `AISettingsDialog` | `QDialog` | Configuration dialog for base URL, API key, model name, enable toggle |
 
+### Narrative Engine ✦
+
+| Class | Base | Role |
+|-------|------|------|
+| `StoryParser` | — | Static parser for `.story`/`.tw`/`.twee` files — produces `StoryPassage` structs, extracts `$variables`, runs linter checks (unreachable passages, dead ends, broken links, undefined vars), computes story statistics |
+| `StoryGraph` | `QWidget` | Force-directed passage graph dock — same physics engine as `CodeGraph` (repulsion + spring edges, 60 fps timer). Nodes color-coded by type: start (green), normal (cyan), dead end (red), ending (yellow), unreachable (grey). Click a node to emit `passageClicked` signal |
+| `StoryGraphNode` | `QGraphicsEllipseItem` + `QObject` | Individual passage node — velocity/force accumulation, active highlight ring, emits `clicked(name)` on mouse press |
+| `StoryGraphEdge` | `QGraphicsLineItem` | Directed choice edge between two `StoryGraphNode` instances — arrowhead + truncated choice label |
+| `StoryPlaytest` | `QWidget` | Terminal-style interactive reader dock — renders passage text, clickable choice buttons, breadcrumb trail, `$variable` state sidebar. Syncs current passage with `StoryGraph` via signal |
+| `StoryExporter` | — | Static export engine — `toHTML()` (self-contained dark-mode), `toJSON()` (structured for game engines), `toInk()` (Inkle `.ink` format), `toMarkdown()` (flat linear review) |
+
 ### v1.7 Cyberpunk Features
 
 | Class | Base | Role |
@@ -88,7 +99,8 @@
 ```cpp
 enum class Language {
     PlainText, CPP, Python, JavaScript,
-    HTML, CSS, Rust, Go, JSON, YAML, Markdown
+    HTML, CSS, Rust, Go, JSON, YAML, Markdown,
+    Solidity, Yul, Story
 };
 
 enum class AnimationType {
@@ -162,6 +174,7 @@ enum class AnimationType {
 | YAML | Keys | ✓ | `#` | ✓ | List markers |
 | Markdown | — | Inline code | Blockquote | — | Headings, bold, links |
 | Assembly | Mnemonics | — | `#` `;` | Hex | Registers, labels, directives |
+| Story | Macros | `"strings"` | `//` | ✓ | `:: headers`, `[[links]]`, `$variables` |
 
 ### Search & Navigation
 - Inline find bar — live match count, highlight all, previous / next (`Ctrl+F`, `F3`, `Shift+F3`)

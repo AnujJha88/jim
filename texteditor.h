@@ -53,6 +53,10 @@ class AudioMonitor;
 #include "vulnscanner.h"
 #include "solidityanalyzer.h"
 #include "storageslotvisualizer.h"
+#include "storyparser.h"
+#include "storygraph.h"
+#include "storyplaytest.h"
+#include "storyexporter.h"
 
 class KeyHeatmapOverlay;
 class VimMode;
@@ -609,6 +613,13 @@ private slots:
     void onFileChangedExternally(const QString &path);
     void updateBreadcrumb();
     void showAISettings();
+
+    // Narrative Engine
+    void toggleStoryGraph();
+    void toggleStoryPlaytest();
+    void exportStory();
+    void onStoryPassageClicked(const QString &passageName);
+    void refreshStoryPanels();
     void toggleAIAutocomplete(bool enabled);
     void onAISuggestion(const QString &suggestion);
     // Tools
@@ -742,6 +753,15 @@ private:
     QDockWidget *djVisualizerDock = nullptr;
     AIAutocomplete *aiAutocomplete;
     QFileSystemWatcher *fileWatcher;
+
+    // Narrative Engine
+    StoryGraph    *storyGraph    = nullptr;
+    StoryPlaytest *storyPlaytest = nullptr;
+    QDockWidget   *storyGraphDock    = nullptr;
+    QDockWidget   *storyPlaytestDock = nullptr;
+    QAction       *storyGraphAct     = nullptr;
+    QAction       *storyPlaytestAct  = nullptr;
+    QAction       *storyExportAct    = nullptr;
 
     QAction *zenModeAct = nullptr;
     QAction *typingSoundAct = nullptr;

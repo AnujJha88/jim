@@ -559,7 +559,7 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event) {
       QVector<QPair<int,int>> reentrancyPairs;
       for (const auto &f : vulnFindings) {
           if (f.category == "REENTRANCY") {
-              reentrancyPairs.append({f.line, f.colEnd});
+              reentrancyPairs.append({f.line, f.stateLine});
           }
       }
       for (auto &pair : reentrancyPairs) {
@@ -623,7 +623,10 @@ void CodeEditor::setVulnScanEnabled(bool enabled) {
 
 void CodeEditor::runVulnScan() {
     if (!vulnScanEnabled) return;
-    vulnFindings = vulnScanner->scan(toPlainText(), currentLanguage, fileName);
+    if (fileName.endsWith(".sol", Qt::CaseInsensitive))
+        vulnFindings = vulnScanner->scanSolidity(toPlainText(), fileName);
+    else
+        vulnFindings = vulnScanner->scan(toPlainText(), currentLanguage, fileName);
     viewport()->update();
 }
 
