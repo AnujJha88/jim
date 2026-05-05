@@ -1390,7 +1390,7 @@ void TextEditor::newFile() {
 void TextEditor::openFile() {
   QString fileName = QFileDialog::getOpenFileName(
       this, "Open File", "",
-      "All Files (*);;Text Files (*.txt);;C++ Files (*.cpp *.h);;Python Files "
+      "All Files (*);;Text Files (*.txt);;Story Files (*.story *.tw *.twee);;C++ Files (*.cpp *.h);;Python Files "
       "(*.py);;JavaScript (*.js *.ts);;Rust (*.rs);;Go (*.go)");
   if (!fileName.isEmpty()) {
     for (int i = 0; i < tabWidget->count(); ++i) {
@@ -1437,7 +1437,7 @@ bool TextEditor::saveFileAs() {
 
   QString fileName =
       QFileDialog::getSaveFileName(this, "Save File", "",
-                                   "All Files (*);;Text Files (*.txt);;C++ "
+                                   "All Files (*);;Text Files (*.txt);;Story Files (*.story *.tw *.twee);;C++ "
                                    "Files (*.cpp *.h);;Python Files (*.py)");
   if (fileName.isEmpty())
     return false;
@@ -1496,10 +1496,12 @@ void TextEditor::tabChanged(int) {
 
     // Update language label
     Language lang = editor->getLanguage();
-    QStringList langNames = {"Plain Text", "C++",  "Python",  "JavaScript",
-                             "HTML",       "CSS",  "Rust",    "Go",
-                             "JSON",       "YAML", "Markdown"};
-    languageLabel->setText(langNames[static_cast<int>(lang)]);
+    QStringList langNames = {"Plain Text", "C++",    "Python",   "JavaScript",
+                             "HTML",       "CSS",    "Rust",     "Go",
+                             "JSON",       "YAML",   "Markdown", "Solidity",
+                             "Yul",        "Story ✦"};
+    int langIdx = static_cast<int>(lang);
+    languageLabel->setText(langIdx < langNames.size() ? langNames[langIdx] : "Plain Text");
   } else if (hexEditor) {
     QString fileName = hexEditor->property("fileName").toString();
     QString title = "Jim";
@@ -2213,7 +2215,8 @@ void TextEditor::loadFile(const QString &fileName) {
     QStringList langNames = {"Plain Text", "C++",  "Python",  "JavaScript",
                              "HTML",       "CSS",  "Rust",    "Go",
                              "JSON",       "YAML", "Markdown", "Solidity", "Yul", "Story ✦"};
-    languageLabel->setText(langNames[static_cast<int>(lang)]);
+    int idx = static_cast<int>(lang);
+    languageLabel->setText(idx < langNames.size() ? langNames[idx] : "Plain Text");
   }
 
   statusBar()->showMessage("File loaded", 2000);
@@ -3186,6 +3189,7 @@ void TextEditor::onFileTreeContextMenu(const QPoint &pos) {
     QAction *inspectAct    = menu.addAction("🔍 Binary Inspector");
     menu.addSeparator();
     QAction *revealAct     = menu.addAction("Reveal in Explorer");
+    QAction *deleteAct     = menu.addAction("🗑 Delete File");
 
     QAction *chosen = menu.exec(fileTree->viewport()->mapToGlobal(pos));
     if (!chosen) return;
@@ -3213,6 +3217,15 @@ void TextEditor::onFileTreeContextMenu(const QPoint &pos) {
     } else if (chosen == revealAct) {
         QDesktopServices::openUrl(
             QUrl::fromLocalFile(fi.absolutePath()));
+    } else if (chosen == deleteAct) {
+        QMessageBox::StandardButton reply = QMessageBox::question(this, "Delete File",
+            QString("Are you sure you want to permanently delete\n%1?").arg(fi.fileName()),
+            QMessageBox::Yes | QMessageBox::No);
+        if (reply == QMessageBox::Yes) {
+            if (!QFile::remove(filePath)) {
+                QMessageBox::critical(this, "Error", "Could not delete the file.");
+            }
+        }
     }
 }
 
