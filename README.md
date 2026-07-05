@@ -336,7 +336,7 @@ Jim now speaks story. Open any `.story`, `.tw`, or `.twee` file and a whole new 
 - Added **Time-of-Day Ambient Theme** — Background tint shifts automatically every 10 min: dawn amber → neutral daytime → dusk rose → midnight indigo.
 - Added **Edit Heatmap Strip** — 3 px gutter strip colour-coded blue to red by per-line edit frequency since file open.
 - Added **Live WPM Counter** — Real-time words-per-minute in the Cybernetic HUD, calculated from a rolling 60-second keystroke window.
-- **Major Refactor** — `texteditor.cpp` split into `codeeditor.cpp`, `animationwidget.cpp`, `uiwidgets.cpp`, and `overlays.cpp`.
+- **Major Refactor** — `texteditor.cpp` split into focused editor/app units including `codeeditor.cpp`, `animationwidget.cpp`, dedicated app widget sources, and `overlays.cpp`.
 - **Bug fix** — DJ Mode dock no longer pushes the window off-screen; `maximumHeight` is clamped to available screen height before the dock attaches.
 
 ### v0.6.0

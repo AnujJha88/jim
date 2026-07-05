@@ -1,9 +1,10 @@
-#include "texteditor.h"
+#include "animationwidget.h"
 #include "audiomonitor.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QRandomGenerator>
 #include <QTimer>
+#include <QtMath>
 #include <cmath>
 #include <algorithm>
 

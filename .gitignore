@@ -3,6 +3,8 @@
 moc_*.cpp
 jim
 jim.exe
+.qmake.stash
+.build/
 
 # IDE files
 .vscode/
@@ -20,7 +22,6 @@ Thumbs.db
 *.autosave
 release/
 debug/
-*.o
 
 website/
 

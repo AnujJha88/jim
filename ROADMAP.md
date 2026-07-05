@@ -114,7 +114,7 @@ Focuses on enhancing the ability to find and move through code quickly.
 - [x] **Time-of-Day Ambient Theme:** Background tint drifts automatically every 10 minutes: dawn (warm amber) → daytime (neutral) → dusk (dusty rose) → midnight (deep indigo).
 - [x] **Edit Heatmap Strip:** A 3 px wide heat strip on the left edge of the line-number gutter colour-codes every line blue→red by how many edits it has received since file open.
 - [x] **Live WPM Counter:** Real-time words-per-minute counter in the Cybernetic HUD, calculated from keystrokes in a rolling 60-second window.
-- [x] **Major Refactor:** `texteditor.cpp` split into `codeeditor.cpp`, `animationwidget.cpp`, `uiwidgets.cpp`, and `overlays.cpp` — each containing a focused set of classes. `SyntaxHighlighter` extracted to its own `syntaxhighlighter.cpp/.h`. `VimMode` and `KeyHeatmapOverlay` each live in their own file pairs.
+- [x] **Major Refactor:** `texteditor.cpp` split into focused editor/app units including `codeeditor.cpp`, `animationwidget.cpp`, dedicated app widget sources, and `overlays.cpp`. `SyntaxHighlighter` extracted to its own `syntaxhighlighter.cpp/.h`. `VimMode` and `KeyHeatmapOverlay` each live in their own file pairs.
 - [x] **Bug fix:** DJ Mode dock no longer pushes the window bottom off-screen — window `maximumHeight` is clamped to available screen height before the dock is attached.
 
 ---

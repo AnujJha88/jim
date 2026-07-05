@@ -1,6 +1,9 @@
-#include "texteditor.h"
+#include "codeeditor.h"
+#include "folding_area.h"
+#include "line_number_area.h"
+#include "minimap.h"
+#include "overlays.h"
 #include "vimmode.h"
-#include "linenumberarea.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QPropertyAnimation>
@@ -12,6 +15,7 @@
 #include <QDateTime>
 #include <QApplication>
 #include <QClipboard>
+#include <QDir>
 #include <QRegularExpression>
 #include <QToolTip>
 #include <QUrl>
@@ -39,6 +43,9 @@ CodeEditor::CodeEditor(QWidget *parent)
   crtOverlay->hide();
   laserOverlay = new LaserParticleOverlay(viewport());
   laserOverlay->hide();
+  
+  glitchOverlay = new GlitchOverlay(viewport());
+  glitchOverlay->hide();
 
   scrollAnimation = new QPropertyAnimation(verticalScrollBar(), "value", this);
   scrollAnimation->setDuration(40);
@@ -159,8 +166,10 @@ void CodeEditor::resizeEvent(QResizeEvent *e) {
   // Keep overlays covering the full viewport
   crtOverlay->setGeometry(viewport()->rect());
   laserOverlay->setGeometry(viewport()->rect());
+  glitchOverlay->setGeometry(viewport()->rect());
   crtOverlay->raise();
   laserOverlay->raise();
+  glitchOverlay->raise();
 
   if (miniMap->isVisible()) {
     miniMap->setGeometry(QRect(cr.right() - miniMapWidth(), cr.top(),
@@ -1144,6 +1153,12 @@ void CodeEditor::keyPressEvent(QKeyEvent *event) {
   if (vimMode && vimMode->handleKey(event, this))
       return;
 
+  // Glitch Art Undo
+  if (event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_Z) {
+      triggerGlitchUndo();
+      return;
+  }
+
   if (event->key() == Qt::Key_Escape && !extraCursors.isEmpty()) {
       clearExtraCursors();
       return;
@@ -1347,6 +1362,15 @@ void CodeEditor::triggerLaserEffect() {
     laserOverlay->show();
     laserOverlay->raise();
     laserOverlay->spawnSlash(lineRect.center().y());
+}
+
+void CodeEditor::triggerGlitchUndo() {
+    QPixmap snapshot = viewport()->grab();
+    glitchOverlay->setGeometry(viewport()->rect());
+    glitchOverlay->show();
+    glitchOverlay->raise();
+    glitchOverlay->trigger(snapshot);
+    QPlainTextEdit::undo();
 }
 
 // Ghost Replay implementation

@@ -1,4 +1,4 @@
-#include "texteditor.h"
+#include "overlays.h"
 #include <QApplication>
 #include <QDateTime>
 #include <QFile>
@@ -12,6 +12,7 @@
 #include <QPushButton>
 #include <QRadialGradient>
 #include <QRandomGenerator>
+#include <QtMath>
 #include <QVBoxLayout>
 #include <cmath>
 
@@ -374,4 +375,68 @@ void HUDWidget::paintEvent(QPaintEvent *) {
     p.setPen(QColor(180, 220, 255, 180));
     p.drawText(268, 0, 70, height(), Qt::AlignVCenter | Qt::AlignLeft,
                QString("%1 WPM").arg(currentWPM));
+}
+
+// ============================================================
+// GlitchOverlay Implementation — Glitch Art Undo
+// ============================================================
+GlitchOverlay::GlitchOverlay(QWidget *parent) : QWidget(parent) {
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    setAttribute(Qt::WA_NoSystemBackground);
+}
+
+void GlitchOverlay::trigger(const QPixmap &snapshot) {
+    originalSnapshot = snapshot;
+    glitchTime = 1.0f;
+    if (!timerId) timerId = startTimer(30);
+    show();
+    update();
+}
+
+void GlitchOverlay::timerEvent(QTimerEvent *) {
+    glitchTime -= 0.15f;
+    if (glitchTime <= 0) {
+        killTimer(timerId);
+        timerId = 0;
+        hide();
+    }
+    update();
+}
+
+void GlitchOverlay::paintEvent(QPaintEvent *) {
+    if (glitchTime <= 0 || originalSnapshot.isNull()) return;
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing, false);
+
+    // Randomize offsets and RGB split
+    int yOffset = QRandomGenerator::global()->bounded(10) - 5;
+    int xOffsetR = QRandomGenerator::global()->bounded(20) - 10;
+    int xOffsetB = QRandomGenerator::global()->bounded(20) - 10;
+
+    // Draw base distorted
+    p.drawPixmap(0, yOffset, originalSnapshot);
+
+    // RGB Split effect
+    p.setCompositionMode(QPainter::CompositionMode_Screen);
+    p.setOpacity(glitchTime * 0.7);
+    
+    // Red shift
+    p.fillRect(rect(), QColor(255, 0, 0, 30));
+    p.drawPixmap(xOffsetR, 0, originalSnapshot);
+    
+    // Blue shift
+    p.fillRect(rect(), QColor(0, 0, 255, 30));
+    p.drawPixmap(xOffsetB, 0, originalSnapshot);
+    
+    p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    
+    // Draw horizontal noise bars
+    int numBars = QRandomGenerator::global()->bounded(3, 8);
+    for (int i = 0; i < numBars; i++) {
+        int y = QRandomGenerator::global()->bounded(height());
+        int h = QRandomGenerator::global()->bounded(2, 10);
+        int offset = QRandomGenerator::global()->bounded(40) - 20;
+        p.drawPixmap(offset, y, originalSnapshot, 0, y, width(), h);
+        p.fillRect(0, y, width(), h, QColor(255, 255, 255, 50));
+    }
 }

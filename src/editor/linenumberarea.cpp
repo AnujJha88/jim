@@ -1,5 +1,7 @@
-#include "linenumberarea.h"
-#include "texteditor.h"
+#include "line_number_area.h"
+#include "folding_area.h"
+#include "minimap.h"
+#include "codeeditor.h"
 #include <QPainter>
 #include <QTextBlock>
 #include <QScrollBar>

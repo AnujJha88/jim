@@ -14,8 +14,8 @@ else
     else
         BUILD_CMD = $(QMAKE) jim.pro && $(MAKE) -f Makefile
     endif
-    CLEAN_CMD = $(MAKE) -f Makefile clean || true && rm -rf jim *.o moc_* .qmake.stash
-    RUN_CMD = ./jim
+    CLEAN_CMD = $(MAKE) -f Makefile clean || true && rm -rf .build jim *.o moc_* .qmake.stash
+    RUN_CMD = .build/bin/jim
     INSTALL_DIR = /usr/local/bin
 endif
 
@@ -34,7 +34,7 @@ install:
 ifeq ($(OS),Windows_NT)
 	@echo "Install is not supported via Makefile on Windows. Use build.ps1."
 else
-	cp jim $(INSTALL_DIR)/jim
+	cp .build/bin/jim $(INSTALL_DIR)/jim
 	chmod +x $(INSTALL_DIR)/jim
 	@echo "Jim installed to $(INSTALL_DIR)/jim"
 endif
